@@ -6,7 +6,7 @@ import crypto from 'crypto';
 import { fileURLToPath } from 'url';
 import pg from 'pg';
 import { createClient } from 'redis';
-import { pipeline } from '@xenova/transformers';
+import { env, pipeline } from '@xenova/transformers';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -14,6 +14,7 @@ const dataDir = path.join(__dirname, 'data');
 const uploadsDir = path.join(__dirname, 'public', 'uploads');
 const distDir = path.join(__dirname, 'dist');
 const ragFilePath = path.join(dataDir, 'rag_knowledge.json');
+const modelsCacheDir = path.join(dataDir, 'models_cache');
 
 const envPath = path.join(__dirname, '.env.local');
 const envMainPath = path.join(__dirname, '.env');
@@ -39,22 +40,45 @@ loadEnvFile(envMainPath);
 
 fs.mkdirSync(dataDir, { recursive: true });
 fs.mkdirSync(uploadsDir, { recursive: true });
+fs.mkdirSync(modelsCacheDir, { recursive: true });
+
+// Configure persistent local cache directory & HF Mirror for Transformers.js ONNX models
+env.cacheDir = modelsCacheDir;
+env.remoteHost = 'https://hf-mirror.com';
+env.remotePathTemplate = '{model}/resolve/{revision}/';
+
 
 // ==========================================
 // 1. Local BGE Embedding Pipeline (512-dim)
 // ==========================================
 let embedder = null;
 const initEmbedder = async () => {
+  const modelName = 'Xenova/bge-small-zh-v1.5';
+  console.log(`⏳ [ONNX Model] Checking local model cache in: ${modelsCacheDir}`);
   try {
-    console.log('⏳ Initializing local ONNX BGE 512-dim Embedding model (bge-small-zh-v1.5)...');
-    embedder = await pipeline('feature-extraction', 'Xenova/bge-small-zh-v1.5');
-    console.log('✅ Local BGE Embedding Model loaded successfully!');
+    const startTime = Date.now();
+    embedder = await pipeline('feature-extraction', modelName, {
+      progress_callback: (info) => {
+        if (info.status === 'initiate') {
+          console.log(`  🔍 [Model Check] Initiating ${info.file || info.name || ''}...`);
+        } else if (info.status === 'downloading') {
+          const pct = typeof info.progress === 'number' ? info.progress.toFixed(1) : '0.0';
+          console.log(`  📥 [Model Downloading] ${info.file || ''}: ${pct}%`);
+        } else if (info.status === 'done') {
+          console.log(`  ✅ [Model File Loaded] ${info.file || ''}`);
+        }
+      }
+    });
+    const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
+    console.log(`✅ [ONNX Model Ready] Local BGE 512-dim embedding loaded in ${elapsed}s! (Cache: ./data/models_cache)`);
   } catch (err) {
-    console.warn('⚠️ Failed to load local ONNX embedding model:', err.message);
+    console.warn(`⚠️ [ONNX Model Warning] Failed to load ${modelName}:`, err.message);
+    console.warn(`  👉 Fallback keyword similarity engine will be used.`);
   }
 };
 
 // initEmbedder will be called asynchronously after app.listen
+
 
 
 const getEmbedding = async (text = '') => {
@@ -164,6 +188,7 @@ const initPostgres = async () => {
     connectionTimeoutMillis: 3000,
   };
 
+  console.log(`⏳ [PostgreSQL] Connecting to ${pgConfig.user}@${pgConfig.host}:${pgConfig.port}/${pgConfig.database}...`);
   try {
     pgPool = new Pool(pgConfig);
     let client;
@@ -171,6 +196,7 @@ const initPostgres = async () => {
       client = await pgPool.connect();
     } catch (firstErr) {
       if (!process.env.POSTGRES_PORT && targetPort === 35432) {
+        console.warn(`  ⚠️ Host port 35432 failed (${firstErr.message}). Retrying default port 5432...`);
         pgConfig.port = 5432;
         pgPool = new Pool(pgConfig);
         client = await pgPool.connect();
@@ -180,7 +206,8 @@ const initPostgres = async () => {
     }
     client.release();
     usePostgres = true;
-    console.log(`✅ PostgreSQL Connected successfully to ${pgConfig.host}:${pgConfig.port}/${pgConfig.database}`);
+    console.log(`✅ [PostgreSQL Ready] Successfully connected to ${pgConfig.host}:${pgConfig.port}/${pgConfig.database} (pgvector active)`);
+
 
 
     // Create Extension & Tables
@@ -294,17 +321,20 @@ const memoryCache = new Map();
 
 const initRedis = async () => {
   const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
+  console.log(`⏳ [Redis Cache] Connecting to ${redisUrl}...`);
   try {
     redisClient = createClient({ url: redisUrl, socket: { connectTimeout: 3000 } });
-    redisClient.on('error', (err) => console.warn('⚠️ Redis error:', err.message));
+    redisClient.on('error', (err) => console.warn('  ⚠️ [Redis Socket Warning]:', err.message));
     await redisClient.connect();
     useRedis = true;
-    console.log(`✅ Redis Connected successfully at ${redisUrl}`);
+    console.log(`✅ [Redis Cache Ready] High-speed cache active at ${redisUrl}`);
   } catch (err) {
-    console.warn(`⚠️ Redis connection failed (${err.message}). Using in-memory fallback cache.`);
+    console.warn(`⚠️ [Redis Cache Warning] Failed to connect to ${redisUrl} (${err.message}).`);
+    console.warn(`  👉 Fallback in-memory Map cache activated.`);
     useRedis = false;
   }
 };
+
 
 // initRedis will be called asynchronously after app.listen
 
