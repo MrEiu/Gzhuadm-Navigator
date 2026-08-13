@@ -22,17 +22,17 @@ const THEME = {
 };
 
 const ROLE = {
-  name: 'Dr. Elena',
-  title: '招生咨询顾问',
-  avatar: "https://images.unsplash.com/photo-1559839734-2b71ea197ec2?q=80&w=200&auto=format&fit=crop",
-  color: "#a494e8"
+  name: 'Aurateach 联合教学专家团',
+  title: '学情诊断 | 领域专家 | 教学专家 | AI 审核',
+  avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=200&auto=format&fit=crop",
+  color: "#6366f1"
 };
 
 const INITIAL_MESSAGES = [
   {
     id: 1,
     sender: 'bot',
-    text: '同学/家长您好！欢迎使用 **Gzadm Navigator 入学咨询平台**。我是招生咨询顾问 **Dr. Elena**。✨\n\n您可以向我咨询关于**招生政策、录取分数线、热门专业、学费与奖学金、宿舍环境及报名流程**等任何问题，我会为您结合知识库为您解答！',
+    text: '同学您好！欢迎使用 **Aurateach AI 定制教学系统**。我是您的 **三位一体联合教学专家团**。✨\n\n我们将通过 **🔍 学情诊断**、**🧠 领域专家** 与 **🎓 教学专家** 为您提供深度解构与定制导学，并由 **⚖️ AI 审核员** 实时进行质量评分！您可以提出任何学科知识、算法原理、代码疑难或复习问题。',
     instant: true
   }
 ];
@@ -160,7 +160,7 @@ const MapGuideModal = ({ locations, isOpen, onClose, onAskQuestion }) => {
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="text-[17px] font-black text-[#4a4365]">Gzadm Navigator 校园地图导览</h3>
+                <h3 className="text-[17px] font-black text-[#4a4365]">Aurateach 校园与教学环境导览</h3>
                 <span className="bg-[#a494e8]/15 text-[#6c5aa8] text-[11px] font-bold px-2.5 py-0.5 rounded-full border border-[#a494e8]/30">
                   {locations.length} 个校园地标
                 </span>
@@ -248,7 +248,7 @@ const MapGuideModal = ({ locations, isOpen, onClose, onAskQuestion }) => {
               <div className="absolute inset-0 opacity-20 pointer-events-none bg-[radial-gradient(#a494e8_1px,transparent_1px)] [background-size:24px_24px]" />
               <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-md px-3.5 py-2 rounded-2xl shadow-sm border border-white text-[12px] font-bold text-[#4a4365] flex items-center gap-2 z-10">
                 <Compass size={16} className="text-[#a494e8]" />
-                <span>Gzadm Navigator 3D Campus Virtual Map</span>
+                <span>Aurateach 3D Interactive Virtual Map</span>
               </div>
 
               {/* Map Pins */}
@@ -553,6 +553,46 @@ const AuraMarkdownMessage = React.memo(({ content, roleColor }: AuraMarkdownMess
   const safeContent = sanitizeMarkdownContent(content);
 
   const markdownComponents = useMemo(() => ({
+    h3: ({ children }: { children?: React.ReactNode }) => {
+      const text = String(children || '');
+      if (text.includes('学情诊断')) {
+        return (
+          <div className="mt-4 mb-2 p-3 rounded-2xl bg-amber-50 border border-amber-200/80 text-amber-900 font-bold text-[14px] flex items-center gap-2 shadow-xs">
+            <span className="w-7 h-7 rounded-xl bg-amber-500 text-white flex items-center justify-center text-[13px] shadow-xs">🔍</span>
+            <span className="font-black text-[15px]">学情诊断</span>
+            <span className="ml-auto text-[10px] bg-amber-200/60 text-amber-800 px-2 py-0.5 rounded-full font-bold">诊断测评</span>
+          </div>
+        );
+      }
+      if (text.includes('领域专家')) {
+        return (
+          <div className="mt-4 mb-2 p-3 rounded-2xl bg-indigo-50 border border-indigo-200/80 text-indigo-900 font-bold text-[14px] flex items-center gap-2 shadow-xs">
+            <span className="w-7 h-7 rounded-xl bg-indigo-500 text-white flex items-center justify-center text-[13px] shadow-xs">🧠</span>
+            <span className="font-black text-[15px]">领域专家解析</span>
+            <span className="ml-auto text-[10px] bg-indigo-200/60 text-indigo-800 px-2 py-0.5 rounded-full font-bold">原理剖析</span>
+          </div>
+        );
+      }
+      if (text.includes('教学专家')) {
+        return (
+          <div className="mt-4 mb-2 p-3 rounded-2xl bg-emerald-50 border border-emerald-200/80 text-emerald-900 font-bold text-[14px] flex items-center gap-2 shadow-xs">
+            <span className="w-7 h-7 rounded-xl bg-emerald-500 text-white flex items-center justify-center text-[13px] shadow-xs">🎓</span>
+            <span className="font-black text-[15px]">教学专家导学</span>
+            <span className="ml-auto text-[10px] bg-emerald-200/60 text-emerald-800 px-2 py-0.5 rounded-full font-bold">分步导学</span>
+          </div>
+        );
+      }
+      if (text.includes('审核评分') || text.includes('审核')) {
+        return (
+          <div className="mt-4 mb-2 p-3 rounded-2xl bg-purple-50 border border-purple-200/80 text-purple-900 font-bold text-[14px] flex items-center gap-2 shadow-xs">
+            <span className="w-7 h-7 rounded-xl bg-purple-500 text-white flex items-center justify-center text-[13px] shadow-xs">⚖️</span>
+            <span className="font-black text-[15px]">AI 审核与质量鉴定</span>
+            <span className="ml-auto text-[10px] bg-purple-200/60 text-purple-800 px-2 py-0.5 rounded-full font-bold">质量审计</span>
+          </div>
+        );
+      }
+      return <h3 className="text-[15px] font-black text-[#4a4365] mt-3 mb-1.5">{children}</h3>;
+    },
     p: ({ children }: { children?: React.ReactNode }) => (
       <p className="leading-relaxed text-[14px] my-1.5 whitespace-pre-wrap">
         {children}
@@ -937,7 +977,7 @@ export default function App() {
         if (data.ok && data.profile) {
           setUserProfile(data.profile);
           localStorage.setItem(`aurasense_profile_${username}`, JSON.stringify(data.profile));
-          if (!data.profile.name || !data.profile.score || !data.profile.province) {
+          if (!data.profile.nickname || !data.profile.learningStage) {
             setIsProfileModalOpen(true);
           }
         } else {
@@ -982,6 +1022,14 @@ export default function App() {
   const [typing, setTyping] = useState(false);
   const [inputText, setInputText] = useState('');
   const [isMapGuideOpen, setIsMapGuideOpen] = useState(false);
+
+  // Agent Mode & Modals State
+  const [agentMode, setAgentMode] = useState<'pedagogy' | 'diagnostic' | 'domain'>('pedagogy');
+  const [isPlusMenuOpen, setIsPlusMenuOpen] = useState(false);
+  const [isPersonalRagModalOpen, setIsPersonalRagModalOpen] = useState(false);
+  const [isWebFetchModalOpen, setIsWebFetchModalOpen] = useState(false);
+  const [isDocImportModalOpen, setIsDocImportModalOpen] = useState(false);
+  const [isNotebookOpen, setIsNotebookOpen] = useState(false);
 
   // Derived active session & messages
   const createDefaultSession = () => ({
@@ -1273,6 +1321,7 @@ export default function App() {
         body: JSON.stringify({ 
           username: currentUser.username,
           userProfile,
+          agentMode,
           messages: historyForApi 
         })
       });
@@ -1396,9 +1445,9 @@ export default function App() {
             <div className="w-14 h-14 rounded-[20px] bg-gradient-to-br from-[#b3a4ed] to-[#f296b2] flex items-center justify-center shadow-[0_10px_25px_rgba(179,164,237,0.4)] border-2 border-white mb-3">
               <BrainCircuit className="text-white" size={30} />
             </div>
-            <h1 className="font-black text-[#4a4365] text-[22px] tracking-tight">Gzadm Navigator</h1>
+            <h1 className="font-black text-[#4a4365] text-[22px] tracking-tight">Aurateach</h1>
             <p className="text-[11px] text-[#a494e8] font-bold tracking-wider mt-0.5">
-              智能高效招生咨询
+              AI 定制教学系统
             </p>
           </div>
 
@@ -1496,9 +1545,9 @@ export default function App() {
                   <BrainCircuit className="text-white" size={20} />
                 </div>
                 <div>
-                  <h1 className="font-black text-[#4a4365] text-[15px] sm:text-[17px] tracking-tight">Gzadm Navigator</h1>
+                  <h1 className="font-black text-[#4a4365] text-[15px] sm:text-[17px] tracking-tight">Aurateach</h1>
                   <p className="text-[9px] sm:text-[10px] text-[#a494e8] font-black uppercase tracking-widest">
-                    {currentUser.role === 'admin' ? 'RAG Admin' : 'Admissions Counseling'}
+                    {currentUser.role === 'admin' ? 'RAG Admin' : 'AI 定制教学系统'}
                   </p>
                 </div>
               </div>
@@ -1636,18 +1685,46 @@ export default function App() {
                 {/* Right Chat Main Body */}
                 <div className="flex-1 flex flex-col h-full overflow-hidden relative">
                   
-                  {/* Current Active Conversation Bar */}
-                  <div className="px-6 py-2.5 bg-white/30 backdrop-blur-sm border-b border-white/50 flex items-center justify-between text-[12px]">
+                  {/* Current Active Conversation Bar & Agent Mode Selector */}
+                  <div className="px-6 py-2.5 bg-white/40 backdrop-blur-md border-b border-white/60 flex items-center justify-between text-[12px] gap-2 flex-wrap">
                     <div className="flex items-center gap-2 text-[#4a4365]">
                       <span className="w-2 h-2 rounded-full bg-[#a494e8] animate-pulse" />
-                      <span className="font-bold text-[13px] truncate max-w-[300px]">
+                      <span className="font-bold text-[13px] truncate max-w-[200px]">
                         {activeSession?.title || '新咨询对话'}
                       </span>
                     </div>
 
-                    <div className="text-[11px] text-gray-400 flex items-center gap-1">
-                      <Clock size={12} />
-                      <span>{activeSession?.updatedAt ? new Date(activeSession.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '当前激活'}</span>
+                    <div className="flex items-center gap-2">
+                      {/* Agent Mode Selector Badges */}
+                      <div className="flex items-center bg-gray-100/80 p-0.5 rounded-2xl border border-gray-200/50">
+                        <button
+                          onClick={() => setAgentMode('pedagogy')}
+                          className={`px-2.5 py-1 rounded-xl text-[11px] font-bold transition-all ${agentMode === 'pedagogy' ? 'bg-white text-emerald-700 shadow-xs' : 'text-gray-500 hover:text-gray-800'}`}
+                        >
+                          🎓 教学专家
+                        </button>
+                        <button
+                          onClick={() => setAgentMode('diagnostic')}
+                          className={`px-2.5 py-1 rounded-xl text-[11px] font-bold transition-all ${agentMode === 'diagnostic' ? 'bg-white text-amber-700 shadow-xs' : 'text-gray-500 hover:text-gray-800'}`}
+                        >
+                          🔍 学情感知
+                        </button>
+                        <button
+                          onClick={() => setAgentMode('domain')}
+                          className={`px-2.5 py-1 rounded-xl text-[11px] font-bold transition-all ${agentMode === 'domain' ? 'bg-white text-blue-700 shadow-xs' : 'text-gray-500 hover:text-gray-800'}`}
+                        >
+                          🧠 领域专家
+                        </button>
+                      </div>
+
+                      {/* Personal RAG Manager Button */}
+                      <button
+                        onClick={() => setIsPersonalRagModalOpen(true)}
+                        className="bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200/60 px-3 py-1 rounded-xl font-bold text-[11px] transition-all flex items-center gap-1 shadow-xs"
+                      >
+                        <Database size={13} />
+                        <span>我的个人 RAG 库</span>
+                      </button>
                     </div>
                   </div>
 
@@ -1700,22 +1777,84 @@ export default function App() {
 
                   <footer className="px-5 pb-6 pt-1 relative z-10">
                     <div className="bg-white/80 backdrop-blur-2xl rounded-[36px] p-4 shadow-[0_-15px_45px_rgba(186,175,215,0.2)] border border-white">
-                      <form onSubmit={handleSend} className="flex gap-2 items-center">
-                        <button 
-                          type="button"
-                          onClick={() => setIsMapGuideOpen(true)}
-                          className="group relative bg-[#f3eefc] hover:bg-[#a494e8] text-[#a494e8] hover:text-white p-3 rounded-[20px] active:scale-95 transition-all flex items-center justify-center border border-[#e4dcf8] shadow-sm shrink-0"
-                          title="打开地图导览"
-                        >
-                          <Plus size={20} className="group-hover:rotate-90 transition-transform duration-300" />
-                          <span className="absolute -top-9 left-1/2 -translate-x-1/2 px-2.5 py-1 bg-[#4a4365] text-white text-[11px] font-bold rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap shadow-lg">
-                            地图导览
-                          </span>
-                        </button>
+                      <form onSubmit={handleSend} className="flex gap-2 items-center relative">
+                        
+                        {/* Plus Menu Popover */}
+                        <div className="relative shrink-0">
+                          <button 
+                            type="button"
+                            onClick={() => setIsPlusMenuOpen(!isPlusMenuOpen)}
+                            className="group relative bg-[#f3eefc] hover:bg-[#6366f1] text-[#6366f1] hover:text-white p-3 rounded-[20px] active:scale-95 transition-all flex items-center justify-center border border-[#e4dcf8] shadow-sm shrink-0"
+                            title="快捷工具与 Agent 菜单"
+                          >
+                            <Plus size={20} className={`${isPlusMenuOpen ? 'rotate-45 text-red-500' : 'group-hover:rotate-90'} transition-transform duration-300`} />
+                          </button>
+
+                          {isPlusMenuOpen && (
+                            <div className="absolute bottom-14 left-0 z-50 bg-white/95 backdrop-blur-2xl rounded-3xl shadow-2xl border-2 border-purple-100 p-2.5 w-64 animate-in slide-in-from-bottom-3 duration-200 space-y-1">
+                              <button
+                                type="button"
+                                onClick={() => { setIsPlusMenuOpen(false); setIsWebFetchModalOpen(true); }}
+                                className="w-full text-left p-2.5 rounded-2xl hover:bg-purple-50 flex items-center gap-2.5 transition-all text-[12px] font-bold text-[#4a4365]"
+                              >
+                                <span className="w-7 h-7 rounded-xl bg-blue-500 text-white flex items-center justify-center text-[12px] shrink-0">🌐</span>
+                                <div>
+                                  <div>领域专家：网页研析入库</div>
+                                  <div className="text-[10px] text-gray-400 font-normal">输入 URL 抓取网页存入个人 RAG</div>
+                                </div>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => { setIsPlusMenuOpen(false); setIsDocImportModalOpen(true); }}
+                                className="w-full text-left p-2.5 rounded-2xl hover:bg-purple-50 flex items-center gap-2.5 transition-all text-[12px] font-bold text-[#4a4365]"
+                              >
+                                <span className="w-7 h-7 rounded-xl bg-indigo-500 text-white flex items-center justify-center text-[12px] shrink-0">📄</span>
+                                <div>
+                                  <div>领域专家：上传文件切片</div>
+                                  <div className="text-[10px] text-gray-400 font-normal">支持 PDF, Word, TXT 解析存入</div>
+                                </div>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => { setIsPlusMenuOpen(false); setIsPersonalRagModalOpen(true); }}
+                                className="w-full text-left p-2.5 rounded-2xl hover:bg-purple-50 flex items-center gap-2.5 transition-all text-[12px] font-bold text-[#4a4365]"
+                              >
+                                <span className="w-7 h-7 rounded-xl bg-purple-500 text-white flex items-center justify-center text-[12px] shrink-0">📚</span>
+                                <div>
+                                  <div>管理我的个人 RAG 库</div>
+                                  <div className="text-[10px] text-gray-400 font-normal">编辑与清理个人专属知识卡片</div>
+                                </div>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => { setIsPlusMenuOpen(false); setAgentMode('diagnostic'); }}
+                                className={`w-full text-left p-2.5 rounded-2xl flex items-center gap-2.5 transition-all text-[12px] font-bold ${agentMode === 'diagnostic' ? 'bg-amber-100 text-amber-900 font-black' : 'hover:bg-amber-50 text-[#4a4365]'}`}
+                              >
+                                <span className="w-7 h-7 rounded-xl bg-amber-500 text-white flex items-center justify-center text-[12px] shrink-0">🔍</span>
+                                <div>
+                                  <div>学情感知 (连续追问诊断)</div>
+                                  <div className="text-[10px] text-gray-400 font-normal">针对知识盲区追问并保存学情</div>
+                                </div>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => { setIsPlusMenuOpen(false); setIsMapGuideOpen(true); }}
+                                className="w-full text-left p-2 rounded-2xl hover:bg-gray-100 flex items-center gap-2 transition-all text-[12px] font-bold text-gray-700 border-t pt-2 mt-1"
+                              >
+                                <Compass size={16} className="text-gray-500 ml-1" />
+                                <span>校园 / 教学环境导览</span>
+                              </button>
+                            </div>
+                          )}
+                        </div>
                         <input 
                           value={inputText} 
                           onChange={(e) => setInputText(e.target.value)} 
-                          placeholder="请输入您想咨询的入学、专业、学费问题..." 
+                          placeholder="请输入您想学习或咨询的知识点、算法、疑难问题..." 
                           className="flex-1 bg-[#f8f6fc] border-none rounded-[20px] px-5 py-3 text-[14px] focus:ring-2 focus:ring-[#a494e8] outline-none" 
                         />
                         <button 
@@ -2107,12 +2246,14 @@ export default function App() {
                           <thead>
                             <tr className="border-b border-gray-100 text-[#8a84a4] font-bold pb-2">
                               <th className="pb-3 px-2">账号名</th>
-                              <th className="pb-3 px-2">姓名 / 性别</th>
-                              <th className="pb-3 px-2">高考省份</th>
-                              <th className="pb-3 px-2">成绩 / 位次</th>
-                              <th className="pb-3 px-2">选科情况</th>
+                              <th className="pb-3 px-2">昵称</th>
+                              <th className="pb-3 px-2">手机号</th>
+                              <th className="pb-3 px-2">邮箱</th>
+                              <th className="pb-3 px-2">年龄</th>
+                              <th className="pb-3 px-2">学习阶段</th>
+                              <th className="pb-3 px-2">性格</th>
+                              <th className="pb-3 px-2">备注</th>
                               <th className="pb-3 px-2">VIP 身份</th>
-                              <th className="pb-3 px-2">低于拦截状态</th>
                               <th className="pb-3 px-2 text-right">管理操作</th>
                             </tr>
                           </thead>
@@ -2121,30 +2262,32 @@ export default function App() {
                               .filter(u => 
                                 !adminUserSearch || 
                                 u.username?.toLowerCase().includes(adminUserSearch.toLowerCase()) ||
-                                u.profile?.name?.includes(adminUserSearch) ||
-                                u.profile?.province?.includes(adminUserSearch)
+                                u.profile?.nickname?.includes(adminUserSearch) ||
+                                u.profile?.learningStage?.includes(adminUserSearch)
                               )
                               .map((user) => {
-                                const scoreNum = Number(user.profile?.score) || 0;
-                                const isUserVip = user.profile?.isVip || scoreNum >= vipScoreThreshold;
-                                const isUserLow = scoreNum > 0 && scoreNum < lowScoreThreshold;
+                                const isUserVip = user.profile?.isVip;
 
                                 return (
                                   <tr key={user.username} className="hover:bg-[#fcfaff] transition-colors">
                                     <td className="py-3 px-2 font-bold text-[#4a4365]">{user.username}</td>
+                                    <td className="py-3 px-2 font-bold text-[#6366f1]">{user.profile?.nickname || '未填'}</td>
+                                    <td className="py-3 px-2 text-gray-600">{user.profile?.phone || '-'}</td>
+                                    <td className="py-3 px-2 text-gray-600">{user.profile?.email || '-'}</td>
+                                    <td className="py-3 px-2 text-gray-600">{user.profile?.age || '-'}</td>
                                     <td className="py-3 px-2">
-                                      {user.profile?.name ? (
-                                        <span>{user.profile.name} ({user.profile.gender || '未知'})</span>
-                                      ) : (
-                                        <span className="text-gray-400 italic">未填资料</span>
-                                      )}
+                                      <span className="bg-indigo-50 text-indigo-800 px-2 py-0.5 rounded-md font-bold text-[11px]">
+                                        {user.profile?.learningStage || '未选择'}
+                                      </span>
                                     </td>
-                                    <td className="py-3 px-2">{user.profile?.province || '未选择'}</td>
-                                    <td className="py-3 px-2 font-bold text-[#4a4365]">
-                                      {scoreNum > 0 ? `${scoreNum}分` : '未填'}
-                                      {user.profile?.rank && <span className="text-[10px] text-gray-400 block font-normal">位次: {user.profile.rank}</span>}
+                                    <td className="py-3 px-2">
+                                      <span className="bg-purple-50 text-purple-800 px-2 py-0.5 rounded-md font-bold text-[11px]">
+                                        {user.profile?.personality || '未选择'}
+                                      </span>
                                     </td>
-                                    <td className="py-3 px-2 text-gray-600">{user.profile?.subjects || '未填写'}</td>
+                                    <td className="py-3 px-2 text-gray-500 max-w-[150px] truncate" title={user.profile?.remarks || ''}>
+                                      {user.profile?.remarks || '无'}
+                                    </td>
                                     <td className="py-3 px-2">
                                       <button
                                         onClick={() => handleToggleUserVip(user.username)}
@@ -2154,19 +2297,8 @@ export default function App() {
                                             : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
                                         }`}
                                       >
-                                        {isUserVip ? '✨ VIP 用户' : '普通用户'}
+                                        {isUserVip ? '✨ VIP 学员' : '普通学员'}
                                       </button>
-                                    </td>
-                                    <td className="py-3 px-2">
-                                      {isUserLow ? (
-                                        <span className="bg-red-50 text-red-600 px-2 py-0.5 rounded-md font-bold text-[10px]">
-                                          低于拦截段 (&lt;{lowScoreThreshold}分)
-                                        </span>
-                                      ) : (
-                                        <span className="bg-green-50 text-green-700 px-2 py-0.5 rounded-md font-bold text-[10px]">
-                                          正常咨询段
-                                        </span>
-                                      )}
                                     </td>
                                     <td className="py-3 px-2 text-right">
                                       <button
@@ -2601,19 +2733,27 @@ const DocumentChunkImportModal = ({ onClose, onBatchSave }) => {
 
   const [isParsing, setIsParsing] = useState(false);
 
-  // File Upload Reader for Document (.txt, .md, .doc, .docx) & Table (.csv, .json)
+  // File Upload Reader for Document (.txt, .md, .doc, .docx, .pdf) & Table (.csv, .json)
   const handleFileChange = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     setFileName(file.name);
-    const reader = new FileReader();
+    if (file.name.toLowerCase().endsWith('.pdf')) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const base64 = String(event.target?.result || '');
+        setInputText(base64);
+      };
+      reader.readAsDataURL(file);
+      return;
+    }
 
+    const reader = new FileReader();
     reader.onload = (event) => {
       const content = String(event.target?.result || '');
       setInputText(content);
     };
-
     reader.readAsText(file);
   };
 
@@ -2626,7 +2766,23 @@ const DocumentChunkImportModal = ({ onClose, onBatchSave }) => {
 
     setIsParsing(true);
     try {
-      if (importType === 'doc') {
+      if (fileName.toLowerCase().endsWith('.pdf') || inputText.startsWith('data:application/pdf')) {
+        const res = await fetch(`${API_BASE}/api/admin/parse-pdf`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            fileData: inputText,
+            filename: fileName,
+            chunkSize
+          })
+        });
+        const data = await res.json();
+        if (data.ok && Array.isArray(data.chunks)) {
+          setParsedChunks(data.chunks);
+        } else {
+          alert('PDF 切片解析异常：' + (data.error || '未知错误'));
+        }
+      } else if (importType === 'doc') {
         const res = await fetch(`${API_BASE}/api/admin/parse-document`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -2716,7 +2872,7 @@ const DocumentChunkImportModal = ({ onClose, onBatchSave }) => {
                 onChange={() => setImportType('doc')}
                 className="text-[#a494e8]"
               />
-              <FileText size={15} /> 文本/文档切片 (TXT, MD, Word)
+              <FileText size={15} /> 文本/文档切片 (TXT, MD, Word, PDF)
             </label>
             <label className="flex items-center gap-1.5 text-[13px] font-bold text-[#4a4365] cursor-pointer">
               <input
@@ -2733,7 +2889,7 @@ const DocumentChunkImportModal = ({ onClose, onBatchSave }) => {
           <div className="flex gap-3 items-center">
             <label className="bg-[#4a4365] text-white px-4 py-2 rounded-xl text-[12px] font-bold cursor-pointer hover:bg-[#342e49] transition-all flex items-center gap-1.5">
               <Upload size={14} /> 选择本地文件
-              <input type="file" accept=".txt,.md,.doc,.docx,.csv,.json" onChange={handleFileChange} className="hidden" />
+              <input type="file" accept=".txt,.md,.doc,.docx,.pdf,.csv,.json" onChange={handleFileChange} className="hidden" />
             </label>
             {fileName && <span className="text-[12px] font-bold text-[#a494e8] bg-purple-50 px-3 py-1 rounded-lg">📄 {fileName}</span>}
 
@@ -2898,6 +3054,422 @@ const ChunkSingleEditor = ({ chunk, onClose, onSave }) => {
 };
 
 // ==========================================
+// Personal RAG Management & Editing Modal (CRUD)
+// ==========================================
+const PersonalRagManagerModal = ({ username, isOpen, onClose }: { username: string; isOpen: boolean; onClose: () => void }) => {
+  const [items, setItems] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const [editingItem, setEditingItem] = useState<any>(null);
+  const [editTitle, setEditTitle] = useState('');
+  const [editCategory, setEditCategory] = useState('');
+  const [editContent, setEditContent] = useState('');
+  const [editTags, setEditTags] = useState('');
+
+  const [isCreating, setIsCreating] = useState(false);
+
+  const fetchPersonalRag = async () => {
+    if (!username) return;
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/user/personal-rag?username=${encodeURIComponent(username)}`);
+      const data = await res.json();
+      if (data.ok && Array.isArray(data.items)) {
+        setItems(data.items);
+      }
+    } catch (err) {
+      console.error('Failed to load personal RAG:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isOpen && username) {
+      fetchPersonalRag();
+    }
+  }, [isOpen, username]);
+
+  if (!isOpen) return null;
+
+  const handleStartEdit = (item: any) => {
+    setEditingItem(item);
+    setEditTitle(item.title || '');
+    setEditCategory(item.category || '个人笔记');
+    setEditContent(item.content || '');
+    setEditTags(Array.isArray(item.tags) ? item.tags.join(', ') : '');
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingItem) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/user/personal-rag/${editingItem.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username,
+          title: editTitle,
+          category: editCategory,
+          content: editContent,
+          tags: editTags.split(',').map(t => t.trim()).filter(Boolean)
+        })
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setEditingItem(null);
+        fetchPersonalRag();
+      } else {
+        alert('更新失败: ' + (data.error || ''));
+      }
+    } catch (err) {
+      alert('修改异常');
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('确定要删除这条个人 RAG 知识卡片吗？')) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/user/personal-rag/${id}?username=${encodeURIComponent(username)}`, {
+        method: 'DELETE'
+      });
+      const data = await res.json();
+      if (data.ok) {
+        fetchPersonalRag();
+      } else {
+        alert('删除失败');
+      }
+    } catch (err) {
+      alert('删除异常');
+    }
+  };
+
+  const handleCreateNew = async () => {
+    if (!editContent.trim()) {
+      alert('请输入正文内容');
+      return;
+    }
+    try {
+      const res = await fetch(`${API_BASE}/api/user/personal-rag`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username,
+          title: editTitle || '新个人学习笔记',
+          category: editCategory || '个人资料',
+          content: editContent,
+          tags: editTags.split(',').map(t => t.trim()).filter(Boolean)
+        })
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setIsCreating(false);
+        setEditTitle('');
+        setEditCategory('');
+        setEditContent('');
+        setEditTags('');
+        fetchPersonalRag();
+      } else {
+        alert('创建失败');
+      }
+    } catch (err) {
+      alert('保存异常');
+    }
+  };
+
+  const filteredItems = items.filter(item => {
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase();
+    return (
+      (item.title && item.title.toLowerCase().includes(q)) ||
+      (item.content && item.content.toLowerCase().includes(q)) ||
+      (item.category && item.category.toLowerCase().includes(q))
+    );
+  });
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-md flex justify-center items-center p-4 animate-in fade-in duration-300">
+      <div className="bg-white/95 backdrop-blur-2xl rounded-[36px] max-w-[760px] w-full max-h-[88vh] overflow-hidden p-6 shadow-2xl border-4 border-white flex flex-col space-y-4 animate-in zoom-in-95 duration-300">
+        
+        <div className="flex items-center justify-between border-b pb-3 shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white flex items-center justify-center shadow-md">
+              <Database size={20} />
+            </div>
+            <div>
+              <h3 className="font-black text-[#4a4365] text-[17px]">📚 我的个人 RAG 知识库管理</h3>
+              <p className="text-[11px] text-[#8a84a4] font-medium mt-0.5">查看、编辑与清理通过领域专家抓取或手动添加的个人专属知识切片</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                setIsCreating(true);
+                setEditingItem(null);
+                setEditTitle('');
+                setEditCategory('个人笔记');
+                setEditContent('');
+                setEditTags('');
+              }}
+              className="bg-gradient-to-r from-indigo-500 to-purple-600 hover:opacity-90 text-white px-3.5 py-1.5 rounded-xl text-[12px] font-bold shadow-md flex items-center gap-1 active:scale-95 transition-all"
+            >
+              <Plus size={15} />
+              <span>新建笔记</span>
+            </button>
+            <button onClick={onClose} className="p-2 rounded-2xl text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-all">
+              <X size={20} />
+            </button>
+          </div>
+        </div>
+
+        <div className="relative shrink-0">
+          <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="搜索个人 RAG 标题、摘要或分类..."
+            className="w-full bg-[#f8f6fc] border border-gray-100 rounded-2xl pl-9 pr-4 py-2 text-[13px] outline-none focus:ring-2 focus:ring-[#6366f1]"
+          />
+        </div>
+
+        <div className="flex-1 overflow-y-auto space-y-3 pr-1 hide-scrollbar">
+          {loading && (
+            <div className="py-12 text-center text-gray-400 font-bold text-[13px]">
+              正在读取您的专属 RAG 知识库...
+            </div>
+          )}
+
+          {!loading && filteredItems.length === 0 && (
+            <div className="py-12 text-center text-gray-400 space-y-2">
+              <Database size={36} className="mx-auto text-gray-300" />
+              <div className="font-bold text-[14px] text-gray-500">暂无匹配的个人 RAG 记录</div>
+              <div className="text-[12px]">您可以通过【领域专家】抓取网页 URL / 上传文件，或点击右上角新建个人笔记</div>
+            </div>
+          )}
+
+          {!loading && filteredItems.map((item) => (
+            <div key={item.id} className="bg-white rounded-2xl p-4 border border-purple-100 shadow-xs hover:shadow-md transition-all flex flex-col justify-between gap-2">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="bg-indigo-50 text-indigo-700 text-[10px] font-black px-2 py-0.5 rounded-md border border-indigo-100">
+                    {item.category || '个人笔记'}
+                  </span>
+                  <h4 className="font-bold text-[14px] text-[#4a4365] line-clamp-1">{item.title || '无标题记录'}</h4>
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    onClick={() => handleStartEdit(item)}
+                    className="p-1.5 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
+                    title="编辑条目"
+                  >
+                    <Edit3 size={15} />
+                  </button>
+                  <button
+                    onClick={() => handleDelete(item.id)}
+                    className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                    title="删除条目"
+                  >
+                    <Trash2 size={15} />
+                  </button>
+                </div>
+              </div>
+
+              <p className="text-[13px] text-gray-600 leading-relaxed line-clamp-3 bg-purple-50/30 p-2.5 rounded-xl border border-purple-100/50">
+                {item.content}
+              </p>
+
+              <div className="flex items-center justify-between text-[11px] text-gray-400 pt-1">
+                <div className="flex items-center gap-1 flex-wrap">
+                  {Array.isArray(item.tags) && item.tags.map((t: string, i: number) => (
+                    <span key={i} className="bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded text-[10px]">#{t}</span>
+                  ))}
+                </div>
+                <span>{item.createdAt ? new Date(item.createdAt).toLocaleDateString() : ''}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {(editingItem || isCreating) && (
+          <div className="fixed inset-0 z-60 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
+            <div className="bg-white rounded-3xl p-6 max-w-lg w-full shadow-2xl border space-y-3 animate-in zoom-in-95 duration-200">
+              <h4 className="font-black text-[#4a4365] text-[16px]">
+                {isCreating ? '➕ 手动新建个人 RAG 笔记' : '✏️ 编辑个人 RAG 知识卡片'}
+              </h4>
+
+              <div className="space-y-3 text-[12px]">
+                <div>
+                  <label className="font-bold text-gray-700 block mb-1">标题</label>
+                  <input
+                    type="text"
+                    value={editTitle}
+                    onChange={(e) => setEditTitle(e.target.value)}
+                    placeholder="请输入条目标题"
+                    className="w-full bg-gray-50 border rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-400"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="font-bold text-gray-700 block mb-1">分类</label>
+                    <input
+                      type="text"
+                      value={editCategory}
+                      onChange={(e) => setEditCategory(e.target.value)}
+                      placeholder="如: 算法笔记 / 网页研析"
+                      className="w-full bg-gray-50 border rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-400"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="font-bold text-gray-700 block mb-1">标签 (英文逗号隔开)</label>
+                    <input
+                      type="text"
+                      value={editTags}
+                      onChange={(e) => setEditTags(e.target.value)}
+                      placeholder="如: 递归, 二叉树"
+                      className="w-full bg-gray-50 border rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-400"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="font-bold text-gray-700 block mb-1">正文内容</label>
+                  <textarea
+                    rows={5}
+                    value={editContent}
+                    onChange={(e) => setEditContent(e.target.value)}
+                    placeholder="请输入知识卡片核心正文..."
+                    className="w-full bg-gray-50 border rounded-xl p-3 outline-none focus:ring-2 focus:ring-indigo-400 text-[13px]"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  onClick={() => { setEditingItem(null); setIsCreating(false); }}
+                  className="px-4 py-2 rounded-xl text-[12px] font-bold text-gray-500 hover:bg-gray-100"
+                >
+                  取消
+                </button>
+                <button
+                  onClick={isCreating ? handleCreateNew : handleSaveEdit}
+                  className="bg-indigo-600 text-white px-5 py-2 rounded-xl text-[12px] font-bold shadow-md hover:bg-indigo-700 transition-all"
+                >
+                  保存更新
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+      </div>
+    </div>
+  );
+};
+
+// ==========================================
+// Web Scraper Modal (Domain Expert Web Ingestion)
+// ==========================================
+const WebFetchModal = ({ username, isOpen, onClose, onSuccess }: any) => {
+  const [url, setUrl] = useState('');
+  const [isFetching, setIsFetching] = useState(false);
+  const [resultMsg, setResultMsg] = useState('');
+
+  if (!isOpen) return null;
+
+  const handleFetch = async () => {
+    if (!url.trim()) {
+      alert('请输入网页 URL 链接！');
+      return;
+    }
+
+    setIsFetching(true);
+    setResultMsg('');
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/fetch-webpage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          url,
+          username,
+          targetStore: 'personal'
+        })
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setResultMsg(data.message || `已成功将网页解析并写入您的个人 RAG 库！`);
+        setUrl('');
+        if (onSuccess) onSuccess();
+      } else {
+        alert('抓取研析失败: ' + (data.error || '未知错误'));
+      }
+    } catch (err) {
+      alert('网络连接超时或无法解析该网页');
+    } finally {
+      setIsFetching(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-md flex justify-center items-center p-4 animate-in fade-in duration-300">
+      <div className="bg-white/95 backdrop-blur-2xl rounded-[36px] max-w-[540px] w-full p-6 shadow-2xl border-4 border-white space-y-4 animate-in zoom-in-95 duration-300">
+        <div className="flex items-center justify-between border-b pb-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center shadow-md">
+              <ExternalLink size={20} />
+            </div>
+            <div>
+              <h3 className="font-black text-[#4a4365] text-[17px]">🧠 领域专家：网页资料研析与写入</h3>
+              <p className="text-[11px] text-[#8a84a4] font-medium mt-0.5">自动抓取网页正文，切片后直接写入您的【个人 RAG 库】</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-2 rounded-2xl text-gray-400 hover:text-gray-600 hover:bg-gray-100">
+            <X size={20} />
+          </button>
+        </div>
+
+        <div className="space-y-3">
+          <div>
+            <label className="text-[12px] font-bold text-[#4a4365] block mb-1">网页 URL 链接地址</label>
+            <input
+              type="url"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              placeholder="如：https://baike.baidu.com/item/... 或技术博客地址"
+              className="w-full bg-[#f8f6fc] border border-gray-100 rounded-2xl px-4 py-3 text-[13px] outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+          </div>
+
+          <div className="p-3 bg-blue-50/60 rounded-2xl border border-blue-100 text-[12px] text-blue-900 leading-relaxed">
+            💡 领域专家引擎会自动清洗网页 HTML 标签，提炼核心学术段落与原理阐述，自动保存至您的账号专属【个人 RAG 库】。
+          </div>
+
+          {resultMsg && (
+            <div className="p-3 bg-green-50 rounded-2xl border border-green-200 text-[12px] font-bold text-green-800">
+              ✅ {resultMsg}
+            </div>
+          )}
+        </div>
+
+        <div className="flex justify-end gap-2 pt-2 border-t">
+          <button onClick={onClose} className="px-5 py-2.5 rounded-2xl text-[13px] font-bold text-gray-500 hover:bg-gray-100">
+            关闭
+          </button>
+          <button
+            onClick={handleFetch}
+            disabled={isFetching || !url.trim()}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2.5 rounded-2xl text-[13px] font-bold shadow-md disabled:opacity-50 transition-all flex items-center gap-1.5"
+          >
+            {isFetching ? '抓取研析中...' : '开始抓取并存入个人 RAG'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // User Background Profile Collection Modal Form
 // ==========================================
 interface UserProfileModalProps {
@@ -2909,27 +3481,25 @@ interface UserProfileModalProps {
 
 const UserProfileModal = ({ profile, isOpen, onClose, onSave }: UserProfileModalProps) => {
   const [formData, setFormData] = useState({
-    name: profile?.name || '',
-    gender: profile?.gender || '男',
+    nickname: profile?.nickname || '',
     phone: profile?.phone || '',
-    province: profile?.province || '浙江',
-    score: profile?.score || '',
-    rank: profile?.rank || '',
-    subjects: profile?.subjects || '物化生',
-    specialConditions: profile?.specialConditions || ''
+    email: profile?.email || '',
+    age: profile?.age || '',
+    learningStage: profile?.learningStage || '大一',
+    personality: profile?.personality || '沉稳严谨',
+    remarks: profile?.remarks || ''
   });
 
   useEffect(() => {
     if (profile) {
       setFormData({
-        name: profile.name || '',
-        gender: profile.gender || '男',
+        nickname: profile.nickname || '',
         phone: profile.phone || '',
-        province: profile.province || '浙江',
-        score: profile.score || '',
-        rank: profile.rank || '',
-        subjects: profile.subjects || '物化生',
-        specialConditions: profile.specialConditions || ''
+        email: profile.email || '',
+        age: profile.age || '',
+        learningStage: profile.learningStage || '大一',
+        personality: profile.personality || '沉稳严谨',
+        remarks: profile.remarks || ''
       });
     }
   }, [profile]);
@@ -2938,8 +3508,8 @@ const UserProfileModal = ({ profile, isOpen, onClose, onSave }: UserProfileModal
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.name.trim() || !formData.score || !formData.province) {
-      alert('请完整填写姓名、省份和高考分数！');
+    if (!formData.nickname.trim()) {
+      alert('请填写您的昵称！');
       return;
     }
     onSave(formData);
@@ -2951,12 +3521,12 @@ const UserProfileModal = ({ profile, isOpen, onClose, onSave }: UserProfileModal
         
         <div className="flex items-center justify-between border-b pb-4">
           <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-[#b3a4ed] to-[#f296b2] text-white flex items-center justify-center shadow-md">
+            <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-[#b3a4ed] to-[#6366f1] text-white flex items-center justify-center shadow-md">
               <User size={22} />
             </div>
             <div>
-              <h3 className="font-black text-[#4a4365] text-[17px]">高考个人背景资料登记</h3>
-              <p className="text-[11px] text-[#8a84a4] font-medium mt-0.5">请填写真实高考信息，系统将为您评估位次与选科匹配度</p>
+              <h3 className="font-black text-[#4a4365] text-[17px]">Aurateach 学员学情档案登记</h3>
+              <p className="text-[11px] text-[#8a84a4] font-medium mt-0.5">请完善您的个人学情特征，系统联合专家团将为您提供精准的定制导学</p>
             </div>
           </div>
           <button onClick={onClose} className="p-2 rounded-2xl text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-all">
@@ -2968,138 +3538,117 @@ const UserProfileModal = ({ profile, isOpen, onClose, onSave }: UserProfileModal
           
           {/* Section 1: Basic Info */}
           <div className="space-y-3">
-            <div className="text-[12px] font-black text-[#a494e8] uppercase tracking-wider flex items-center gap-1.5">
-              <User size={14} /> 第一部分：基本身份信息
+            <div className="text-[12px] font-black text-[#6366f1] uppercase tracking-wider flex items-center gap-1.5">
+              <User size={14} /> 基本身份与联系方式
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-[12px] font-bold text-[#4a4365] block mb-1">姓名 <span className="text-red-500">*</span></label>
+                <label className="text-[12px] font-bold text-[#4a4365] block mb-1">昵称 <span className="text-red-500">*</span></label>
                 <input
                   type="text"
                   required
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="请输入您的姓名"
-                  className="w-full bg-[#f8f6fc] border border-gray-100 rounded-2xl px-4 py-2.5 text-[13px] outline-none focus:ring-2 focus:ring-[#a494e8]"
+                  value={formData.nickname}
+                  onChange={(e) => setFormData({ ...formData, nickname: e.target.value })}
+                  placeholder="请输入您的昵称"
+                  className="w-full bg-[#f8f6fc] border border-gray-100 rounded-2xl px-4 py-2.5 text-[13px] outline-none focus:ring-2 focus:ring-[#6366f1]"
                 />
               </div>
 
               <div>
-                <label className="text-[12px] font-bold text-[#4a4365] block mb-1">性别</label>
-                <select
-                  value={formData.gender}
-                  onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
-                  className="w-full bg-[#f8f6fc] border border-gray-100 rounded-2xl px-4 py-2.5 text-[13px] outline-none focus:ring-2 focus:ring-[#a494e8]"
-                >
-                  <option value="男">男</option>
-                  <option value="女">女</option>
-                </select>
+                <label className="text-[12px] font-bold text-[#4a4365] block mb-1">年龄</label>
+                <input
+                  type="text"
+                  value={formData.age}
+                  onChange={(e) => setFormData({ ...formData, age: e.target.value })}
+                  placeholder="如: 19岁"
+                  className="w-full bg-[#f8f6fc] border border-gray-100 rounded-2xl px-4 py-2.5 text-[13px] outline-none focus:ring-2 focus:ring-[#6366f1]"
+                />
               </div>
             </div>
 
-            <div>
-              <label className="text-[12px] font-bold text-[#4a4365] block mb-1">手机号</label>
-              <input
-                type="tel"
-                value={formData.phone}
-                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                placeholder="请输入联系手机号（选填）"
-                className="w-full bg-[#f8f6fc] border border-gray-100 rounded-2xl px-4 py-2.5 text-[13px] outline-none focus:ring-2 focus:ring-[#a494e8]"
-              />
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-[12px] font-bold text-[#4a4365] block mb-1">手机号</label>
+                <input
+                  type="tel"
+                  value={formData.phone}
+                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                  placeholder="联系手机号（选填）"
+                  className="w-full bg-[#f8f6fc] border border-gray-100 rounded-2xl px-4 py-2.5 text-[13px] outline-none focus:ring-2 focus:ring-[#6366f1]"
+                />
+              </div>
+
+              <div>
+                <label className="text-[12px] font-bold text-[#4a4365] block mb-1">邮箱</label>
+                <input
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  placeholder="电子邮箱（选填）"
+                  className="w-full bg-[#f8f6fc] border border-gray-100 rounded-2xl px-4 py-2.5 text-[13px] outline-none focus:ring-2 focus:ring-[#6366f1]"
+                />
+              </div>
             </div>
           </div>
 
-          {/* Section 2: Gaokao Scores & Subjects */}
+          {/* Section 2: Learning Stage & Personality */}
           <div className="space-y-3 pt-2">
-            <div className="text-[12px] font-black text-[#a494e8] uppercase tracking-wider flex items-center gap-1.5">
-              <FileText size={14} /> 第二部分：高考成绩与选科
+            <div className="text-[12px] font-black text-[#6366f1] uppercase tracking-wider flex items-center gap-1.5">
+              <Sparkles size={14} /> 学习阶段与性格倾向
             </div>
 
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-[12px] font-bold text-[#4a4365] block mb-1">高考省份 <span className="text-red-500">*</span></label>
+                <label className="text-[12px] font-bold text-[#4a4365] block mb-1">学习阶段</label>
                 <select
-                  value={formData.province}
-                  onChange={(e) => setFormData({ ...formData, province: e.target.value })}
-                  className="w-full bg-[#f8f6fc] border border-gray-100 rounded-2xl px-3 py-2.5 text-[13px] outline-none focus:ring-2 focus:ring-[#a494e8]"
+                  value={formData.learningStage}
+                  onChange={(e) => setFormData({ ...formData, learningStage: e.target.value })}
+                  className="w-full bg-[#f8f6fc] border border-gray-100 rounded-2xl px-3 py-2.5 text-[13px] outline-none focus:ring-2 focus:ring-[#6366f1]"
                 >
-                  {['浙江', '江苏', '广东', '四川', '山东', '河南', '湖北', '湖南', '福建', '安徽', '北京', '上海', '重庆', '陕西', '江西', '河北'].map(p => (
-                    <option key={p} value={p}>{p}</option>
+                  {['初中', '高中/高三', '大一', '大二', '大三', '大四', '硕士在读', '博士在读', '考研/考公备考', '职场技能进阶', '兴趣自学'].map(s => (
+                    <option key={s} value={s}>{s}</option>
                   ))}
                 </select>
               </div>
 
               <div>
-                <label className="text-[12px] font-bold text-[#4a4365] block mb-1">高考分数 <span className="text-red-500">*</span></label>
-                <input
-                  type="number"
-                  required
-                  min={100}
-                  max={750}
-                  value={formData.score}
-                  onChange={(e) => setFormData({ ...formData, score: e.target.value })}
-                  placeholder="如: 595"
-                  className="w-full bg-[#f8f6fc] border border-gray-100 rounded-2xl px-3 py-2.5 text-[13px] outline-none focus:ring-2 focus:ring-[#a494e8]"
-                />
+                <label className="text-[12px] font-bold text-[#4a4365] block mb-1">性格/学习风格</label>
+                <select
+                  value={formData.personality}
+                  onChange={(e) => setFormData({ ...formData, personality: e.target.value })}
+                  className="w-full bg-[#f8f6fc] border border-gray-100 rounded-2xl px-3 py-2.5 text-[13px] outline-none focus:ring-2 focus:ring-[#6366f1]"
+                >
+                  {['沉稳严谨', '外向开朗', '逻辑理性型', '形象直觉型', 'INTJ (建筑师)', 'INTP (逻辑学家)', 'INFJ (提倡者)', 'ENTJ (指挥官)', 'ENFP (竞选者)', '其他风格'].map(p => (
+                    <option key={p} value={p}>{p}</option>
+                  ))}
+                </select>
               </div>
-
-              <div>
-                <label className="text-[12px] font-bold text-[#4a4365] block mb-1">全省排名</label>
-                <input
-                  type="number"
-                  value={formData.rank}
-                  onChange={(e) => setFormData({ ...formData, rank: e.target.value })}
-                  placeholder="如: 15000"
-                  className="w-full bg-[#f8f6fc] border border-gray-100 rounded-2xl px-3 py-2.5 text-[13px] outline-none focus:ring-2 focus:ring-[#a494e8]"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="text-[12px] font-bold text-[#4a4365] block mb-1">选科情况</label>
-              <input
-                type="text"
-                value={formData.subjects}
-                onChange={(e) => setFormData({ ...formData, subjects: e.target.value })}
-                placeholder="如：物理/化学/生物 或 史地政、物化地等"
-                className="w-full bg-[#f8f6fc] border border-gray-100 rounded-2xl px-4 py-2.5 text-[13px] outline-none focus:ring-2 focus:ring-[#a494e8]"
-              />
             </div>
           </div>
 
-          {/* Section 3: Special Conditions */}
+          {/* Section 3: Remarks */}
           <div className="space-y-2 pt-2">
-            <div className="text-[12px] font-black text-[#a494e8] uppercase tracking-wider flex items-center gap-1.5">
-              <Sparkles size={14} /> 第三部分：特殊情况与考量
+            <div className="text-[12px] font-black text-[#6366f1] uppercase tracking-wider flex items-center gap-1.5">
+              <FileText size={14} /> 备注与学习目标
             </div>
             <div>
-              <label className="text-[12px] font-bold text-[#4a4365] block mb-1">特殊情况 / 加分 / 限制说明</label>
+              <label className="text-[12px] font-bold text-[#4a4365] block mb-1">备注 / 重点提优方向</label>
               <textarea
-                rows={2}
-                value={formData.specialConditions}
-                onChange={(e) => setFormData({ ...formData, specialConditions: e.target.value })}
-                placeholder="如：艺考、单招、少数民族加分、体检视力受限、家庭预算考量等（无则填“无”）"
-                className="w-full bg-[#f8f6fc] border border-gray-100 rounded-2xl p-3 text-[12px] outline-none focus:ring-2 focus:ring-[#a494e8]"
+                rows={3}
+                value={formData.remarks}
+                onChange={(e) => setFormData({ ...formData, remarks: e.target.value })}
+                placeholder="如：想重点提升 Python 算法与数据结构实操，准备今年下半年跨考计算机硕士..."
+                className="w-full bg-[#f8f6fc] border border-gray-100 rounded-2xl p-3 text-[12px] outline-none focus:ring-2 focus:ring-[#6366f1]"
               />
             </div>
           </div>
-
-          {/* Score status tip */}
-          {formData.score && (
-            <div className="p-3 rounded-2xl text-[12px] font-bold flex items-center gap-2 bg-purple-50 text-purple-800 border border-purple-100">
-              <Sparkles size={16} className="shrink-0 text-purple-500" />
-              <span>
-                ✅ 高考成绩已录入：{formData.score} 分。系统将为您匹配专属选科建议与高校招生政策。
-              </span>
-            </div>
-          )}
 
           <div className="flex justify-end gap-2 pt-2 border-t">
             <button
               type="submit"
-              className="w-full bg-[#4a4365] hover:bg-[#342e49] text-white py-3.5 rounded-2xl font-bold text-[14px] shadow-lg active:scale-98 transition-all flex items-center justify-center gap-2"
+              className="w-full bg-gradient-to-r from-[#4a4365] to-[#6366f1] hover:from-[#342e49] hover:to-[#4f46e5] text-white py-3.5 rounded-2xl font-bold text-[14px] shadow-lg active:scale-98 transition-all flex items-center justify-center gap-2"
             >
-              <span>保存个人背景资料</span>
+              <span>保存学情档案</span>
               <ArrowRight size={16} />
             </button>
           </div>
@@ -3197,6 +3746,22 @@ const PersonalRagModal = ({ username, isOpen, onClose }: PersonalRagModalProps) 
         </div>
 
       </div>
+      {/* Personal RAG Manager Modal */}
+      <PersonalRagManagerModal
+        username={currentUser?.username || ''}
+        isOpen={isPersonalRagModalOpen}
+        onClose={() => setIsPersonalRagModalOpen(false)}
+      />
+
+      {/* Domain Expert Web Scraper Modal */}
+      <WebFetchModal
+        username={currentUser?.username || ''}
+        isOpen={isWebFetchModalOpen}
+        onClose={() => setIsWebFetchModalOpen(false)}
+        onSuccess={() => {
+          setIsPersonalRagModalOpen(true);
+        }}
+      />
     </div>
   );
 };

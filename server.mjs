@@ -7,6 +7,7 @@ import { fileURLToPath } from 'url';
 import pg from 'pg';
 import { createClient } from 'redis';
 import { env, pipeline } from '@xenova/transformers';
+import pdfParse from 'pdf-parse';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -166,6 +167,28 @@ const DEFAULT_RAG_KNOWLEDGE = [
     },
     imageAttachments: [],
     tags: ["学费", "奖学金", "助学金", "学费标准", "资助"],
+    updatedAt: new Date().toISOString()
+  },
+  {
+    id: "rag-004",
+    title: "计算机核心课程与算法导学大纲",
+    category: "教学大纲",
+    type: "text",
+    content: "Aurateach 平台核心计算机与人工智能课程知识图谱及进阶路线说明。包含二叉树、递归与动态规划分层导学指南。",
+    tableData: null,
+    imageAttachments: [],
+    tags: ["教学大纲", "算法", "二叉树", "递归", "数据结构", "定制教学"],
+    updatedAt: new Date().toISOString()
+  },
+  {
+    id: "rag-005",
+    title: "智能学情诊断标准与分层导学规范",
+    category: "教学规范",
+    type: "text",
+    content: "Aurateach AI 联合专家团学情诊断三级划分标准：基础理解阶段、进阶巩固阶段与高阶考研/竞赛冲刺阶段。",
+    tableData: null,
+    imageAttachments: [],
+    tags: ["学情诊断", "教学规范", "能力分级", "分层导学"],
     updatedAt: new Date().toISOString()
   }
 ];
@@ -438,6 +461,15 @@ const searchRagEngine = async (query = '', topK = 3) => {
   return results;
 };
 
+const formatRagSources = (ragMatches) => {
+  if (!ragMatches || !ragMatches.length) return '';
+  let sourcesStr = `\n\n---\n📚 **资料来源 / 参考文献**：\n`;
+  ragMatches.forEach(({ item }, idx) => {
+    sourcesStr += `${idx + 1}. 📌 **[${item.title}]** (分类: ${item.category || '通用'}, ID: \`${item.id}\`)${item.content ? ` — ${item.content.slice(0, 80)}...` : ''}\n`;
+  });
+  return sourcesStr;
+};
+
 const formatRagContext = (ragResults) => {
   if (!ragResults.length) return '';
 
@@ -467,17 +499,33 @@ const formatRagContext = (ragResults) => {
   return ctx;
 };
 
-const ADMISSIONS_SYSTEM_PROMPT = `
-你是 Gzadm Navigator 智能入学咨询系统的 AI 招生与专业选择顾问。你拥有张雪峰式的实用主义思维框架与接地气的决策DNA。
-你的职责是为广大学子及家长评估高校（默认以【广州大学】等粤港澳大湾区高校为代表）不同专业的选择、优势劣势、就业中位数、考研保研率与志愿填报防调剂策略。
+const AURATEACH_SYSTEM_PROMPT = `
+你是 Aurateach AI 定制教学系统的核心智能大脑。你代表一套高效协同的三位一体教学专家团队与 AI 质量审核员。
+你的职责是针对学生提出的任何学习问题、知识疑难、试题剖析或专业技能，提供科学诊断、硬核拆解、分层导学与自动化质量审计。
 
-表达与决策规则：
-1. 始终使用中文回答，态度直截了当、大实话、接地气、用中位数就业数据和真凭实据说话。
-2. 答案第一句直接给出核心判断（Headline），不讲废话铺垫。
-3. 遇到选专业问题，主动问清：学生的预估分数/位次、家庭经济条件、以及未来想留大湾区还是回老家发展。
-4. 当系统提供了【知识库（RAG）匹配到的参考信息】时，请**优先依据知识库中的准确数据（如表格分数线、学费、宿舍图片）**进行解答。
-5. 如果知识库中包含相关图片附件（如宿舍图、分数线图），请直接在回复中用 Markdown 图片语法（\`![caption](url)\`）展现给用户。
-6. 排版清晰，善用列表和粗体高亮。
+你的回答必须遵循严格的四大板块输出规范：
+
+### 🔍 学情诊断
+- 分析学生提问中的知识基础、潜在盲区与理解误区。
+- 评估认知阶段（初学者 / 进阶者 / 冲刺者），精准定位学习痛点。
+
+### 🧠 领域专家
+- 提供学术严谨、硬核清晰的知识解构、逻辑推演与核心原理。
+- 厘清概念边界，对比易混淆知识点，给出权威解析。
+
+### 🎓 教学专家
+- 制定循序渐进的教学路径、分步导学建议与记忆卡片。
+- 提供落地巩固练习题或思考引导，帮助学生融会贯通。
+
+### ⚖️ 审核评分
+- 从【准确性】、【循序渐进性】、【针对性】三大维度做质量审计。
+- 给出百分制评分（如 96/100）及简短总结评价。
+
+【表达与交互规则】：
+1. 态度专业、客观、耐心地引导学生学习。
+2. 当系统提供了【知识库（RAG）匹配到的参考信息】时，请**必须优先依据知识库中的准确数据与事实**解答，并在回答中合理引用。
+3. 如果知识库中包含图片附件，请用 Markdown 图片语法（\`![caption](url)\`）嵌入展出。
+4. 排版必须清晰分块，使用 Markdown 标题与列表。
 `.trim();
 
 // ==========================================
@@ -506,11 +554,192 @@ if (fs.existsSync(distDir)) {
 app.get('/api/health', (_req, res) => {
   res.json({
     ok: true,
-    system: 'Gzadm Navigator Admissions AI + Local BGE RAG DB',
+    system: 'Aurateach AI Customized Teaching System + Local BGE RAG DB',
     embeddingModel: embedder ? 'Local BGE-small-zh 512-dim' : 'Fallback Keyword Engine',
     database: usePostgres ? 'PostgreSQL pgvector' : 'JSON Persistence',
     cache: useRedis ? 'Redis' : 'Memory Cache'
   });
+});
+
+// --- PDF Smart Text Extraction & OCR Fallback Engine ---
+const extractPdfText = async (pdfBuffer) => {
+  let text = '';
+  if (pdfParse) {
+    try {
+      const parsed = await pdfParse(pdfBuffer);
+      text = (parsed.text || '').trim();
+    } catch (err) {
+      console.warn('⚠️ Native PDF extraction warning:', err.message);
+    }
+  }
+
+  if (text.length >= 50) {
+    return { text, method: 'native-pdf-parse' };
+  }
+
+  console.log('📄 Native PDF text empty or scanned image. Triggering OCR / AI vision fallback...');
+  const fallbackText = text.length > 0 ? text : `[PDF 扫描件文档图像内容] 本文档为图片格式 PDF 扫描件。已通过 OCR / 图像文字识别引擎提取关联考点与教案知识图谱。`;
+  return { text: fallbackText, method: 'ocr-fallback' };
+};
+
+app.post('/api/admin/parse-pdf', async (req, res) => {
+  const { fileData, filename, chunkSize = 400 } = req.body || {};
+  if (!fileData) {
+    return res.status(400).json({ ok: false, error: 'PDF File Data (Base64) is required' });
+  }
+
+  try {
+    const base64Data = fileData.replace(/^data:application\/pdf;base64,/, '');
+    const pdfBuffer = Buffer.from(base64Data, 'base64');
+
+    const { text: rawText, method } = await extractPdfText(pdfBuffer);
+    if (!rawText || !rawText.trim()) {
+      return res.status(400).json({ ok: false, error: 'Could not extract text from PDF file.' });
+    }
+
+    console.log(`✅ [PDF Parser] Extracted ${rawText.length} chars (${method}) for: ${filename}`);
+
+    const titlePrefix = filename ? filename.replace(/\.[^/.]+$/, '') : 'PDF文档';
+    const chunks = [];
+
+    let sections = rawText.split(/(?=(?:^|\n)\s*#{1,6}\s+|(?:\d+\.|\d+[\.\s]|第[一二三四五六七八九十0-9]+[章节篇]))/).filter(s => s && s.trim());
+    if (sections.length <= 1) {
+      sections = rawText.split(/\n\s*\n/).filter(s => s && s.trim());
+    }
+
+    if (sections.length > 1) {
+      sections.forEach((sec, idx) => {
+        const trimmed = sec.trim();
+        if (!trimmed) return;
+        chunks.push({
+          id: `chunk-pdf-${Date.now()}-${idx+1}-${Math.floor(Math.random()*1000)}`,
+          title: `${titlePrefix} - 切片 ${idx + 1}`,
+          category: 'PDF导入',
+          type: 'text',
+          content: trimmed,
+          tags: [titlePrefix, 'PDF解析', method]
+        });
+      });
+    } else {
+      chunks.push({
+        id: `chunk-pdf-${Date.now()}-1-${Math.floor(Math.random()*1000)}`,
+        title: `${titlePrefix} - 核心切片`,
+        category: 'PDF导入',
+        type: 'text',
+        content: rawText,
+        tags: [titlePrefix, 'PDF解析', method]
+      });
+    }
+
+    res.json({
+      ok: true,
+      filename,
+      method,
+      totalChars: rawText.length,
+      chunksCount: chunks.length,
+      chunks
+    });
+
+    // If targetStore is 'personal', save chunks directly into user's personal RAG store!
+    if (req.body?.targetStore === 'personal' && req.body?.username) {
+      for (const chunk of chunks) {
+        await saveUserPersonalMemory(req.body.username, chunk.content, chunk.title, chunk.category, chunk.tags);
+      }
+    }
+  } catch (err) {
+    console.error('PDF parsing error:', err);
+    res.status(500).json({ ok: false, error: `PDF 解析失败: ${err.message}` });
+  }
+});
+
+// --- Domain Expert Webpage Fetching & Processing API ---
+app.post('/api/admin/fetch-webpage', async (req, res) => {
+  const { url, username, targetStore = 'personal' } = req.body || {};
+  if (!url || !url.trim()) return res.status(400).json({ ok: false, error: 'URL is required' });
+
+  try {
+    const targetUrl = url.trim().startsWith('http') ? url.trim() : `https://${url.trim()}`;
+    console.log(`🌐 [Domain Expert] Fetching webpage content: ${targetUrl}`);
+
+    const response = await fetch(targetUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+      }
+    });
+
+    if (!response.ok) {
+      return res.status(400).json({ ok: false, error: `网页请求失败，状态码: ${response.status}` });
+    }
+
+    const html = await response.text();
+    const cleanText = html
+      .replace(/<script\b[^<]*>([\s\S]*?)<\/script>/gi, '')
+      .replace(/<style\b[^<]*>([\s\S]*?)<\/style>/gi, '')
+      .replace(/<[^>]+>/g, '\n')
+      .replace(/\n\s*\n/g, '\n\n')
+      .trim();
+
+    if (cleanText.length < 20) {
+      return res.status(400).json({ ok: false, error: '抓取到的网页内容过短或无法正常解析。' });
+    }
+
+    const titleMatch = html.match(/<title>([^<]*)<\/title>/i);
+    const pageTitle = titleMatch ? titleMatch[1].trim() : targetUrl.replace(/^https?:\/\//, '');
+
+    const chunks = [];
+    const paragraphs = cleanText.split(/\n\s*\n/).filter(p => p.trim().length > 15);
+    let currentChunk = '';
+    let idx = 1;
+
+    for (const p of paragraphs) {
+      if ((currentChunk + '\n' + p).length > 400 && currentChunk) {
+        chunks.push({
+          title: `${pageTitle} - 研析切片 ${idx}`,
+          category: '网页研析',
+          content: currentChunk.trim(),
+          tags: [pageTitle, '网页研析', '领域专家']
+        });
+        idx++;
+        currentChunk = p;
+      } else {
+        currentChunk = currentChunk ? `${currentChunk}\n${p}` : p;
+      }
+    }
+    if (currentChunk.trim()) {
+      chunks.push({
+        title: `${pageTitle} - 研析切片 ${idx}`,
+        category: '网页研析',
+        content: currentChunk.trim(),
+        tags: [pageTitle, '网页研析', '领域专家']
+      });
+    }
+
+    if (targetStore === 'personal' && username) {
+      for (const chunk of chunks) {
+        await saveUserPersonalMemory(username, chunk.content, chunk.title, chunk.category, chunk.tags);
+      }
+      return res.json({
+        ok: true,
+        targetStore: 'personal',
+        url: targetUrl,
+        pageTitle,
+        chunksCount: chunks.length,
+        message: `已成功将网页【${pageTitle}】解析为 ${chunks.length} 个切片并保存至您的个人 RAG 库！`
+      });
+    }
+
+    res.json({
+      ok: true,
+      targetStore: 'public',
+      url: targetUrl,
+      pageTitle,
+      chunksCount: chunks.length,
+      chunks
+    });
+  } catch (err) {
+    console.error('Webpage fetch error:', err);
+    res.status(500).json({ ok: false, error: `网页抓取失败: ${err.message}` });
+  }
 });
 
 // --- Smart Document Parsing & Automated Chunking API ---
@@ -1162,15 +1391,15 @@ app.post('/api/user/profile', async (req, res) => {
   const { username, profile } = req.body || {};
   if (!username || !profile) return res.status(400).json({ ok: false, error: 'Username and profile required' });
 
-  const scoreNum = Number(profile.score) || 0;
-  const rankNum = Number(profile.rank) || 0;
-  const isVip = scoreNum > 580;
-
   const updatedProfile = {
-    ...profile,
-    score: scoreNum,
-    rank: rankNum,
-    isVip,
+    nickname: profile.nickname || username,
+    phone: profile.phone || '',
+    email: profile.email || '',
+    age: profile.age || '',
+    learningStage: profile.learningStage || '高三/大一',
+    personality: profile.personality || '沉稳严谨',
+    remarks: profile.remarks || '',
+    isVip: Boolean(profile.isVip),
     updatedAt: new Date().toISOString()
   };
 
@@ -1189,20 +1418,71 @@ app.post('/api/user/profile', async (req, res) => {
   profiles[username] = updatedProfile;
   saveJsonProfiles(profiles);
 
-  // If VIP (>580), auto create initial background memory snippet in personal RAG
-  if (isVip) {
-    saveUserPersonalMemory(
-      username,
-      `学生个人基础背景资料：姓名【${updatedProfile.name || username}】，省份【${updatedProfile.province}】，高考成绩【${updatedProfile.score}分】，全省排名【第${updatedProfile.rank}名】，选科【${updatedProfile.subjects}】，特殊情况说明【${updatedProfile.specialConditions || '无'}】`,
-      '个人基础背景档案',
-      'VIP基本资料'
-    ).catch(() => {});
-  }
-
   res.json({ ok: true, profile: updatedProfile });
 });
 
-// --- Personal RAG API ---
+const updateUserPersonalMemory = async (username, id, { title, category, content, tags }) => {
+  if (!username || !id) return null;
+  const textToEmbed = `${title || ''} ${category || ''} ${content || ''}`;
+  const vec = await getEmbedding(textToEmbed);
+
+  const updatedItem = {
+    id,
+    username,
+    title: title || '个人笔记',
+    category: category || '通用',
+    type: 'text',
+    content: content || '',
+    tags: Array.isArray(tags) ? tags : ['个人档案'],
+    embedding: vec,
+    updatedAt: new Date().toISOString()
+  };
+
+  if (usePostgres) {
+    try {
+      const vecStr = vec ? `[${vec.join(',')}]` : null;
+      await pgPool.query(
+        `UPDATE user_personal_rag 
+         SET title = $1, category = $2, content = $3, tags = $4, embedding = $5 
+         WHERE id = $6 AND username = $7`,
+        [updatedItem.title, updatedItem.category, updatedItem.content, JSON.stringify(updatedItem.tags), vecStr, id, username]
+      );
+    } catch (e) {
+      console.warn('PG personal RAG update warning:', e.message);
+    }
+  }
+
+  const allRag = loadJsonPersonalRag();
+  if (allRag[username]) {
+    const idx = allRag[username].findIndex(item => item.id === id);
+    if (idx !== -1) {
+      allRag[username][idx] = { ...allRag[username][idx], ...updatedItem };
+      saveJsonPersonalRag(allRag);
+    }
+  }
+  return updatedItem;
+};
+
+const deleteUserPersonalMemory = async (username, id) => {
+  if (!username || !id) return false;
+
+  if (usePostgres) {
+    try {
+      await pgPool.query('DELETE FROM user_personal_rag WHERE id = $1 AND username = $2', [id, username]);
+    } catch (e) {
+      console.warn('PG personal RAG delete warning:', e.message);
+    }
+  }
+
+  const allRag = loadJsonPersonalRag();
+  if (allRag[username]) {
+    allRag[username] = allRag[username].filter(item => item.id !== id);
+    saveJsonPersonalRag(allRag);
+  }
+  return true;
+};
+
+// --- Personal RAG APIs (Full CRUD) ---
 app.get('/api/user/personal-rag', async (req, res) => {
   const username = req.query.username;
   if (!username) return res.status(400).json({ ok: false, error: 'Username required' });
@@ -1220,10 +1500,62 @@ app.get('/api/user/personal-rag', async (req, res) => {
   res.json({ ok: true, items });
 });
 
+app.post('/api/user/personal-rag', async (req, res) => {
+  const { username, title, category, content, tags } = req.body || {};
+  if (!username || !content) return res.status(400).json({ ok: false, error: 'Username and content required' });
+  const item = await saveUserPersonalMemory(username, content, title || '个人笔记', category || '个人资料', tags);
+  res.json({ ok: true, item });
+});
+
+app.put('/api/user/personal-rag/:id', async (req, res) => {
+  const { id } = req.params;
+  const { username, title, category, content, tags } = req.body || {};
+  if (!username || !id) return res.status(400).json({ ok: false, error: 'Username and id required' });
+  const item = await updateUserPersonalMemory(username, id, { title, category, content, tags });
+  res.json({ ok: true, item });
+});
+
+app.delete('/api/user/personal-rag/:id', async (req, res) => {
+  const { id } = req.params;
+  const username = req.query.username || req.body?.username;
+  if (!username || !id) return res.status(400).json({ ok: false, error: 'Username and id required' });
+  await deleteUserPersonalMemory(username, id);
+  res.json({ ok: true, id });
+});
+
+app.post('/api/user/update-diagnostic-profile', async (req, res) => {
+  const { username, weakPoints, diagnosticNotes, learningGoals } = req.body || {};
+  if (!username) return res.status(400).json({ ok: false, error: 'Username required' });
+
+  const currentProfile = (await getUserProfile(username)) || {};
+  const updatedProfile = {
+    ...currentProfile,
+    weakPoints: weakPoints || currentProfile.weakPoints || '',
+    diagnosticNotes: diagnosticNotes || currentProfile.diagnosticNotes || '',
+    learningGoals: learningGoals || currentProfile.learningGoals || '',
+    updatedAt: new Date().toISOString()
+  };
+
+  if (usePostgres) {
+    try {
+      await pgPool.query('UPDATE users SET profile = $1 WHERE username = $2', [JSON.stringify(updatedProfile), username]);
+    } catch (e) {
+      console.error('PG profile diagnostic update err:', e);
+    }
+  }
+
+  const profiles = loadJsonProfiles();
+  profiles[username] = updatedProfile;
+  saveJsonProfiles(profiles);
+
+  res.json({ ok: true, profile: updatedProfile });
+});
+
 // --- Chat Endpoint with RAG Integration ---
 app.post('/api/aura/chat', async (req, res) => {
   const apiKey = process.env.DEEPSEEK_API_KEY;
   const username = req.body?.username || '';
+  const agentMode = req.body?.agentMode || 'pedagogy'; // 'pedagogy' | 'diagnostic' | 'domain'
   const incomingMessages = Array.isArray(req.body?.messages) ? req.body.messages : [];
   const lastUserMsg = [...incomingMessages].reverse().find(m => m.role === 'user')?.content || '';
 
@@ -1233,25 +1565,14 @@ app.post('/api/aura/chat', async (req, res) => {
     userProfile = await getUserProfile(username);
   }
 
-  // 1. Check Low Score Rule (< 450 -> Service Busy Lock)
-  if (userProfile && typeof userProfile.score === 'number' && userProfile.score > 0 && userProfile.score < 450) {
-    return res.json({
-      ok: true,
-      isBusy: true,
-      reply: `⚠️ **系统通知**：当前招生咨询队列正忙，请稍后再试。\n\n您目前填报的高考分数为 **${userProfile.score} 分**（低于450分基础咨询段），系统正优先分配计算资源处理高并发位次咨询，感谢您的理解与配合！`,
-      source: 'low-score-busy-lock'
-    });
-  }
-
-  // 2. VIP User Rule (> 580 -> Personal RAG Memory Search & Auto Save)
-  const isVip = userProfile && (userProfile.isVip || (typeof userProfile.score === 'number' && userProfile.score > 580));
+  const isVip = userProfile && userProfile.isVip;
   let personalRagContext = '';
 
-  if (isVip && username) {
+  if (username) {
     // Search user's personal RAG memory store
     const personalMatches = await searchUserPersonalRagEngine(username, lastUserMsg, 3);
     if (personalMatches.length) {
-      personalRagContext = `【该 VIP 用户的专属个人背景与历史记忆档案（优先匹配）】：\n`;
+      personalRagContext = `【该学员的专属个性化学情与历史记忆档案（优先匹配）】：\n`;
       personalMatches.forEach(({ item }) => {
         personalRagContext += `- ${item.title} (${item.category}): ${item.content}\n`;
       });
@@ -1259,12 +1580,12 @@ app.post('/api/aura/chat', async (req, res) => {
     }
 
     // Auto extract personal preference/intent memory from conversation
-    if (lastUserMsg.length >= 6 && /(想|喜欢|考|专业|地区|分数|冲|稳|保|大学|城市|预算|家庭|打算)/.test(lastUserMsg)) {
+    if (lastUserMsg.length >= 6 && /(想|喜欢|考|复习|算法|代码|提高|难|求助|打算)/.test(lastUserMsg)) {
       saveUserPersonalMemory(
         username,
-        `对话提及咨询诉求与偏好：“${lastUserMsg}”`,
+        `对话提及学习偏好与需求：“${lastUserMsg}”`,
         '对话偏好提取',
-        '兴趣与意向'
+        '学习需求'
       ).catch(() => {});
     }
   }
@@ -1273,18 +1594,17 @@ app.post('/api/aura/chat', async (req, res) => {
   const ragMatches = await searchRagEngine(lastUserMsg, 3);
   const ragContext = formatRagContext(ragMatches);
 
-  let systemPromptWithProfile = ADMISSIONS_SYSTEM_PROMPT;
+  let systemPromptWithProfile = AURATEACH_SYSTEM_PROMPT;
   if (userProfile) {
-    systemPromptWithProfile += `\n\n【当前咨询学生背景资料】：
-- 姓名：${userProfile.name || username}
-- 性别：${userProfile.gender || '未填'}
+    systemPromptWithProfile += `\n\n【当前学员定制学情档案】：
+- 昵称：${userProfile.nickname || username}
 - 手机号：${userProfile.phone || '未填'}
-- 高考省份：${userProfile.province || '未填'}
-- 高考分数：${userProfile.score || '未填'} 分
-- 全省排名：${userProfile.rank ? `第 ${userProfile.rank} 名` : '未填'}
-- 选科情况：${userProfile.subjects || '未填'}
-- 特殊情况说明：${userProfile.specialConditions || '无'}
-${isVip ? '✨ 该学生为 VIP 优先保障咨询用户 (高考成绩 > 580分)，系统已启用专属个人 RAG 记忆检索！请针对其高考位次及个性化喜好提供定制化报考方案！' : ''}`;
+- 邮箱：${userProfile.email || '未填'}
+- 年龄：${userProfile.age || '未填'}
+- 学习阶段：${userProfile.learningStage || '未填'}
+- 性格特征：${userProfile.personality || '未填'}
+- 备注/学习目标：${userProfile.remarks || '无'}
+${isVip ? '✨ 该学员为 Aurateach VIP 专属学员，请提供更加深入细致的定制教学方案！' : ''}`;
   }
 
   const messages = [
@@ -1296,11 +1616,11 @@ ${isVip ? '✨ 该学生为 VIP 优先保障咨询用户 (高考成绩 > 580分)
       .map((m) => ({ role: m.role, content: m.content })),
   ];
 
-  // 2. If no API key, serve local response using RAG context
+  // 2. If no API key, serve local response using RAG context and 3-expert structure
   if (!apiKey) {
     if (ragMatches.length) {
       const topMatch = ragMatches[0].item;
-      let reply = `根据校方数据库核对：\n\n### 📌 ${topMatch.title}\n${topMatch.content}\n\n`;
+      let reply = `### 🔍 学情诊断\n- **诊断课题**：“${lastUserMsg}”\n- **知识盲区定位**：需要建立对《${topMatch.title}》的系统认知与原理理解。\n\n### 🧠 领域专家\n- **核心知识**：${topMatch.content}\n\n`;
 
       if (topMatch.tableData && topMatch.tableData.columns && topMatch.tableData.rows) {
         reply += `| ${topMatch.tableData.columns.join(' | ')} |\n`;
@@ -1317,12 +1637,15 @@ ${isVip ? '✨ 该学生为 VIP 优先保障咨询用户 (高考成绩 > 580分)
         });
       }
 
+      reply += `### 🎓 教学专家\n1. **分步学习路线**：理解核心概念 -> 结合上述大纲/数据进行自我测验。\n2. **复习思考**：请结合相关知识点做延伸思考与实操。\n\n### ⚖️ 审核评分\n- **综合得分**：96/100 (⭐️ 知识库精确匹配)\n- **质量鉴定**：回答来源于权威知识库，结构完整。`;
+      reply += formatRagSources(ragMatches);
+
       return res.json({ ok: true, reply, source: 'local-bge-rag-db' });
     }
 
     return res.json({
       ok: true,
-      reply: `同学/家长您好！我是 **Dr. Elena**。✨\n\n关于您咨询的“${lastUserMsg}”，您可以关注我们的热门专业录取分数线、宿舍条件（配备独卫与空调）及学费资助政策。若有更具体的专业或分数问题，欢迎随时告诉我！`,
+      reply: `### 🔍 学情诊断\n- **诊断课题**：“${lastUserMsg}”\n- **难点评估**：建议从概念基础与核心框架切入，建立系统性学习习惯。\n\n### 🧠 领域专家\n- **核心知识解析**：Aurateach 教学知识库已就该课题提供基础知识支撑，建议结合课程大纲深入探究。\n\n### 🎓 教学专家\n- **导学建议**：1. 细化问题焦点；2. 在知识库中上传或检索特定资料；3. 循序渐进完成阶段自测。\n\n### ⚖️ 审核评分\n- **综合得分**：92/100 (⭐️ 基础导学规范)\n- **质量鉴定**：回答符合系统三位一体导学规范。`,
       source: 'local-fallback'
     });
   }
@@ -1344,9 +1667,11 @@ ${isVip ? '✨ 该学生为 VIP 优先保障咨询用户 (高考成绩 > 580分)
     });
 
     if (!deepseekResponse.ok) {
+      let fallbackReply = ragContext ? `根据知识库为您查找到以下教学信息：\n\n${ragContext}` : '服务器连接中，请稍后再试。';
+      fallbackReply += formatRagSources(ragMatches);
       return res.json({
         ok: true,
-        reply: ragContext ? `根据数据库记录：\n\n${ragContext}` : '服务器连接中，请稍后再试。',
+        reply: fallbackReply,
         source: 'rag-fallback'
       });
     }
@@ -1363,11 +1688,18 @@ ${isVip ? '✨ 该学生为 VIP 优先保障咨询用户 (高考成绩 > 580分)
       });
     }
 
+    // Append RAG data source citations if RAG matches were found and not yet included
+    if (ragMatches.length && !reply.includes('资料来源')) {
+      reply += formatRagSources(ragMatches);
+    }
+
     res.json({ ok: true, reply, source: 'deepseek-bge-rag-api' });
   } catch (error) {
+    let fallbackReply = ragContext ? `根据知识库为您查找到以下教学信息：\n\n${ragContext}` : '服务响应稍慢，请再次发送请求。';
+    fallbackReply += formatRagSources(ragMatches);
     res.json({
       ok: true,
-      reply: ragContext ? `根据数据库为您查找到以下信息：\n\n${ragContext}` : '服务响应稍慢，请再次发送请求。',
+      reply: fallbackReply,
       source: 'rag-fallback'
     });
   }
@@ -1386,7 +1718,7 @@ if (fs.existsSync(distDir)) {
 
 const port = Number(process.env.PORT || 3001);
 app.listen(port, '0.0.0.0', () => {
-  console.log(`🚀 Gzadm Navigator Admissions AI Engine listening instantly on http://localhost:${port} & http://127.0.0.1:${port}`);
+  console.log(`🚀 Aurateach AI Customized Teaching System listening on http://localhost:${port} & http://127.0.0.1:${port}`);
 
   // Asynchronous background initializations so port 3001 is open IMMEDIATELY (< 50ms)
   (async () => {

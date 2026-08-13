@@ -1,3 +1,3 @@
-import AdmissionsApp from '../aurasense';
+import AurateachApp from '../aurasense';
 
-export default AdmissionsApp;
+export default AurateachApp;
