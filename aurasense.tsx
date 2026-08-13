@@ -522,7 +522,7 @@ const MapGuideModal = ({ locations, isOpen, onClose, onAskQuestion }) => {
 };
 
 // --- Markdown Component ---
-// Helper function to sanitize unclosed markdown syntax tags (images, tables)
+// Helper function to sanitize unclosed markdown syntax tags and auto-fence raw JSON widgets
 const sanitizeMarkdownContent = (rawText) => {
   if (!rawText) return '';
   let safeText = rawText;
@@ -540,49 +540,25 @@ const sanitizeMarkdownContent = (rawText) => {
     safeText = lines.join('\n');
   }
 
+  // Auto-wrap unfenced JSON blocks (e.g. raw JSON objects output without ```json code block)
+  safeText = safeText.replace(/(^|\n)(\s*\{[\s\S]*?\n\s*\})(\n|$)/g, (match, p1, jsonStr, p3) => {
+    const trimmed = jsonStr.trim();
+    if (
+      (trimmed.includes('"front"') ||
+       trimmed.includes('"question"') ||
+       trimmed.includes('"type"') ||
+       trimmed.includes('"array"') ||
+       trimmed.includes('"options"')) &&
+      !trimmed.startsWith('```')
+    ) {
+      return `${p1}\n\`\`\`json\n${trimmed}\n\`\`\`\n${p3}`;
+    }
+    return match;
+  });
+
   return safeText;
 };
 
-// --- Memoized Markdown Component & Chat Message Item (Fix typing flicker issue) ---
-interface AuraMarkdownMessageProps {
-  content: string;
-  roleColor?: string;
-  username?: string;
-}
-
-const AuraMarkdownMessage = React.memo(({ content, roleColor, username }: AuraMarkdownMessageProps) => {
-  const safeContent = sanitizeMarkdownContent(content);
-
-  const markdownComponents = useMemo(() => ({
-    h3: ({ children }: { children?: React.ReactNode }) => {
-      const text = String(children || '');
-      if (text.includes('学情诊断')) {
-        return (
-          <div className="mt-4 mb-2 p-3 rounded-2xl bg-amber-50 border border-amber-200/80 text-amber-900 font-bold text-[14px] flex items-center gap-2 shadow-xs">
-            <span className="w-7 h-7 rounded-xl bg-amber-500 text-white flex items-center justify-center text-[13px] shadow-xs">🔍</span>
-            <span className="font-black text-[15px]">学情诊断</span>
-            <span className="ml-auto text-[10px] bg-amber-200/60 text-amber-800 px-2 py-0.5 rounded-full font-bold">诊断测评</span>
-          </div>
-        );
-      }
-      if (text.includes('领域专家')) {
-        return (
-          <div className="mt-4 mb-2 p-3 rounded-2xl bg-indigo-50 border border-indigo-200/80 text-indigo-900 font-bold text-[14px] flex items-center gap-2 shadow-xs">
-            <span className="w-7 h-7 rounded-xl bg-indigo-500 text-white flex items-center justify-center text-[13px] shadow-xs">🧠</span>
-            <span className="font-black text-[15px]">领域专家解析</span>
-            <span className="ml-auto text-[10px] bg-indigo-200/60 text-indigo-800 px-2 py-0.5 rounded-full font-bold">原理剖析</span>
-          </div>
-        );
-      }
-      if (text.includes('教学专家')) {
-        return (
-          <div className="mt-4 mb-2 p-3 rounded-2xl bg-emerald-50 border border-emerald-200/80 text-emerald-900 font-bold text-[14px] flex items-center gap-2 shadow-xs">
-            <span className="w-7 h-7 rounded-xl bg-emerald-500 text-white flex items-center justify-center text-[13px] shadow-xs">🎓</span>
-            <span className="font-black text-[15px]">教学专家导学</span>
-            <span className="ml-auto text-[10px] bg-emerald-200/60 text-emerald-800 px-2 py-0.5 rounded-full font-bold">分步导学</span>
-          </div>
-        );
-      }
 // Collapsible AI Audit Score Card (Shows score by default, click to expand details)
 const AiAuditScoreCard = ({ children }: { children?: React.ReactNode }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -632,6 +608,50 @@ const AiAuditScoreCard = ({ children }: { children?: React.ReactNode }) => {
     </div>
   );
 };
+
+// --- Memoized Markdown Component & Chat Message Item (Fix typing flicker issue) ---
+interface AuraMarkdownMessageProps {
+  content: string;
+  roleColor?: string;
+  username?: string;
+}
+
+const AuraMarkdownMessage = React.memo(({ content, roleColor, username }: AuraMarkdownMessageProps) => {
+  const safeContent = sanitizeMarkdownContent(content);
+
+  const markdownComponents = useMemo(() => ({
+    h3: ({ children }: { children?: React.ReactNode }) => {
+      const text = String(children || '');
+      if (text.includes('学情诊断')) {
+        return (
+          <div className="mt-4 mb-2 p-3 rounded-2xl bg-amber-50 border border-amber-200/80 text-amber-900 font-bold text-[14px] flex items-center gap-2 shadow-xs">
+            <span className="w-7 h-7 rounded-xl bg-amber-500 text-white flex items-center justify-center text-[13px] shadow-xs">🔍</span>
+            <span className="font-black text-[15px]">学情诊断</span>
+            <span className="ml-auto text-[10px] bg-amber-200/60 text-amber-800 px-2 py-0.5 rounded-full font-bold">诊断测评</span>
+          </div>
+        );
+      }
+      if (text.includes('领域专家')) {
+        return (
+          <div className="mt-4 mb-2 p-3 rounded-2xl bg-indigo-50 border border-indigo-200/80 text-indigo-900 font-bold text-[14px] flex items-center gap-2 shadow-xs">
+            <span className="w-7 h-7 rounded-xl bg-indigo-500 text-white flex items-center justify-center text-[13px] shadow-xs">🧠</span>
+            <span className="font-black text-[15px]">领域专家解析</span>
+            <span className="ml-auto text-[10px] bg-indigo-200/60 text-indigo-800 px-2 py-0.5 rounded-full font-bold">原理剖析</span>
+          </div>
+        );
+      }
+      if (text.includes('教学专家')) {
+        return (
+          <div className="mt-4 mb-2 p-3 rounded-2xl bg-emerald-50 border border-emerald-200/80 text-emerald-900 font-bold text-[14px] flex items-center gap-2 shadow-xs">
+            <span className="w-7 h-7 rounded-xl bg-emerald-500 text-white flex items-center justify-center text-[13px] shadow-xs">🎓</span>
+            <span className="font-black text-[15px]">教学专家导学</span>
+            <span className="ml-auto text-[10px] bg-emerald-200/60 text-emerald-800 px-2 py-0.5 rounded-full font-bold">分步导学</span>
+          </div>
+        );
+      }
+      if (text.includes('审核评分') || text.includes('审核')) {
+        return <AiAuditScoreCard />;
+      }
       return <h3 className="text-[15px] font-black text-[#4a4365] mt-3 mb-1.5">{children}</h3>;
     },
     p: ({ children }: { children?: React.ReactNode }) => (
