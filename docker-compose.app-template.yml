@@ -37,6 +37,33 @@ services:
       - database
     restart: unless-stopped
 
+  # 3. AuraSense 智能入学咨询应用服务 (全套一键部署)
+  aurasense-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: aurasense-app
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      - PORT=3001
+      - POSTGRES_HOST=psql-aurasense
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=aurasense
+      - POSTGRES_PASSWORD=aurasensepass
+      - POSTGRES_DB=aurasense
+      - REDIS_URL=redis://valkey:6379
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:-sk-be02aa5b87ad475382b3739f8e6e548f}
+    volumes:
+      - ./data:/app/data
+      - ./dockerdata/aurasense-uploads:/app/public/uploads
+    networks:
+      - database
+    depends_on:
+      psql-aurasense:
+        condition: service_healthy
+
 networks:
   database:
     external: true
