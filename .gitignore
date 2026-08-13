@@ -1,4 +1,8 @@
 node_modules/
 dist/
 data/
+dockerdata/
+valkey/
+.env
 .env.local
+*.log

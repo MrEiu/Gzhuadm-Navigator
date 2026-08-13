@@ -5,20 +5,22 @@
   "type": "module",
   "scripts": {
     "dev:client": "vite --port 4173",
-    "dev:client2": "vite --port 5468 --host",
     "dev:server": "node server.mjs",
     "dev": "concurrently -k \"npm run dev:server\" \"npm run dev:client\"",
-    "dev:questionnaire2": "concurrently -k \"npm run dev:server\" \"npm run dev:client2\"",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "start": "node server.mjs"
   },
   "dependencies": {
+    "@xenova/transformers": "^2.17.2",
     "cors": "^2.8.5",
     "express": "^5.1.0",
     "lucide-react": "^0.532.0",
+    "pg": "^8.11.3",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-markdown": "^10.1.0",
+    "redis": "^4.6.12",
     "remark-gfm": "^4.0.1",
     "sql.js": "^1.13.0"
   },

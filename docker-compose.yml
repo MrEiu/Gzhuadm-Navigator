@@ -1,0 +1,69 @@
+version: "3.8"
+
+services:
+  # 1. PostgreSQL Database Service (支持向量 pgvector)
+  psql-aurasense:
+    image: pgvector/pgvector:pg17-trixie
+    container_name: psql-aurasense
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=aurasense
+      - POSTGRES_PASSWORD=aurasensepass
+      - POSTGRES_DB=aurasense
+    volumes:
+      - ./dockerdata/psqldata-aurasense:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aurasense -d aurasense || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    ports:
+      - "35432:5432"
+    networks:
+      - database
+
+  # 2. Valkey / Redis 高速缓存服务
+  valkey:
+    image: valkey/valkey@sha256:12ba4f45a7c3e1d0f076acd616cb230834e75a77e8516dde382720af32832d6d
+    container_name: valkey
+    command: "valkey-server --dir /data --save 60 1 --loglevel notice"
+    ports:
+      - "6379:6379"
+    volumes:
+      - ./valkey:/usr/local/etc/valkey
+      - ./dockerdata/valkeydata:/data
+    networks:
+      - database
+    restart: unless-stopped
+
+  # 3. AuraSense 智能入学咨询应用服务
+  aurasense-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: aurasense-app
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      - PORT=3001
+      - POSTGRES_HOST=psql-aurasense
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=aurasense
+      - POSTGRES_PASSWORD=aurasensepass
+      - POSTGRES_DB=aurasense
+      - REDIS_URL=redis://valkey:6379
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:-sk-be02aa5b87ad475382b3739f8e6e548f}
+    volumes:
+      - ./data:/app/data
+      - ./dockerdata/aurasense-uploads:/app/public/uploads
+    networks:
+      - database
+    depends_on:
+      psql-aurasense:
+        condition: service_healthy
+
+networks:
+  database:
+    external: true
