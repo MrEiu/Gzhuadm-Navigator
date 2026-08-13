@@ -54,7 +54,8 @@ const initEmbedder = async () => {
   }
 };
 
-await initEmbedder();
+// initEmbedder will be called asynchronously after app.listen
+
 
 const getEmbedding = async (text = '') => {
   if (!embedder) return null;
@@ -240,7 +241,8 @@ const initPostgres = async () => {
   }
 };
 
-await initPostgres();
+// initPostgres will be called asynchronously after app.listen
+
 
 // Local JSON fallback helpers
 const loadJsonRag = () => {
@@ -304,7 +306,8 @@ const initRedis = async () => {
   }
 };
 
-await initRedis();
+// initRedis will be called asynchronously after app.listen
+
 
 const getCache = async (key) => {
   if (useRedis && redisClient?.isOpen) {
@@ -939,8 +942,16 @@ if (fs.existsSync(distDir)) {
 
 const port = Number(process.env.PORT || 3001);
 app.listen(port, '0.0.0.0', () => {
-  console.log(`🚀 AuraSense Admissions AI + Local BGE 512-dim RAG Engine listening on http://localhost:${port} & http://127.0.0.1:${port}`);
+  console.log(`🚀 AuraSense Admissions AI Engine listening instantly on http://localhost:${port} & http://127.0.0.1:${port}`);
+
+  // Asynchronous background initializations so port 3001 is open IMMEDIATELY (< 50ms)
+  (async () => {
+    await initEmbedder();
+    await initPostgres();
+    await initRedis();
+  })();
 });
+
 
 
 setInterval(() => {}, 1000 * 60 * 60);
