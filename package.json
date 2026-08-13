@@ -4,11 +4,11 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev:client": "vite --port 4173",
+    "dev:client": "vite --host --port 4173",
     "dev:server": "node server.mjs",
     "dev": "concurrently -k \"npm run dev:server\" \"npm run dev:client\"",
     "build": "vite build",
-    "preview": "vite preview",
+    "preview": "vite preview --host",
     "start": "node server.mjs"
   },
   "dependencies": {
