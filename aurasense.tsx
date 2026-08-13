@@ -8,7 +8,8 @@ import {
   ArrowRight, FileText, FileUp, Scissors, Layers, Eye
 } from 'lucide-react';
 
-const API_BASE = 'http://localhost:3001';
+const API_BASE = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') ? `http://${window.location.hostname}:3001` : '';
+
 
 // --- Theme Configuration ---
 const THEME = {

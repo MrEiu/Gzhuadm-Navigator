@@ -938,8 +938,9 @@ if (fs.existsSync(distDir)) {
 
 
 const port = Number(process.env.PORT || 3001);
-app.listen(port, () => {
-  console.log(`🚀 AuraSense Admissions AI + Local BGE 512-dim RAG Engine listening on http://localhost:${port}`);
+app.listen(port, '0.0.0.0', () => {
+  console.log(`🚀 AuraSense Admissions AI + Local BGE 512-dim RAG Engine listening on http://localhost:${port} & http://127.0.0.1:${port}`);
 });
+
 
 setInterval(() => {}, 1000 * 60 * 60);
