@@ -630,8 +630,33 @@ const AuraMarkdownMessage = React.memo(({ content, roleColor }: AuraMarkdownMess
           </div>
         )}
       </div>
-    )
-  }), [roleColor]);
+    ),
+    code: ({ inline, className, children, ...props }: any) => {
+      const match = /language-(\w+)/.exec(className || '');
+      const rawString = String(children || '').trim();
+
+      if (!inline && (match?.[1] === 'json' || rawString.startsWith('{'))) {
+        try {
+          const parsedData = JSON.parse(rawString);
+          if (parsedData.front || parsedData.back) {
+            return <FlashcardWidget card={parsedData} username={currentUser?.username} />;
+          }
+          if (parsedData.question && (parsedData.options || parsedData.answer)) {
+            return <InteractiveQuizWidget quiz={parsedData} />;
+          }
+          if (parsedData.type || parsedData.array) {
+            return <InteractiveLiveCanvas config={parsedData} />;
+          }
+        } catch (e) {}
+      }
+
+      return (
+        <code className="bg-purple-50 text-purple-900 px-1.5 py-0.5 rounded text-[13px] font-mono border border-purple-100" {...props}>
+          {children}
+        </code>
+      );
+    }
+  }), [roleColor, currentUser]);
 
   return (
     <div>
@@ -1030,6 +1055,7 @@ export default function App() {
   const [isWebFetchModalOpen, setIsWebFetchModalOpen] = useState(false);
   const [isDocImportModalOpen, setIsDocImportModalOpen] = useState(false);
   const [isNotebookOpen, setIsNotebookOpen] = useState(false);
+  const [isFlashcardModalOpen, setIsFlashcardModalOpen] = useState(false);
 
   // Derived active session & messages
   const createDefaultSession = () => ({
@@ -1725,6 +1751,15 @@ export default function App() {
                         <Database size={13} />
                         <span>我的个人 RAG 库</span>
                       </button>
+
+                      {/* Flashcards Collection Button */}
+                      <button
+                        onClick={() => setIsFlashcardModalOpen(true)}
+                        className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200/60 px-3 py-1 rounded-xl font-bold text-[11px] transition-all flex items-center gap-1 shadow-xs"
+                      >
+                        <Bookmark size={13} />
+                        <span>我的闪卡集</span>
+                      </button>
                     </div>
                   </div>
 
@@ -1825,6 +1860,18 @@ export default function App() {
                                 <div>
                                   <div>管理我的个人 RAG 库</div>
                                   <div className="text-[10px] text-gray-400 font-normal">编辑与清理个人专属知识卡片</div>
+                                </div>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => { setIsPlusMenuOpen(false); setIsFlashcardModalOpen(true); }}
+                                className="w-full text-left p-2.5 rounded-2xl hover:bg-indigo-50 flex items-center gap-2.5 transition-all text-[12px] font-bold text-[#4a4365]"
+                              >
+                                <span className="w-7 h-7 rounded-xl bg-indigo-500 text-white flex items-center justify-center text-[12px] shrink-0">🎴</span>
+                                <div>
+                                  <div>我的知识闪卡集</div>
+                                  <div className="text-[10px] text-gray-400 font-normal">翻面自测与复习收藏的闪卡</div>
                                 </div>
                               </button>
 
@@ -3761,6 +3808,13 @@ const PersonalRagModal = ({ username, isOpen, onClose }: PersonalRagModalProps) 
         onSuccess={() => {
           setIsPersonalRagModalOpen(true);
         }}
+      />
+
+      {/* Flashcards Collection Modal */}
+      <FlashcardCollectionModal
+        username={currentUser?.username || ''}
+        isOpen={isFlashcardModalOpen}
+        onClose={() => setIsFlashcardModalOpen(false)}
       />
     </div>
   );

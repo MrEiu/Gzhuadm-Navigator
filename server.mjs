@@ -503,12 +503,44 @@ const AURATEACH_SYSTEM_PROMPT = `
 你是 Aurateach AI 定制教学系统的核心智能导师——【🎓 教学专家】。
 你拥有扎实的学科专业知识储备与科学的导学方法论。你的职责是针对学生提出的任何学科知识、算法例题、代码疑难或复习问题，提供通俗易懂、分步拆解、循序渐进的深度导学解答。
 
-在作答时，请始终以【🎓 教学专家】的专业语气解答，并包含以下核心导学结构：
+在作答时，请始终以【🎓 教学专家】的专业语气解答，并在回答中包含以下核心结构：
 
 ### 🎓 教学专家分步导学
 - **核心概念拆解**：用通俗直观的语言阐述概念定义与核心逻辑。
 - **分步原理与实操**：给出现做案例、代码示例或步骤解析。
 - **总结与巩固建议**：提供延伸思考题或下一阶复习建议。
+
+### 🎴 知识点闪卡
+\`\`\`json
+{
+  "title": "二分查找核心要点",
+  "category": "算法与数据结构",
+  "front": "二分查找算法适用的核心前提条件是什么？",
+  "back": "必须基于有序数组（顺序存储结构），且时间复杂度为 O(log N)。"
+}
+\`\`\`
+
+### 📝 巩固测验题
+\`\`\`json
+{
+  "type": "choice",
+  "question": "在单调递增数组中二分查找目标值 23 时，如果 mid 位置的值为 16，指针应如何调整？",
+  "options": ["A. left = mid + 1", "B. right = mid - 1", "C. left = mid", "D. 保持不变"],
+  "answer": "A. left = mid + 1",
+  "explanation": "因为 16 < 23，目标值在右半区间，所以应调整左边界 left = mid + 1。"
+}
+\`\`\`
+
+【临时交互演示画布规则】：若回答涉及算法推演（如二分查找、冒泡排序、栈与队列等），请附带：
+### 🚀 临时交互演示画布
+\`\`\`json
+{
+  "type": "binary-search",
+  "title": "二分查找算法单步推演画布",
+  "array": [2, 5, 8, 12, 16, 23, 38, 56, 72, 91],
+  "target": 23
+}
+\`\`\`
 
 ### ⚖️ 审核评分
 - 从【准确性】、【循序渐进性】、【针对性】三大维度做质量审计。
@@ -1516,32 +1548,75 @@ app.delete('/api/user/personal-rag/:id', async (req, res) => {
   res.json({ ok: true, id });
 });
 
-app.post('/api/user/update-diagnostic-profile', async (req, res) => {
-  const { username, weakPoints, diagnosticNotes, learningGoals } = req.body || {};
-  if (!username) return res.status(400).json({ ok: false, error: 'Username required' });
+// --- User Flashcards APIs (Collection Management) ---
+const FLASHCARDS_FILE = path.join(dataDir, 'user_flashcards.json');
 
-  const currentProfile = (await getUserProfile(username)) || {};
-  const updatedProfile = {
-    ...currentProfile,
-    weakPoints: weakPoints || currentProfile.weakPoints || '',
-    diagnosticNotes: diagnosticNotes || currentProfile.diagnosticNotes || '',
-    learningGoals: learningGoals || currentProfile.learningGoals || '',
-    updatedAt: new Date().toISOString()
-  };
-
-  if (usePostgres) {
+const loadJsonFlashcards = () => {
+  if (fs.existsSync(FLASHCARDS_FILE)) {
     try {
-      await pgPool.query('UPDATE users SET profile = $1 WHERE username = $2', [JSON.stringify(updatedProfile), username]);
-    } catch (e) {
-      console.error('PG profile diagnostic update err:', e);
+      return JSON.parse(fs.readFileSync(FLASHCARDS_FILE, 'utf-8'));
+    } catch {
+      return {};
     }
   }
+  return {};
+};
 
-  const profiles = loadJsonProfiles();
-  profiles[username] = updatedProfile;
-  saveJsonProfiles(profiles);
+const saveJsonFlashcards = (data) => {
+  try {
+    fs.writeFileSync(FLASHCARDS_FILE, JSON.stringify(data, null, 2), 'utf-8');
+  } catch (e) {
+    console.error('Failed to save user_flashcards.json:', e);
+  }
+};
 
-  res.json({ ok: true, profile: updatedProfile });
+app.get('/api/user/flashcards', async (req, res) => {
+  const username = req.query.username;
+  if (!username) return res.status(400).json({ ok: false, error: 'Username required' });
+  const allCards = loadJsonFlashcards();
+  const cards = allCards[username] || [];
+  res.json({ ok: true, cards });
+});
+
+app.post('/api/user/flashcards', async (req, res) => {
+  const { username, card } = req.body || {};
+  if (!username || !card || !card.front) {
+    return res.status(400).json({ ok: false, error: 'Username and card front required' });
+  }
+
+  const allCards = loadJsonFlashcards();
+  if (!allCards[username]) allCards[username] = [];
+
+  const newCard = {
+    id: `flashcard-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+    title: card.title || '知识点闪卡',
+    category: card.category || '通用考点',
+    front: card.front,
+    back: card.back || '',
+    createdAt: new Date().toISOString()
+  };
+
+  const exists = allCards[username].some(c => c.front === newCard.front);
+  if (!exists) {
+    allCards[username].unshift(newCard);
+    saveJsonFlashcards(allCards);
+  }
+
+  res.json({ ok: true, card: newCard });
+});
+
+app.delete('/api/user/flashcards/:id', async (req, res) => {
+  const { id } = req.params;
+  const username = req.query.username || req.body?.username;
+  if (!username || !id) return res.status(400).json({ ok: false, error: 'Username and id required' });
+
+  const allCards = loadJsonFlashcards();
+  if (allCards[username]) {
+    allCards[username] = allCards[username].filter(c => c.id !== id);
+    saveJsonFlashcards(allCards);
+  }
+
+  res.json({ ok: true, id });
 });
 
 // --- Chat Endpoint with RAG Integration ---
