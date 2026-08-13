@@ -1,5 +1,3 @@
-version: "3.8"
-
 services:
   # 1. PostgreSQL Database Service (支持向量 pgvector)
   psql-aurasense:
@@ -39,4 +37,4 @@ services:
 
 networks:
   database:
-    external: true
+    name: database
