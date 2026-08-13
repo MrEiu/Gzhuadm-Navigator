@@ -610,25 +610,25 @@ export default function App() {
 
       {/* SCENE 2: Logged In Main Application */}
       {currentUser && (
-        <div className={`w-full h-full ${currentUser.role === 'admin' ? 'sm:max-w-[860px]' : (isSidebarOpen ? 'sm:max-w-[920px]' : 'sm:max-w-[480px]')} sm:max-h-[880px] ${THEME.glass} flex flex-col sm:rounded-[48px] overflow-hidden relative sm:shadow-[0_45px_100px_rgba(186,175,215,0.4)] sm:border-[8px] border-[#fdfcff] transition-all duration-500`}>
+        <div className={`w-full h-full ${currentUser.role === 'admin' ? 'sm:max-w-[860px]' : (isSidebarOpen ? 'sm:max-w-[960px]' : 'sm:max-w-[480px]')} sm:max-h-[880px] ${THEME.glass} flex flex-col sm:rounded-[48px] overflow-hidden relative sm:shadow-[0_45px_100px_rgba(186,175,215,0.4)] sm:border-[8px] border-[#fdfcff] transition-all duration-500`}>
           
           <div className="flex flex-col h-full w-full animate-in fade-in duration-500">
             
             {/* Header */}
-            <header className="pt-8 pb-3 px-6 sm:px-8 flex items-center justify-between z-10 bg-white/40 backdrop-blur-md border-b border-white/60">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-[16px] bg-gradient-to-br from-[#b3a4ed] to-[#f296b2] flex items-center justify-center shadow-[0_8px_20px_rgba(179,164,237,0.4)] border-2 border-white">
-                  <BrainCircuit className="text-white" size={22} />
+            <header className="pt-8 pb-3 px-4 sm:px-8 flex items-center justify-between z-10 bg-white/40 backdrop-blur-md border-b border-white/60">
+              <div className="flex items-center gap-2.5 sm:gap-3">
+                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-[16px] bg-gradient-to-br from-[#b3a4ed] to-[#f296b2] flex items-center justify-center shadow-[0_8px_20px_rgba(179,164,237,0.4)] border-2 border-white">
+                  <BrainCircuit className="text-white" size={20} />
                 </div>
                 <div>
-                  <h1 className="font-black text-[#4a4365] text-[17px] tracking-tight">AuraSense</h1>
-                  <p className="text-[10px] text-[#a494e8] font-black uppercase tracking-widest">
-                    {currentUser.role === 'admin' ? 'RAG Knowledge & Chunking Admin' : 'Admissions Counseling'}
+                  <h1 className="font-black text-[#4a4365] text-[15px] sm:text-[17px] tracking-tight">AuraSense</h1>
+                  <p className="text-[9px] sm:text-[10px] text-[#a494e8] font-black uppercase tracking-widest">
+                    {currentUser.role === 'admin' ? 'RAG Admin' : 'Admissions Counseling'}
                   </p>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5 sm:gap-2">
                 {currentUser.role === 'user' && (
                   <>
                     <button
@@ -644,18 +644,24 @@ export default function App() {
 
                     <button
                       onClick={handleCreateNewSession}
-                      className="px-3 py-2 rounded-2xl bg-gradient-to-r from-[#b3a4ed] to-[#c7b8f9] text-white hover:opacity-90 active:scale-95 transition-all shadow-[0_4px_12px_rgba(179,164,237,0.4)] flex items-center gap-1 text-[12px] font-bold"
+                      className="p-2 sm:px-3 sm:py-2 rounded-2xl bg-gradient-to-r from-[#b3a4ed] to-[#c7b8f9] text-white hover:opacity-90 active:scale-95 transition-all shadow-[0_4px_12px_rgba(179,164,237,0.4)] flex items-center gap-1 text-[12px] font-bold"
+                      title="新建对话"
                     >
                       <Plus size={16} />
-                      <span>新建对话</span>
+                      <span className="hidden sm:inline">新建对话</span>
                     </button>
                   </>
                 )}
 
-                <div className="flex items-center gap-1.5 bg-white/80 px-3 py-1.5 rounded-2xl border border-white text-[12px] font-bold text-[#4a4365]">
+                <div className="flex items-center gap-1.5 bg-white/80 px-2.5 sm:px-3 py-1.5 rounded-2xl border border-white text-[12px] font-bold text-[#4a4365]">
                   <span className={`w-2 h-2 rounded-full ${currentUser.role === 'admin' ? 'bg-purple-500' : 'bg-emerald-400'}`} />
-                  <span>{currentUser.username}</span>
-                  <span className={`text-[10px] px-1.5 py-0.2 rounded-md ${currentUser.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-600'}`}>
+                  <span className="max-w-[70px] sm:max-w-[120px] truncate">{currentUser.username}</span>
+                  {currentUser.role === 'admin' ? (
+                    <ShieldCheck size={14} className="sm:hidden text-purple-600" />
+                  ) : (
+                    <User size={13} className="sm:hidden text-[#a494e8]" />
+                  )}
+                  <span className={`hidden sm:inline text-[10px] px-1.5 py-0.2 rounded-md ${currentUser.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-600'}`}>
                     {currentUser.role === 'admin' ? '管理员' : '普通用户'}
                   </span>
                 </div>
@@ -676,7 +682,7 @@ export default function App() {
                 
                 {/* Left Sidebar: Session List */}
                 {isSidebarOpen && (
-                  <aside className="w-full sm:w-72 bg-white/40 backdrop-blur-md border-r border-white/60 flex flex-col p-3 gap-2 overflow-y-auto hide-scrollbar shrink-0 animate-in slide-in-from-left duration-300">
+                  <aside className="w-full sm:w-56 md:w-60 bg-white/40 backdrop-blur-md border-r border-white/60 flex flex-col p-3 gap-2 overflow-y-auto hide-scrollbar shrink-0 animate-in slide-in-from-left duration-300">
                     <div className="flex items-center justify-between px-2 pt-1 pb-2 border-b border-gray-100/60">
                       <div className="flex items-center gap-1.5 text-[12px] font-black text-[#4a4365]">
                         <MessageSquare size={15} className="text-[#a494e8]" />
