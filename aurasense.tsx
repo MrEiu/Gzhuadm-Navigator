@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { 
@@ -522,69 +522,115 @@ const MapGuideModal = ({ locations, isOpen, onClose, onAskQuestion }) => {
 };
 
 // --- Markdown Component ---
-const AuraMarkdownMessage = ({ content, roleColor }) => {
+// Helper function to sanitize unclosed markdown syntax tags (images, tables)
+const sanitizeMarkdownContent = (rawText) => {
+  if (!rawText) return '';
+  let safeText = rawText;
+
+  // Protect unclosed image tag: e.g. ![alt](https://domain... (missing closing paren)
+  safeText = safeText.replace(/!\[([^\]]*)\]\(([^)]*)$/g, (_match, p1) => {
+    return `> 📷 *正在加载[${p1 || '图片附件'}]...*\n`;
+  });
+
+  // Protect unclosed table lines without trailing pipe
+  const lines = safeText.split('\n');
+  const lastLine = lines[lines.length - 1];
+  if (lastLine && lastLine.trim().startsWith('|') && !lastLine.trim().endsWith('|')) {
+    lines[lines.length - 1] = lastLine + ' |';
+    safeText = lines.join('\n');
+  }
+
+  return safeText;
+};
+
+// --- Memoized Markdown Component & Chat Message Item (Fix typing flicker issue) ---
+interface AuraMarkdownMessageProps {
+  content: string;
+  roleColor?: string;
+}
+
+const AuraMarkdownMessage = React.memo(({ content, roleColor }: AuraMarkdownMessageProps) => {
+  const safeContent = sanitizeMarkdownContent(content);
+
+  const markdownComponents = useMemo(() => ({
+    p: ({ children }: { children?: React.ReactNode }) => (
+      <p className="leading-relaxed text-[14px] my-1.5 whitespace-pre-wrap">
+        {children}
+      </p>
+    ),
+    strong: ({ children }: { children?: React.ReactNode }) => <b className="font-bold" style={{ color: roleColor }}>{children}</b>,
+    em: ({ children }: { children?: React.ReactNode }) => <em className="italic">{children}</em>,
+    ul: ({ children }: { children?: React.ReactNode }) => <ul className="my-2 list-disc space-y-1 pl-4 text-[14px]">{children}</ul>,
+    ol: ({ children }: { children?: React.ReactNode }) => <ol className="my-2 list-decimal space-y-1 pl-4 text-[14px]">{children}</ol>,
+    li: ({ children }: { children?: React.ReactNode }) => <li className="leading-relaxed">{children}</li>,
+    blockquote: ({ children }: { children?: React.ReactNode }) => (
+      <blockquote className="my-2.5 border-l-3 border-[#b3a4ed] pl-3 py-1 bg-purple-50/40 rounded-r-xl text-[#6d648b] text-[13px]">
+        {children}
+      </blockquote>
+    ),
+    table: ({ children }: { children?: React.ReactNode }) => (
+      <div className="overflow-x-auto my-3 rounded-2xl border border-[#e4dcf8] bg-white/90 shadow-sm">
+        <table className="min-w-full text-[13px] text-left border-collapse">{children}</table>
+      </div>
+    ),
+    thead: ({ children }: { children?: React.ReactNode }) => <thead className="bg-[#f3eefc] text-[#4a4365] font-bold">{children}</thead>,
+    th: ({ children }: { children?: React.ReactNode }) => <th className="p-2.5 border-b border-[#e4dcf8]">{children}</th>,
+    td: ({ children }: { children?: React.ReactNode }) => <td className="p-2.5 border-b border-[#f3eefc] text-[#6d648b]">{children}</td>,
+    img: ({ src, alt }: { src?: string; alt?: string }) => (
+      <div className="my-3 rounded-2xl overflow-hidden shadow-md border-2 border-white max-w-full group relative bg-gray-50">
+        <img 
+          src={src} 
+          alt={alt || '图片附件'} 
+          className="w-full max-h-60 object-cover hover:scale-105 transition-transform duration-500" 
+        />
+        {alt && (
+          <div className="p-2.5 bg-white/95 text-[11px] text-[#4a4365] font-bold border-t border-gray-100 flex items-center gap-1.5 shadow-xs">
+            <ImageIcon size={13} className="text-[#a494e8]" />
+            <span>{alt}</span>
+          </div>
+        )}
+      </div>
+    )
+  }), [roleColor]);
+
   return (
-    <ReactMarkdown
-      remarkPlugins={[remarkGfm]}
-      components={{
-        p: ({ children }) => <p className="leading-relaxed text-[14px] my-1.5 whitespace-pre-wrap">{children}</p>,
-        strong: ({ children }) => <b className="font-bold" style={{ color: roleColor }}>{children}</b>,
-        em: ({ children }) => <em className="italic">{children}</em>,
-        ul: ({ children }) => <ul className="my-2 list-disc space-y-1 pl-4 text-[14px]">{children}</ul>,
-        ol: ({ children }) => <ol className="my-2 list-decimal space-y-1 pl-4 text-[14px]">{children}</ol>,
-        li: ({ children }) => <li className="leading-relaxed">{children}</li>,
-        blockquote: ({ children }) => (
-          <blockquote className="my-2 border-l-2 border-[#b3a4ed] pl-3 text-[#6d648b] text-[13px]">{children}</blockquote>
-        ),
-        table: ({ children }) => (
-          <div className="overflow-x-auto my-3 rounded-xl border border-[#e4dcf8]">
-            <table className="min-w-full text-[13px] text-left border-collapse">{children}</table>
-          </div>
-        ),
-        thead: ({ children }) => <thead className="bg-[#f3eefc] text-[#4a4365] font-bold">{children}</thead>,
-        th: ({ children }) => <th className="p-2.5 border-b border-[#e4dcf8]">{children}</th>,
-        td: ({ children }) => <td className="p-2.5 border-b border-[#f3eefc] text-[#6d648b]">{children}</td>,
-        img: ({ src, alt }) => (
-          <div className="my-3 rounded-2xl overflow-hidden shadow-md border-2 border-white max-w-full group relative bg-gray-50">
-            <img src={src} alt={alt || '图片附件'} className="w-full max-h-56 object-cover hover:scale-105 transition-transform duration-300" />
-            {alt && (
-              <div className="p-2 bg-white/90 text-[11px] text-[#4a4365] font-bold border-t border-gray-100 flex items-center gap-1">
-                <ImageIcon size={12} className="text-[#a494e8]" /> {alt}
-              </div>
-            )}
-          </div>
-        )
-      }}
-    >
-      {content}
-    </ReactMarkdown>
+    <div>
+      <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+        {safeContent}
+      </ReactMarkdown>
+    </div>
   );
-};
+});
 
-// --- Typewriter Component ---
-const TypewriterText = ({ text, instant, roleColor, scrollRef }) => {
-  const [disp, setDisp] = useState(instant ? text : '');
+const ChatMessageItem = React.memo(({ msg, isUser, bubbleStyle, roleColor, roleAvatar, roleName }) => {
+  return (
+    <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} animate-in slide-in-from-bottom-4 duration-300`}>
+      <div className={`flex max-w-[88%] ${isUser ? 'flex-row-reverse' : 'flex-row'} items-end gap-3`}>
+        <img 
+          src={isUser ? "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?q=80&w=200&auto=format&fit=crop" : roleAvatar} 
+          className="w-9 h-9 rounded-[14px] shadow-sm border border-white object-cover" 
+          alt="avatar" 
+        />
+        <div className="flex flex-col">
+          {!isUser && (
+            <div className="flex items-center gap-1.5 mb-1.5 ml-1">
+              <span className="text-[11px] font-black tracking-wider uppercase" style={{ color: roleColor }}>
+                {roleName}
+              </span>
+            </div>
+          )}
+          <div className={`px-5 py-3.5 ${bubbleStyle} ${isUser ? 'rounded-[24px] rounded-br-sm' : 'rounded-[24px] rounded-tl-sm'}`}>
+            <AuraMarkdownMessage content={msg.text} roleColor={isUser ? '#fff' : roleColor} />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+});
 
-  useEffect(() => {
-    if (instant) {
-      setDisp(text);
-      return;
-    }
-    let i = 0;
-    setDisp(''); 
-    const timer = setInterval(() => {
-      setDisp(text.slice(0, i + 1));
-      i++;
-      if (scrollRef && scrollRef.current) {
-        scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
-      }
-      if (i >= text.length) clearInterval(timer);
-    }, 25);
-    return () => clearInterval(timer);
-  }, [text, instant]);
-
-  return <AuraMarkdownMessage content={disp} roleColor={roleColor} />;
-};
+const TypewriterText = React.memo(({ text, roleColor }) => {
+  return <AuraMarkdownMessage content={text} roleColor={roleColor} />;
+});
 
 export default function App() {
   // --- Auth State ---
@@ -1267,27 +1313,15 @@ export default function App() {
                       const bubbleStyle = isUser ? THEME.userBubble : THEME.botBubble;
 
                       return (
-                        <div key={msg.id} className={`flex ${isUser ? 'justify-end' : 'justify-start'} animate-in slide-in-from-bottom-4 duration-300`}>
-                          <div className={`flex max-w-[88%] ${isUser ? 'flex-row-reverse' : 'flex-row'} items-end gap-3`}>
-                            <img 
-                              src={isUser ? "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?q=80&w=200&auto=format&fit=crop" : ROLE.avatar} 
-                              className="w-9 h-9 rounded-[14px] shadow-sm border border-white object-cover" 
-                              alt="avatar" 
-                            />
-                            <div className="flex flex-col">
-                              {!isUser && (
-                                <div className="flex items-center gap-1.5 mb-1.5 ml-1">
-                                  <span className="text-[11px] font-black tracking-wider uppercase" style={{ color: ROLE.color }}>
-                                    {ROLE.name}
-                                  </span>
-                                </div>
-                              )}
-                              <div className={`px-5 py-3.5 ${bubbleStyle} ${isUser ? 'rounded-[24px] rounded-br-sm' : 'rounded-[24px] rounded-tl-sm'}`}>
-                                <AuraMarkdownMessage content={msg.text} roleColor={isUser ? '#fff' : ROLE.color} />
-                              </div>
-                            </div>
-                          </div>
-                        </div>
+                        <ChatMessageItem
+                          key={msg.id}
+                          msg={msg}
+                          isUser={isUser}
+                          bubbleStyle={bubbleStyle}
+                          roleColor={ROLE.color}
+                          roleAvatar={ROLE.avatar}
+                          roleName={ROLE.name}
+                        />
                       );
                     })}
 
