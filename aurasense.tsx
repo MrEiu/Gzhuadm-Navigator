@@ -22,8 +22,8 @@ const THEME = {
 };
 
 const ROLE = {
-  name: 'Aurateach 联合教学专家团',
-  title: '学情诊断 | 领域专家 | 教学专家 | AI 审核',
+  name: '🎓 Aurateach 教学专家',
+  title: '定制导学 | 知识提炼 | 分步讲解 | 质量审计',
   avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=200&auto=format&fit=crop",
   color: "#6366f1"
 };
@@ -32,7 +32,7 @@ const INITIAL_MESSAGES = [
   {
     id: 1,
     sender: 'bot',
-    text: '同学您好！欢迎使用 **Aurateach AI 定制教学系统**。我是您的 **三位一体联合教学专家团**。✨\n\n我们将通过 **🔍 学情诊断**、**🧠 领域专家** 与 **🎓 教学专家** 为您提供深度解构与定制导学，并由 **⚖️ AI 审核员** 实时进行质量评分！您可以提出任何学科知识、算法原理、代码疑难或复习问题。',
+    text: '同学您好！欢迎使用 **Aurateach AI 定制教学系统**。我是您的 **🎓 教学专家** 导师。✨\n\n您可以向我提问任何学科知识、算法例题、攻克难点、代码实操或复习疑问，我会结合专属知识库为您提供精准的定制导学与深度解答！',
     instant: true
   }
 ];
@@ -508,7 +508,7 @@ const MapGuideModal = ({ locations, isOpen, onClose, onAskQuestion }) => {
                   className="flex-1 bg-gradient-to-r from-[#4a4365] to-[#685d8a] hover:from-[#3a3452] hover:to-[#554a75] text-white text-[13px] font-bold py-3 rounded-2xl shadow-lg flex items-center justify-center gap-2 active:scale-95 transition-all"
                 >
                   <MessageSquare size={16} />
-                  <span>一键向 Dr. Elena 咨询该地点</span>
+                  <span>一键向 🎓 教学专家 咨询该地点</span>
                 </button>
               </div>
 
