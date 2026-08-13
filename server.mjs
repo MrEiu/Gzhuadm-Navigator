@@ -234,6 +234,16 @@ const initPostgres = async () => {
         embedding vector(512),
         updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       );
+
+      CREATE TABLE IF NOT EXISTS chat_sessions (
+        id VARCHAR(100) PRIMARY KEY,
+        username VARCHAR(100) NOT NULL,
+        title VARCHAR(255) NOT NULL,
+        messages JSONB NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE INDEX IF NOT EXISTS idx_chat_sessions_username ON chat_sessions(username);
     `);
 
     // Seed admin user
@@ -862,6 +872,100 @@ app.post('/api/admin/upload-image', (req, res) => {
     console.error('Image upload failed:', err);
     res.status(500).json({ ok: false, error: 'Upload failed' });
   }
+});
+
+// --- User Sessions Persistence & Cache APIs ---
+const sessionsFilePath = path.join(dataDir, 'user_sessions.json');
+
+const loadJsonSessions = () => {
+  if (!fs.existsSync(sessionsFilePath)) return {};
+  try {
+    return JSON.parse(fs.readFileSync(sessionsFilePath, 'utf8'));
+  } catch {
+    return {};
+  }
+};
+
+const saveJsonSessions = (data) => {
+  try {
+    fs.writeFileSync(sessionsFilePath, JSON.stringify(data, null, 2), 'utf8');
+  } catch (e) {
+    console.error('Failed to save user sessions JSON:', e);
+  }
+};
+
+app.get('/api/user/sessions', async (req, res) => {
+  const username = req.query.username;
+  if (!username) return res.status(400).json({ ok: false, error: 'Username is required' });
+
+  if (usePostgres) {
+    try {
+      const dbRes = await pgPool.query(
+        'SELECT id, title, messages, created_at AS "createdAt", updated_at AS "updatedAt" FROM chat_sessions WHERE username = $1 ORDER BY updated_at DESC',
+        [username]
+      );
+      return res.json({ ok: true, sessions: dbRes.rows });
+    } catch (e) {
+      console.error('PostgreSQL session fetch error, fallback to JSON:', e);
+    }
+  }
+
+  const allJson = loadJsonSessions();
+  const userSessions = allJson[username] || [];
+  res.json({ ok: true, sessions: userSessions });
+});
+
+app.post('/api/user/sessions', async (req, res) => {
+  const { username, sessions } = req.body || {};
+  if (!username || !Array.isArray(sessions)) {
+    return res.status(400).json({ ok: false, error: 'Username and sessions array required' });
+  }
+
+  if (usePostgres) {
+    try {
+      for (const s of sessions) {
+        await pgPool.query(
+          `INSERT INTO chat_sessions (id, username, title, messages, updated_at)
+           VALUES ($1, $2, $3, $4, $5)
+           ON CONFLICT (id) DO UPDATE
+           SET title = EXCLUDED.title, messages = EXCLUDED.messages, updated_at = EXCLUDED.updated_at`,
+          [s.id, username, s.title, JSON.stringify(s.messages), s.updatedAt || new Date().toISOString()]
+        );
+      }
+    } catch (e) {
+      console.error('PostgreSQL session save error:', e);
+    }
+  }
+
+  const allJson = loadJsonSessions();
+  allJson[username] = sessions;
+  saveJsonSessions(allJson);
+
+  res.json({ ok: true, count: sessions.length });
+});
+
+app.delete('/api/user/sessions/:sessionId', async (req, res) => {
+  const sessionId = req.params.sessionId;
+  const username = req.query.username;
+  if (!username || !sessionId) {
+    return res.status(400).json({ ok: false, error: 'Username and sessionId are required' });
+  }
+
+  if (usePostgres) {
+    try {
+      await pgPool.query('DELETE FROM chat_sessions WHERE id = $1 AND username = $2', [sessionId, username]);
+    } catch (e) {
+      console.error('PostgreSQL session delete error:', e);
+    }
+  }
+
+  const allJson = loadJsonSessions();
+  if (allJson[username]) {
+    allJson[username] = allJson[username].filter(s => s.id !== sessionId);
+    saveJsonSessions(allJson);
+  }
+
+  res.json({ ok: true });
 });
 
 // --- Chat Endpoint with RAG Integration ---

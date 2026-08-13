@@ -5,7 +5,8 @@ import {
   Send, BrainCircuit, Sparkles, Database, 
   Plus, Trash2, Edit3, Table, Image as ImageIcon, 
   Search, X, Upload, Check, User, Lock, LogOut, ShieldCheck, 
-  ArrowRight, FileText, FileUp, Scissors, Layers, Eye
+  ArrowRight, FileText, FileUp, Scissors, Layers, Eye,
+  MessageSquare, History, PanelLeftOpen, PanelLeftClose, Clock, ChevronRight
 } from 'lucide-react';
 
 const API_BASE = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') ? `http://${window.location.hostname}:3001` : '';
@@ -117,10 +118,89 @@ export default function App() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [authError, setAuthError] = useState('');
 
-  // --- Main App State ---
-  const [messages, setMessages] = useState(INITIAL_MESSAGES);
+  // --- Main App State & Sessions ---
+  const [sessions, setSessions] = useState([]);
+  const [activeSessionId, setActiveSessionId] = useState(null);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+
   const [typing, setTyping] = useState(false);
   const [inputText, setInputText] = useState('');
+
+  // Derived active session & messages
+  const createDefaultSession = () => ({
+    id: `session-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+    title: '新咨询对话',
+    messages: INITIAL_MESSAGES,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  });
+
+  const activeSession = sessions.find(s => s.id === activeSessionId) || sessions[0] || null;
+  const messages = activeSession ? (activeSession.messages || INITIAL_MESSAGES) : INITIAL_MESSAGES;
+
+  // Sync session state to LocalStorage & Server Backend
+  const syncSessions = (username, updatedSessions, targetActiveId) => {
+    setSessions(updatedSessions);
+    if (targetActiveId) {
+      setActiveSessionId(targetActiveId);
+      try {
+        localStorage.setItem(`aurasense_active_session_${username}`, targetActiveId);
+      } catch {}
+    }
+    try {
+      localStorage.setItem(`aurasense_sessions_${username}`, JSON.stringify(updatedSessions));
+    } catch (e) {
+      console.error('Failed to save sessions to local cache:', e);
+    }
+
+    // Async server backend sync
+    fetch(`${API_BASE}/api/user/sessions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, sessions: updatedSessions })
+    }).catch(err => console.warn('Server session sync warn:', err.message));
+  };
+
+  // User session initialization on login or user switch
+  useEffect(() => {
+    if (!currentUser || currentUser.role !== 'user') return;
+    const username = currentUser.username;
+
+    const initUserSessions = async () => {
+      let loaded = [];
+      try {
+        const raw = localStorage.getItem(`aurasense_sessions_${username}`);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            loaded = parsed;
+          }
+        }
+      } catch {}
+
+      try {
+        const res = await fetch(`${API_BASE}/api/user/sessions?username=${encodeURIComponent(username)}`);
+        const data = await res.json();
+        if (data.ok && Array.isArray(data.sessions) && data.sessions.length > 0) {
+          loaded = data.sessions;
+        }
+      } catch {}
+
+      if (loaded.length === 0) {
+        loaded = [createDefaultSession()];
+      }
+
+      setSessions(loaded);
+      const savedActive = localStorage.getItem(`aurasense_active_session_${username}`);
+      if (savedActive && loaded.some(s => s.id === savedActive)) {
+        setActiveSessionId(savedActive);
+      } else {
+        setActiveSessionId(loaded[0].id);
+      }
+    };
+
+    initUserSessions();
+  }, [currentUser]);
 
   // --- RAG Admin State ---
   const [ragItems, setRagItems] = useState([]);
@@ -249,22 +329,76 @@ export default function App() {
     setAuthError('');
   };
 
+  // --- Session Management Handlers ---
+  const handleCreateNewSession = () => {
+    if (!currentUser || currentUser.role !== 'user') return;
+    const newSess = createDefaultSession();
+    const updated = [newSess, ...sessions];
+    syncSessions(currentUser.username, updated, newSess.id);
+  };
+
+  const handleSelectSession = (sessionId) => {
+    if (!currentUser || currentUser.role !== 'user') return;
+    setActiveSessionId(sessionId);
+    try {
+      localStorage.setItem(`aurasense_active_session_${currentUser.username}`, sessionId);
+    } catch {}
+  };
+
+  const handleDeleteSession = (sessionId, e) => {
+    if (e) e.stopPropagation();
+    if (!currentUser || currentUser.role !== 'user') return;
+
+    let updated = sessions.filter(s => s.id !== sessionId);
+    if (updated.length === 0) {
+      updated = [createDefaultSession()];
+    }
+
+    let nextActiveId = activeSessionId;
+    if (activeSessionId === sessionId) {
+      nextActiveId = updated[0].id;
+    }
+
+    syncSessions(currentUser.username, updated, nextActiveId);
+
+    fetch(`${API_BASE}/api/user/sessions/${sessionId}?username=${encodeURIComponent(currentUser.username)}`, {
+      method: 'DELETE'
+    }).catch(() => {});
+  };
+
   // --- Chat Sender ---
   const handleSend = async (e) => {
     if (e) e.preventDefault();
     const text = inputText.trim();
-    if (!text || typing) return;
+    if (!text || typing || !currentUser || !activeSession) return;
 
     setInputText('');
     const userMsg = { id: Date.now(), sender: 'user', text, instant: true };
-    setMessages(prev => [...prev, userMsg]);
+
+    const currentMsgs = activeSession.messages || [];
+    const updatedMsgs = [...currentMsgs, userMsg];
+
+    // Automatic Titling for new session or default title
+    let newTitle = activeSession.title;
+    if (newTitle === '新咨询对话' || currentMsgs.length <= 1) {
+      newTitle = text.length > 18 ? `${text.slice(0, 18)}...` : text;
+    }
+
+    const updatedSession = {
+      ...activeSession,
+      title: newTitle,
+      messages: updatedMsgs,
+      updatedAt: new Date().toISOString()
+    };
+
+    const updatedSessions = sessions.map(s => s.id === activeSession.id ? updatedSession : s);
+    syncSessions(currentUser.username, updatedSessions, activeSession.id);
     setTyping(true);
 
-    const historyForApi = messages.slice(-10).map(m => ({
+    const historyForApi = updatedMsgs.slice(-10).map(m => ({
       role: m.sender === 'user' ? 'user' : 'assistant',
       content: m.text
     }));
-    historyForApi.push({ role: 'user', content: text });
 
     try {
       const response = await fetch(`${API_BASE}/api/aura/chat`, {
@@ -276,16 +410,28 @@ export default function App() {
       const data = await response.json();
       const reply = data?.reply || '抱歉，我刚刚有些走神，请您再试一次。';
 
-      setMessages(prev => [
-        ...prev,
-        { id: Date.now() + 1, sender: 'bot', text: reply, instant: false }
-      ]);
+      const botMsg = { id: Date.now() + 1, sender: 'bot', text: reply, instant: false };
+      const finalMsgs = [...updatedMsgs, botMsg];
+
+      const finalSession = {
+        ...updatedSession,
+        messages: finalMsgs,
+        updatedAt: new Date().toISOString()
+      };
+
+      const finalSessions = sessions.map(s => s.id === activeSession.id ? finalSession : s);
+      syncSessions(currentUser.username, finalSessions, activeSession.id);
     } catch (err) {
       console.error(err);
-      setMessages(prev => [
-        ...prev,
-        { id: Date.now() + 1, sender: 'bot', text: '网络连接出现异常，请检查后端服务是否启动。', instant: true }
-      ]);
+      const errorMsg = { id: Date.now() + 1, sender: 'bot', text: '网络连接出现异常，请检查后端服务是否启动。', instant: true };
+      const finalMsgs = [...updatedMsgs, errorMsg];
+      const finalSession = {
+        ...updatedSession,
+        messages: finalMsgs,
+        updatedAt: new Date().toISOString()
+      };
+      const finalSessions = sessions.map(s => s.id === activeSession.id ? finalSession : s);
+      syncSessions(currentUser.username, finalSessions, activeSession.id);
     } finally {
       setTyping(false);
     }
@@ -464,12 +610,12 @@ export default function App() {
 
       {/* SCENE 2: Logged In Main Application */}
       {currentUser && (
-        <div className={`w-full h-full ${currentUser.role === 'admin' ? 'sm:max-w-[860px]' : 'sm:max-w-[420px]'} sm:max-h-[880px] ${THEME.glass} flex flex-col sm:rounded-[48px] overflow-hidden relative sm:shadow-[0_45px_100px_rgba(186,175,215,0.4)] sm:border-[8px] border-[#fdfcff] transition-all duration-500`}>
+        <div className={`w-full h-full ${currentUser.role === 'admin' ? 'sm:max-w-[860px]' : (isSidebarOpen ? 'sm:max-w-[920px]' : 'sm:max-w-[480px]')} sm:max-h-[880px] ${THEME.glass} flex flex-col sm:rounded-[48px] overflow-hidden relative sm:shadow-[0_45px_100px_rgba(186,175,215,0.4)] sm:border-[8px] border-[#fdfcff] transition-all duration-500`}>
           
           <div className="flex flex-col h-full w-full animate-in fade-in duration-500">
             
             {/* Header */}
-            <header className="pt-10 pb-4 px-6 sm:px-8 flex items-center justify-between z-10 bg-white/40 backdrop-blur-md border-b border-white/60">
+            <header className="pt-8 pb-3 px-6 sm:px-8 flex items-center justify-between z-10 bg-white/40 backdrop-blur-md border-b border-white/60">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-[16px] bg-gradient-to-br from-[#b3a4ed] to-[#f296b2] flex items-center justify-center shadow-[0_8px_20px_rgba(179,164,237,0.4)] border-2 border-white">
                   <BrainCircuit className="text-white" size={22} />
@@ -483,6 +629,29 @@ export default function App() {
               </div>
 
               <div className="flex items-center gap-2">
+                {currentUser.role === 'user' && (
+                  <>
+                    <button
+                      onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                      className={`p-2 rounded-2xl transition-all border border-white flex items-center gap-1.5 text-[12px] font-bold ${
+                        isSidebarOpen ? 'bg-[#4a4365] text-white shadow-sm' : 'bg-white/80 hover:bg-white text-[#4a4365]'
+                      }`}
+                      title={isSidebarOpen ? "隐藏历史对话" : "展开历史对话"}
+                    >
+                      <History size={16} />
+                      <span className="hidden sm:inline">{isSidebarOpen ? "收起历史" : "历史对话"}</span>
+                    </button>
+
+                    <button
+                      onClick={handleCreateNewSession}
+                      className="px-3 py-2 rounded-2xl bg-gradient-to-r from-[#b3a4ed] to-[#c7b8f9] text-white hover:opacity-90 active:scale-95 transition-all shadow-[0_4px_12px_rgba(179,164,237,0.4)] flex items-center gap-1 text-[12px] font-bold"
+                    >
+                      <Plus size={16} />
+                      <span>新建对话</span>
+                    </button>
+                  </>
+                )}
+
                 <div className="flex items-center gap-1.5 bg-white/80 px-3 py-1.5 rounded-2xl border border-white text-[12px] font-bold text-[#4a4365]">
                   <span className={`w-2 h-2 rounded-full ${currentUser.role === 'admin' ? 'bg-purple-500' : 'bg-emerald-400'}`} />
                   <span>{currentUser.username}</span>
@@ -503,73 +672,157 @@ export default function App() {
 
             {/* VIEW A: Regular User - Student Admissions Chat View */}
             {currentUser.role === 'user' && (
-              <>
-                <main ref={scrollRef} className="flex-1 overflow-y-auto px-5 pt-4 pb-1 space-y-5 hide-scrollbar relative scroll-smooth">
-                  {messages.map((msg) => {
-                    const isUser = msg.sender === 'user';
-                    const bubbleStyle = isUser ? THEME.userBubble : THEME.botBubble;
+              <div className="flex-1 flex overflow-hidden relative">
+                
+                {/* Left Sidebar: Session List */}
+                {isSidebarOpen && (
+                  <aside className="w-full sm:w-72 bg-white/40 backdrop-blur-md border-r border-white/60 flex flex-col p-3 gap-2 overflow-y-auto hide-scrollbar shrink-0 animate-in slide-in-from-left duration-300">
+                    <div className="flex items-center justify-between px-2 pt-1 pb-2 border-b border-gray-100/60">
+                      <div className="flex items-center gap-1.5 text-[12px] font-black text-[#4a4365]">
+                        <MessageSquare size={15} className="text-[#a494e8]" />
+                        <span>对话记录 ({sessions.length})</span>
+                      </div>
+                      <button
+                        onClick={handleCreateNewSession}
+                        className="p-1 rounded-xl hover:bg-white text-[#a494e8] transition-colors"
+                        title="新建对话"
+                      >
+                        <Plus size={16} />
+                      </button>
+                    </div>
 
-                    return (
-                      <div key={msg.id} className={`flex ${isUser ? 'justify-end' : 'justify-start'} animate-in slide-in-from-bottom-4 duration-300`}>
-                        <div className={`flex max-w-[88%] ${isUser ? 'flex-row-reverse' : 'flex-row'} items-end gap-3`}>
-                          <img 
-                            src={isUser ? "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?q=80&w=200&auto=format&fit=crop" : ROLE.avatar} 
-                            className="w-9 h-9 rounded-[14px] shadow-sm border border-white object-cover" 
-                            alt="avatar" 
-                          />
-                          <div className="flex flex-col">
-                            {!isUser && (
-                              <div className="flex items-center gap-1.5 mb-1.5 ml-1">
-                                <span className="text-[11px] font-black tracking-wider uppercase" style={{ color: ROLE.color }}>
-                                  {ROLE.name}
+                    <div className="space-y-1.5 flex-1">
+                      {sessions.map((sess) => {
+                        const isActive = sess.id === activeSessionId;
+                        const msgCount = (sess.messages || []).length;
+                        const lastMsg = (sess.messages || [])[msgCount - 1]?.text || '';
+                        
+                        return (
+                          <div
+                            key={sess.id}
+                            onClick={() => handleSelectSession(sess.id)}
+                            className={`group relative p-3 rounded-2xl transition-all cursor-pointer flex flex-col gap-1 border ${
+                              isActive 
+                                ? 'bg-white shadow-[0_4px_20px_rgba(179,164,237,0.25)] border-[#d6cbf5]' 
+                                : 'bg-white/40 hover:bg-white/80 border-transparent text-gray-600'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2 overflow-hidden pr-6">
+                                <MessageSquare size={14} className={isActive ? 'text-[#a494e8] shrink-0' : 'text-gray-400 shrink-0'} />
+                                <span className={`text-[13px] truncate ${isActive ? 'font-bold text-[#4a4365]' : 'font-medium text-gray-700'}`}>
+                                  {sess.title || '新咨询对话'}
                                 </span>
                               </div>
-                            )}
-                            <div className={`px-5 py-3.5 ${bubbleStyle} ${isUser ? 'rounded-[24px] rounded-br-sm' : 'rounded-[24px] rounded-tl-sm'}`}>
-                              {isUser || msg.instant ? (
-                                <AuraMarkdownMessage content={msg.text} roleColor={isUser ? '#fff' : ROLE.color} />
-                              ) : (
-                                <TypewriterText text={msg.text} instant={msg.instant} roleColor={ROLE.color} scrollRef={scrollRef} />
+
+                              <button
+                                onClick={(e) => handleDeleteSession(sess.id, e)}
+                                title="删除该对话"
+                                className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-red-500 rounded-lg hover:bg-red-50 transition-all absolute right-2 top-2.5"
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </div>
+
+                            <div className="flex items-center justify-between text-[10px] text-gray-400 pl-5">
+                              <span className="truncate max-w-[150px]">
+                                {lastMsg ? lastMsg.replace(/[#*`]/g, '') : '暂无数据'}
+                              </span>
+                              <span>{msgCount} 条对话</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </aside>
+                )}
+
+                {/* Right Chat Main Body */}
+                <div className="flex-1 flex flex-col h-full overflow-hidden relative">
+                  
+                  {/* Current Active Conversation Bar */}
+                  <div className="px-6 py-2.5 bg-white/30 backdrop-blur-sm border-b border-white/50 flex items-center justify-between text-[12px]">
+                    <div className="flex items-center gap-2 text-[#4a4365]">
+                      <span className="w-2 h-2 rounded-full bg-[#a494e8] animate-pulse" />
+                      <span className="font-bold text-[13px] truncate max-w-[300px]">
+                        {activeSession?.title || '新咨询对话'}
+                      </span>
+                    </div>
+
+                    <div className="text-[11px] text-gray-400 flex items-center gap-1">
+                      <Clock size={12} />
+                      <span>{activeSession?.updatedAt ? new Date(activeSession.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '当前激活'}</span>
+                    </div>
+                  </div>
+
+                  <main ref={scrollRef} className="flex-1 overflow-y-auto px-5 pt-4 pb-1 space-y-5 hide-scrollbar relative scroll-smooth">
+                    {messages.map((msg) => {
+                      const isUser = msg.sender === 'user';
+                      const bubbleStyle = isUser ? THEME.userBubble : THEME.botBubble;
+
+                      return (
+                        <div key={msg.id} className={`flex ${isUser ? 'justify-end' : 'justify-start'} animate-in slide-in-from-bottom-4 duration-300`}>
+                          <div className={`flex max-w-[88%] ${isUser ? 'flex-row-reverse' : 'flex-row'} items-end gap-3`}>
+                            <img 
+                              src={isUser ? "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?q=80&w=200&auto=format&fit=crop" : ROLE.avatar} 
+                              className="w-9 h-9 rounded-[14px] shadow-sm border border-white object-cover" 
+                              alt="avatar" 
+                            />
+                            <div className="flex flex-col">
+                              {!isUser && (
+                                <div className="flex items-center gap-1.5 mb-1.5 ml-1">
+                                  <span className="text-[11px] font-black tracking-wider uppercase" style={{ color: ROLE.color }}>
+                                    {ROLE.name}
+                                  </span>
+                                </div>
                               )}
+                              <div className={`px-5 py-3.5 ${bubbleStyle} ${isUser ? 'rounded-[24px] rounded-br-sm' : 'rounded-[24px] rounded-tl-sm'}`}>
+                                {isUser || msg.instant ? (
+                                  <AuraMarkdownMessage content={msg.text} roleColor={isUser ? '#fff' : ROLE.color} />
+                                ) : (
+                                  <TypewriterText text={msg.text} instant={msg.instant} roleColor={ROLE.color} scrollRef={scrollRef} />
+                                )}
+                              </div>
                             </div>
                           </div>
                         </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
 
-                  {typing && (
-                    <div className="flex justify-start items-end gap-3">
-                      <img src={ROLE.avatar} className="w-9 h-9 rounded-[14px] shadow-sm border border-white object-cover" alt="typing" />
-                      <div className="bg-white/80 px-5 py-4 rounded-[24px] rounded-tl-sm flex gap-1.5 shadow-sm border border-white">
-                        <div className="w-1.5 h-1.5 bg-[#d6cbf5] rounded-full animate-bounce" />
-                        <div className="w-1.5 h-1.5 bg-[#d6cbf5] rounded-full animate-bounce [animation-delay:0.2s]" />
-                        <div className="w-1.5 h-1.5 bg-[#d6cbf5] rounded-full animate-bounce [animation-delay:0.4s]" />
+                    {typing && (
+                      <div className="flex justify-start items-end gap-3">
+                        <img src={ROLE.avatar} className="w-9 h-9 rounded-[14px] shadow-sm border border-white object-cover" alt="typing" />
+                        <div className="bg-white/80 px-5 py-4 rounded-[24px] rounded-tl-sm flex gap-1.5 shadow-sm border border-white">
+                          <div className="w-1.5 h-1.5 bg-[#d6cbf5] rounded-full animate-bounce" />
+                          <div className="w-1.5 h-1.5 bg-[#d6cbf5] rounded-full animate-bounce [animation-delay:0.2s]" />
+                          <div className="w-1.5 h-1.5 bg-[#d6cbf5] rounded-full animate-bounce [animation-delay:0.4s]" />
+                        </div>
                       </div>
+                    )}
+                  </main>
+
+                  <footer className="px-5 pb-6 pt-1 relative z-10">
+                    <div className="bg-white/80 backdrop-blur-2xl rounded-[36px] p-4 shadow-[0_-15px_45px_rgba(186,175,215,0.2)] border border-white">
+                      <form onSubmit={handleSend} className="flex gap-2">
+                        <input 
+                          value={inputText} 
+                          onChange={(e) => setInputText(e.target.value)} 
+                          placeholder="请输入您想咨询的入学、专业、学费问题..." 
+                          className="flex-1 bg-[#f8f6fc] border-none rounded-[20px] px-5 py-3 text-[14px] focus:ring-2 focus:ring-[#a494e8] outline-none" 
+                        />
+                        <button 
+                          type="submit" 
+                          disabled={!inputText.trim() || typing}
+                          className="bg-[#4a4365] text-white p-3 rounded-[20px] active:scale-95 transition-all disabled:opacity-50"
+                        >
+                          <Send size={20} />
+                        </button>
+                      </form>
                     </div>
-                  )}
-                </main>
+                  </footer>
 
-                <footer className="px-5 pb-6 pt-1 relative z-10">
-                  <div className="bg-white/80 backdrop-blur-2xl rounded-[36px] p-4 shadow-[0_-15px_45px_rgba(186,175,215,0.2)] border border-white">
-                    <form onSubmit={handleSend} className="flex gap-2">
-                      <input 
-                        value={inputText} 
-                        onChange={(e) => setInputText(e.target.value)} 
-                        placeholder="请输入您想咨询的入学、专业、学费问题..." 
-                        className="flex-1 bg-[#f8f6fc] border-none rounded-[20px] px-5 py-3 text-[14px] focus:ring-2 focus:ring-[#a494e8] outline-none" 
-                      />
-                      <button 
-                        type="submit" 
-                        disabled={!inputText.trim() || typing}
-                        className="bg-[#4a4365] text-white p-3 rounded-[20px] active:scale-95 transition-all disabled:opacity-50"
-                      >
-                        <Send size={20} />
-                      </button>
-                    </form>
-                  </div>
-                </footer>
-              </>
+                </div>
+              </div>
             )}
 
             {/* VIEW B: Admin User - RAG Management Dashboard */}
