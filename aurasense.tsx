@@ -32,7 +32,7 @@ const INITIAL_MESSAGES = [
   {
     id: 1,
     sender: 'bot',
-    text: '同学/家长您好！欢迎使用 **AuraSense 入学咨询平台**。我是招生咨询顾问 **Dr. Elena**。✨\n\n您可以向我咨询关于**招生政策、录取分数线、热门专业、学费与奖学金、宿舍环境及报名流程**等任何问题，我会为您结合知识库为您解答！',
+    text: '同学/家长您好！欢迎使用 **Gzadm Navigator 入学咨询平台**。我是招生咨询顾问 **Dr. Elena**。✨\n\n您可以向我咨询关于**招生政策、录取分数线、热门专业、学费与奖学金、宿舍环境及报名流程**等任何问题，我会为您结合知识库为您解答！',
     instant: true
   }
 ];
@@ -160,7 +160,7 @@ const MapGuideModal = ({ locations, isOpen, onClose, onAskQuestion }) => {
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="text-[17px] font-black text-[#4a4365]">AuraSense 校园地图导览</h3>
+                <h3 className="text-[17px] font-black text-[#4a4365]">Gzadm Navigator 校园地图导览</h3>
                 <span className="bg-[#a494e8]/15 text-[#6c5aa8] text-[11px] font-bold px-2.5 py-0.5 rounded-full border border-[#a494e8]/30">
                   {locations.length} 个校园地标
                 </span>
@@ -248,7 +248,7 @@ const MapGuideModal = ({ locations, isOpen, onClose, onAskQuestion }) => {
               <div className="absolute inset-0 opacity-20 pointer-events-none bg-[radial-gradient(#a494e8_1px,transparent_1px)] [background-size:24px_24px]" />
               <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-md px-3.5 py-2 rounded-2xl shadow-sm border border-white text-[12px] font-bold text-[#4a4365] flex items-center gap-2 z-10">
                 <Compass size={16} className="text-[#a494e8]" />
-                <span>AuraSense 3D Campus Virtual Map</span>
+                <span>Gzadm Navigator 3D Campus Virtual Map</span>
               </div>
 
               {/* Map Pins */}
@@ -602,7 +602,7 @@ const AuraMarkdownMessage = React.memo(({ content, roleColor }: AuraMarkdownMess
   );
 });
 
-const ChatMessageItem = React.memo(({ msg, isUser, bubbleStyle, roleColor, roleAvatar, roleName }) => {
+const ChatMessageItem = React.memo(({ msg, isUser, bubbleStyle, roleColor, roleAvatar, roleName }: any) => {
   return (
     <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} animate-in slide-in-from-bottom-4 duration-300`}>
       <div className={`flex max-w-[88%] ${isUser ? 'flex-row-reverse' : 'flex-row'} items-end gap-3`}>
@@ -628,7 +628,7 @@ const ChatMessageItem = React.memo(({ msg, isUser, bubbleStyle, roleColor, roleA
   );
 });
 
-const TypewriterText = React.memo(({ text, roleColor }) => {
+const TypewriterText = React.memo(({ text, roleColor }: any) => {
   return <AuraMarkdownMessage content={text} roleColor={roleColor} />;
 });
 
@@ -1396,9 +1396,9 @@ export default function App() {
             <div className="w-14 h-14 rounded-[20px] bg-gradient-to-br from-[#b3a4ed] to-[#f296b2] flex items-center justify-center shadow-[0_10px_25px_rgba(179,164,237,0.4)] border-2 border-white mb-3">
               <BrainCircuit className="text-white" size={30} />
             </div>
-            <h1 className="font-black text-[#4a4365] text-[22px] tracking-tight">AuraSense</h1>
+            <h1 className="font-black text-[#4a4365] text-[22px] tracking-tight">Gzadm Navigator</h1>
             <p className="text-[11px] text-[#a494e8] font-bold tracking-wider mt-0.5">
-              智能入学咨询与 RAG 管理平台
+              智能高效招生咨询
             </p>
           </div>
 
@@ -1496,7 +1496,7 @@ export default function App() {
                   <BrainCircuit className="text-white" size={20} />
                 </div>
                 <div>
-                  <h1 className="font-black text-[#4a4365] text-[15px] sm:text-[17px] tracking-tight">AuraSense</h1>
+                  <h1 className="font-black text-[#4a4365] text-[15px] sm:text-[17px] tracking-tight">Gzadm Navigator</h1>
                   <p className="text-[9px] sm:text-[10px] text-[#a494e8] font-black uppercase tracking-widest">
                     {currentUser.role === 'admin' ? 'RAG Admin' : 'Admissions Counseling'}
                   </p>

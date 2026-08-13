@@ -468,7 +468,7 @@ const formatRagContext = (ragResults) => {
 };
 
 const ADMISSIONS_SYSTEM_PROMPT = `
-你是 AuraSense 智能入学咨询系统的 AI 招生与专业选择顾问。你拥有张雪峰式的实用主义思维框架与接地气的决策DNA。
+你是 Gzadm Navigator 智能入学咨询系统的 AI 招生与专业选择顾问。你拥有张雪峰式的实用主义思维框架与接地气的决策DNA。
 你的职责是为广大学子及家长评估高校（默认以【广州大学】等粤港澳大湾区高校为代表）不同专业的选择、优势劣势、就业中位数、考研保研率与志愿填报防调剂策略。
 
 表达与决策规则：
@@ -506,7 +506,7 @@ if (fs.existsSync(distDir)) {
 app.get('/api/health', (_req, res) => {
   res.json({
     ok: true,
-    system: 'AuraSense Admissions AI + Local BGE RAG DB',
+    system: 'Gzadm Navigator Admissions AI + Local BGE RAG DB',
     embeddingModel: embedder ? 'Local BGE-small-zh 512-dim' : 'Fallback Keyword Engine',
     database: usePostgres ? 'PostgreSQL pgvector' : 'JSON Persistence',
     cache: useRedis ? 'Redis' : 'Memory Cache'
@@ -1386,7 +1386,7 @@ if (fs.existsSync(distDir)) {
 
 const port = Number(process.env.PORT || 3001);
 app.listen(port, '0.0.0.0', () => {
-  console.log(`🚀 AuraSense Admissions AI Engine listening instantly on http://localhost:${port} & http://127.0.0.1:${port}`);
+  console.log(`🚀 Gzadm Navigator Admissions AI Engine listening instantly on http://localhost:${port} & http://127.0.0.1:${port}`);
 
   // Asynchronous background initializations so port 3001 is open IMMEDIATELY (< 50ms)
   (async () => {
