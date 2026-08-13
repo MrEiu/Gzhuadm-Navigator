@@ -219,8 +219,23 @@ const initPostgres = async () => {
         username VARCHAR(100) UNIQUE NOT NULL,
         password VARCHAR(255) NOT NULL,
         role VARCHAR(20) NOT NULL DEFAULT 'user',
+        profile JSONB,
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       );
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS profile JSONB;
+
+      CREATE TABLE IF NOT EXISTS user_personal_rag (
+        id VARCHAR(100) PRIMARY KEY,
+        username VARCHAR(100) NOT NULL,
+        title VARCHAR(255) NOT NULL,
+        category VARCHAR(100) NOT NULL DEFAULT '个人偏好',
+        type VARCHAR(50) NOT NULL DEFAULT 'text',
+        content TEXT NOT NULL,
+        tags JSONB,
+        embedding vector(512),
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE INDEX IF NOT EXISTS idx_user_personal_rag_username ON user_personal_rag(username);
 
       CREATE TABLE IF NOT EXISTS rag_knowledge (
         id VARCHAR(100) PRIMARY KEY,
@@ -968,18 +983,267 @@ app.delete('/api/user/sessions/:sessionId', async (req, res) => {
   res.json({ ok: true });
 });
 
+// ==========================================
+// User Background Profile & Personal RAG Memory Layer
+// ==========================================
+const userProfilesFilePath = path.join(dataDir, 'user_profiles.json');
+const userPersonalRagFilePath = path.join(dataDir, 'user_personal_rag.json');
+
+const loadJsonProfiles = () => {
+  if (!fs.existsSync(userProfilesFilePath)) return {};
+  try { return JSON.parse(fs.readFileSync(userProfilesFilePath, 'utf8')); } catch { return {}; }
+};
+const saveJsonProfiles = (data) => {
+  try { fs.writeFileSync(userProfilesFilePath, JSON.stringify(data, null, 2), 'utf8'); } catch (e) { console.error('Profile save err:', e); }
+};
+
+const loadJsonPersonalRag = () => {
+  if (!fs.existsSync(userPersonalRagFilePath)) return {};
+  try { return JSON.parse(fs.readFileSync(userPersonalRagFilePath, 'utf8')); } catch { return {}; }
+};
+const saveJsonPersonalRag = (data) => {
+  try { fs.writeFileSync(userPersonalRagFilePath, JSON.stringify(data, null, 2), 'utf8'); } catch (e) { console.error('Personal RAG save err:', e); }
+};
+
+const getUserProfile = async (username) => {
+  if (!username) return null;
+  if (usePostgres) {
+    try {
+      const res = await pgPool.query('SELECT profile FROM users WHERE username = $1', [username]);
+      if (res.rows.length && res.rows[0].profile) {
+        return res.rows[0].profile;
+      }
+    } catch (e) {
+      console.warn('PG profile fetch error, fallback:', e.message);
+    }
+  }
+  const profiles = loadJsonProfiles();
+  return profiles[username] || null;
+};
+
+const searchUserPersonalRagEngine = async (username, query = '', topK = 3) => {
+  if (!username) return [];
+  const queryVector = await getEmbedding(query);
+  
+  let personalStore = [];
+  if (usePostgres) {
+    try {
+      const res = await pgPool.query('SELECT * FROM user_personal_rag WHERE username = $1 ORDER BY created_at DESC', [username]);
+      personalStore = res.rows.map(r => ({
+        id: r.id,
+        username: r.username,
+        title: r.title,
+        category: r.category,
+        type: r.type,
+        content: r.content,
+        tags: r.tags || [],
+        embedding: r.embedding ? (typeof r.embedding === 'string' ? JSON.parse(r.embedding) : r.embedding) : null,
+        createdAt: r.created_at
+      }));
+    } catch (e) {
+      const allRag = loadJsonPersonalRag();
+      personalStore = allRag[username] || [];
+    }
+  } else {
+    const allRag = loadJsonPersonalRag();
+    personalStore = allRag[username] || [];
+  }
+
+  if (!personalStore.length) return [];
+
+  const scored = personalStore.map(item => {
+    let score = 0;
+    if (queryVector && item.embedding) {
+      score += cosineSimilarity(queryVector, item.embedding) * 10;
+    }
+    const qLower = query.toLowerCase();
+    if (item.title.toLowerCase().includes(qLower)) score += 4;
+    if (item.content.toLowerCase().includes(qLower)) score += 3;
+    return { item, score };
+  });
+
+  return scored
+    .sort((a, b) => b.score - a.score)
+    .slice(0, topK);
+};
+
+const saveUserPersonalMemory = async (username, content, title = '对话偏好提炼', category = '个人偏好') => {
+  if (!username || !content || content.length < 5) return;
+  const textToEmbed = `${title} ${category} ${content}`;
+  const vec = await getEmbedding(textToEmbed);
+
+  const newItem = {
+    id: `personal-rag-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+    username,
+    title,
+    category,
+    type: 'text',
+    content,
+    tags: ['个人档案', category],
+    embedding: vec,
+    createdAt: new Date().toISOString()
+  };
+
+  if (usePostgres) {
+    try {
+      const vecStr = vec ? `[${vec.join(',')}]` : null;
+      await pgPool.query(
+        `INSERT INTO user_personal_rag (id, username, title, category, type, content, tags, embedding, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        [newItem.id, username, newItem.title, newItem.category, newItem.type, newItem.content, JSON.stringify(newItem.tags), vecStr, newItem.createdAt]
+      );
+    } catch (e) {
+      console.warn('PG personal RAG insert warning:', e.message);
+    }
+  }
+
+  const allRag = loadJsonPersonalRag();
+  if (!allRag[username]) allRag[username] = [];
+  allRag[username].unshift(newItem);
+  saveJsonPersonalRag(allRag);
+  return newItem;
+};
+
+// --- Profile APIs ---
+app.get('/api/user/profile', async (req, res) => {
+  const username = req.query.username;
+  if (!username) return res.status(400).json({ ok: false, error: 'Username required' });
+  const profile = await getUserProfile(username);
+  res.json({ ok: true, profile });
+});
+
+app.post('/api/user/profile', async (req, res) => {
+  const { username, profile } = req.body || {};
+  if (!username || !profile) return res.status(400).json({ ok: false, error: 'Username and profile required' });
+
+  const scoreNum = Number(profile.score) || 0;
+  const rankNum = Number(profile.rank) || 0;
+  const isVip = scoreNum > 580;
+
+  const updatedProfile = {
+    ...profile,
+    score: scoreNum,
+    rank: rankNum,
+    isVip,
+    updatedAt: new Date().toISOString()
+  };
+
+  if (usePostgres) {
+    try {
+      await pgPool.query(
+        `UPDATE users SET profile = $1 WHERE username = $2`,
+        [JSON.stringify(updatedProfile), username]
+      );
+    } catch (e) {
+      console.error('PG profile update err:', e);
+    }
+  }
+
+  const profiles = loadJsonProfiles();
+  profiles[username] = updatedProfile;
+  saveJsonProfiles(profiles);
+
+  // If VIP (>580), auto create initial background memory snippet in personal RAG
+  if (isVip) {
+    saveUserPersonalMemory(
+      username,
+      `学生个人基础背景资料：姓名【${updatedProfile.name || username}】，省份【${updatedProfile.province}】，高考成绩【${updatedProfile.score}分】，全省排名【第${updatedProfile.rank}名】，选科【${updatedProfile.subjects}】，特殊情况说明【${updatedProfile.specialConditions || '无'}】`,
+      '个人基础背景档案',
+      'VIP基本资料'
+    ).catch(() => {});
+  }
+
+  res.json({ ok: true, profile: updatedProfile });
+});
+
+// --- Personal RAG API ---
+app.get('/api/user/personal-rag', async (req, res) => {
+  const username = req.query.username;
+  if (!username) return res.status(400).json({ ok: false, error: 'Username required' });
+  let items = [];
+  if (usePostgres) {
+    try {
+      const dbRes = await pgPool.query('SELECT * FROM user_personal_rag WHERE username = $1 ORDER BY created_at DESC', [username]);
+      items = dbRes.rows;
+    } catch {
+      items = (loadJsonPersonalRag()[username]) || [];
+    }
+  } else {
+    items = (loadJsonPersonalRag()[username]) || [];
+  }
+  res.json({ ok: true, items });
+});
+
 // --- Chat Endpoint with RAG Integration ---
 app.post('/api/aura/chat', async (req, res) => {
   const apiKey = process.env.DEEPSEEK_API_KEY;
+  const username = req.body?.username || '';
   const incomingMessages = Array.isArray(req.body?.messages) ? req.body.messages : [];
   const lastUserMsg = [...incomingMessages].reverse().find(m => m.role === 'user')?.content || '';
 
-  // 1. Perform Local BGE Dense Vector Search with Redis Cache
+  // Retrieve user background profile
+  let userProfile = req.body?.userProfile || null;
+  if (username && !userProfile) {
+    userProfile = await getUserProfile(username);
+  }
+
+  // 1. Check Low Score Rule (< 450 -> Service Busy Lock)
+  if (userProfile && typeof userProfile.score === 'number' && userProfile.score > 0 && userProfile.score < 450) {
+    return res.json({
+      ok: true,
+      isBusy: true,
+      reply: `⚠️ **系统通知**：当前招生咨询队列正忙，请稍后再试。\n\n您目前填报的高考分数为 **${userProfile.score} 分**（低于450分基础咨询段），系统正优先分配计算资源处理高并发位次咨询，感谢您的理解与配合！`,
+      source: 'low-score-busy-lock'
+    });
+  }
+
+  // 2. VIP User Rule (> 580 -> Personal RAG Memory Search & Auto Save)
+  const isVip = userProfile && (userProfile.isVip || (typeof userProfile.score === 'number' && userProfile.score > 580));
+  let personalRagContext = '';
+
+  if (isVip && username) {
+    // Search user's personal RAG memory store
+    const personalMatches = await searchUserPersonalRagEngine(username, lastUserMsg, 3);
+    if (personalMatches.length) {
+      personalRagContext = `【该 VIP 用户的专属个人背景与历史记忆档案（优先匹配）】：\n`;
+      personalMatches.forEach(({ item }) => {
+        personalRagContext += `- ${item.title} (${item.category}): ${item.content}\n`;
+      });
+      personalRagContext += `\n`;
+    }
+
+    // Auto extract personal preference/intent memory from conversation
+    if (lastUserMsg.length >= 6 && /(想|喜欢|考|专业|地区|分数|冲|稳|保|大学|城市|预算|家庭|打算)/.test(lastUserMsg)) {
+      saveUserPersonalMemory(
+        username,
+        `对话提及咨询诉求与偏好：“${lastUserMsg}”`,
+        '对话偏好提取',
+        '兴趣与意向'
+      ).catch(() => {});
+    }
+  }
+
+  // 3. Perform Campus RAG Knowledge Search
   const ragMatches = await searchRagEngine(lastUserMsg, 3);
   const ragContext = formatRagContext(ragMatches);
 
+  let systemPromptWithProfile = ADMISSIONS_SYSTEM_PROMPT;
+  if (userProfile) {
+    systemPromptWithProfile += `\n\n【当前咨询学生背景资料】：
+- 姓名：${userProfile.name || username}
+- 性别：${userProfile.gender || '未填'}
+- 手机号：${userProfile.phone || '未填'}
+- 高考省份：${userProfile.province || '未填'}
+- 高考分数：${userProfile.score || '未填'} 分
+- 全省排名：${userProfile.rank ? `第 ${userProfile.rank} 名` : '未填'}
+- 选科情况：${userProfile.subjects || '未填'}
+- 特殊情况说明：${userProfile.specialConditions || '无'}
+${isVip ? '✨ 该学生为 VIP 优先保障咨询用户 (高考成绩 > 580分)，系统已启用专属个人 RAG 记忆检索！请针对其高考位次及个性化喜好提供定制化报考方案！' : ''}`;
+  }
+
   const messages = [
-    { role: 'system', content: ADMISSIONS_SYSTEM_PROMPT },
+    { role: 'system', content: systemPromptWithProfile },
+    ...(personalRagContext ? [{ role: 'system', content: personalRagContext }] : []),
     ...(ragContext ? [{ role: 'system', content: ragContext }] : []),
     ...incomingMessages
       .filter((m) => m && typeof m.role === 'string' && typeof m.content === 'string')

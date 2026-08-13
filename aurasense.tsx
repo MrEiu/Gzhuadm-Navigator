@@ -649,6 +649,69 @@ export default function App() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [authError, setAuthError] = useState('');
 
+  // --- User Personal Profile & Score Tier State ---
+  const [userProfile, setUserProfile] = useState(() => {
+    if (!currentUser || currentUser.role !== 'user') return null;
+    try {
+      const saved = localStorage.getItem(`aurasense_profile_${currentUser.username}`);
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [isPersonalRagOpen, setIsPersonalRagOpen] = useState(false);
+
+  const isLowScore = userProfile && typeof userProfile.score === 'number' && userProfile.score > 0 && userProfile.score < 450;
+  const isVipUser = userProfile && (userProfile.isVip || (typeof userProfile.score === 'number' && userProfile.score > 580));
+
+  useEffect(() => {
+    if (!currentUser || currentUser.role !== 'user') return;
+    const username = currentUser.username;
+    fetch(`${API_BASE}/api/user/profile?username=${encodeURIComponent(username)}`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.ok && data.profile) {
+          setUserProfile(data.profile);
+          localStorage.setItem(`aurasense_profile_${username}`, JSON.stringify(data.profile));
+          if (!data.profile.name || !data.profile.score || !data.profile.province) {
+            setIsProfileModalOpen(true);
+          }
+        } else {
+          const saved = localStorage.getItem(`aurasense_profile_${username}`);
+          if (saved) setUserProfile(JSON.parse(saved));
+          else setIsProfileModalOpen(true);
+        }
+      })
+      .catch(() => {
+        const saved = localStorage.getItem(`aurasense_profile_${username}`);
+        if (saved) setUserProfile(JSON.parse(saved));
+        else setIsProfileModalOpen(true);
+      });
+  }, [currentUser]);
+
+  const handleSaveUserProfile = async (profileData) => {
+    if (!currentUser) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/user/profile`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: currentUser.username, profile: profileData })
+      });
+      const data = await res.json();
+      if (data.ok && data.profile) {
+        setUserProfile(data.profile);
+        localStorage.setItem(`aurasense_profile_${currentUser.username}`, JSON.stringify(data.profile));
+        setIsProfileModalOpen(false);
+      }
+    } catch {
+      setUserProfile(profileData);
+      localStorage.setItem(`aurasense_profile_${currentUser.username}`, JSON.stringify(profileData));
+      setIsProfileModalOpen(false);
+    }
+  };
+
   // --- Main App State & Sessions ---
   const [sessions, setSessions] = useState([]);
   const [activeSessionId, setActiveSessionId] = useState(null);
@@ -945,7 +1008,11 @@ export default function App() {
       const response = await fetch(`${API_BASE}/api/aura/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: historyForApi })
+        body: JSON.stringify({ 
+          username: currentUser.username,
+          userProfile,
+          messages: historyForApi 
+        })
       });
 
       const data = await response.json();
@@ -1196,21 +1263,45 @@ export default function App() {
                       <Plus size={16} />
                       <span className="hidden sm:inline">新建对话</span>
                     </button>
+                    {isVipUser && (
+                      <button
+                        onClick={() => setIsPersonalRagOpen(true)}
+                        className="p-2 sm:px-3 sm:py-2 rounded-2xl bg-gradient-to-r from-amber-400 to-purple-500 text-white font-bold text-[12px] shadow-sm hover:shadow-md active:scale-95 transition-all flex items-center gap-1 shrink-0"
+                        title="查看 AI 自动收集的 VIP 个人 RAG 记忆档案"
+                      >
+                        <Sparkles size={15} />
+                        <span className="hidden sm:inline">VIP 个人 RAG</span>
+                      </button>
+                    )}
                   </>
                 )}
 
-                <div className="flex items-center gap-1.5 bg-white/80 px-2.5 sm:px-3 py-1.5 rounded-2xl border border-white text-[12px] font-bold text-[#4a4365]">
-                  <span className={`w-2 h-2 rounded-full ${currentUser.role === 'admin' ? 'bg-purple-500' : 'bg-emerald-400'}`} />
-                  <span className="max-w-[70px] sm:max-w-[120px] truncate">{currentUser.username}</span>
-                  {currentUser.role === 'admin' ? (
+                {currentUser.role === 'user' ? (
+                  <button
+                    onClick={() => setIsProfileModalOpen(true)}
+                    className="flex items-center gap-1.5 bg-white/80 hover:bg-white px-2.5 sm:px-3 py-1.5 rounded-2xl border border-white text-[12px] font-bold text-[#4a4365] transition-all shadow-xs"
+                    title="点击查看/修改高考个人背景资料"
+                  >
+                    <User size={13} className="text-[#a494e8]" />
+                    <span className="max-w-[70px] sm:max-w-[90px] truncate">{userProfile?.name || currentUser.username}</span>
+                    {userProfile?.score ? (
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded-md font-bold ${isVipUser ? 'bg-amber-100 text-amber-900 border border-amber-300' : isLowScore ? 'bg-amber-100 text-amber-700' : 'bg-purple-100 text-purple-700'}`}>
+                        {isVipUser ? `VIP ${userProfile.score}分` : `${userProfile.score}分`}
+                      </span>
+                    ) : (
+                      <span className="text-[10px] bg-red-50 text-red-500 px-1.5 py-0.5 rounded-md font-bold animate-pulse">未填资料</span>
+                    )}
+                  </button>
+                ) : (
+                  <div className="flex items-center gap-1.5 bg-white/80 px-2.5 sm:px-3 py-1.5 rounded-2xl border border-white text-[12px] font-bold text-[#4a4365]">
+                    <span className="w-2 h-2 rounded-full bg-purple-500" />
+                    <span className="max-w-[70px] sm:max-w-[120px] truncate">{currentUser.username}</span>
                     <ShieldCheck size={14} className="sm:hidden text-purple-600" />
-                  ) : (
-                    <User size={13} className="sm:hidden text-[#a494e8]" />
-                  )}
-                  <span className={`hidden sm:inline text-[10px] px-1.5 py-0.2 rounded-md ${currentUser.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-600'}`}>
-                    {currentUser.role === 'admin' ? '管理员' : '普通用户'}
-                  </span>
-                </div>
+                    <span className="hidden sm:inline text-[10px] px-1.5 py-0.2 rounded-md bg-purple-100 text-purple-700">
+                      管理员
+                    </span>
+                  </div>
+                )}
 
                 <button
                   onClick={handleLogout}
@@ -1352,6 +1443,20 @@ export default function App() {
                     )}
                   </main>
 
+                  {isLowScore && (
+                    <div className="bg-amber-50/90 border border-amber-200 text-amber-900 p-3.5 rounded-2xl mx-5 mt-2 shadow-xs flex items-center gap-3 animate-in fade-in shrink-0">
+                      <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0 font-bold">
+                        <Clock size={16} />
+                      </div>
+                      <div className="flex-1 text-[12px]">
+                        <div className="font-bold text-[13px] text-amber-900">当前咨询服务正忙（高于位次优先中）</div>
+                        <p className="mt-0.5 opacity-90">
+                          您目前填报的分数为 <b>{userProfile?.score} 分</b>（低于450分基础咨询段）。由于当前咨询并发量较高，系统正优先分配算力响应高位次填报，请稍后再试。
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
                   <footer className="px-5 pb-6 pt-1 relative z-10">
                     <div className="bg-white/80 backdrop-blur-2xl rounded-[36px] p-4 shadow-[0_-15px_45px_rgba(186,175,215,0.2)] border border-white">
                       <form onSubmit={handleSend} className="flex gap-2 items-center">
@@ -1367,15 +1472,16 @@ export default function App() {
                           </span>
                         </button>
                         <input 
+                          disabled={isLowScore}
                           value={inputText} 
                           onChange={(e) => setInputText(e.target.value)} 
-                          placeholder="请输入您想咨询的入学、专业、学费问题..." 
-                          className="flex-1 bg-[#f8f6fc] border-none rounded-[20px] px-5 py-3 text-[14px] focus:ring-2 focus:ring-[#a494e8] outline-none" 
+                          placeholder={isLowScore ? "当前咨询服务正忙，请稍后再试..." : "请输入您想咨询的入学、专业、学费问题..."} 
+                          className="flex-1 bg-[#f8f6fc] border-none rounded-[20px] px-5 py-3 text-[14px] focus:ring-2 focus:ring-[#a494e8] outline-none disabled:opacity-60 disabled:cursor-not-allowed" 
                         />
                         <button 
                           type="submit" 
-                          disabled={!inputText.trim() || typing}
-                          className="bg-[#4a4365] text-white p-3 rounded-[20px] active:scale-95 transition-all disabled:opacity-50"
+                          disabled={!inputText.trim() || typing || isLowScore}
+                          className="bg-[#4a4365] text-white p-3 rounded-[20px] active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           <Send size={20} />
                         </button>
@@ -1612,6 +1718,21 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* Modal 0: User Background Profile Entry Form */}
+      <UserProfileModal
+        profile={userProfile}
+        isOpen={isProfileModalOpen}
+        onClose={() => setIsProfileModalOpen(false)}
+        onSave={handleSaveUserProfile}
+      />
+
+      {/* Modal VIP: Personal RAG Memory Database Viewer */}
+      <PersonalRagModal
+        username={currentUser?.username}
+        isOpen={isPersonalRagOpen}
+        onClose={() => setIsPersonalRagOpen(false)}
+      />
 
       {/* Modal 1: Edit or Create Single RAG Item */}
       {isEditing && editItem && (
@@ -2107,6 +2228,318 @@ const ChunkSingleEditor = ({ chunk, onClose, onSave }) => {
             更新切片
           </button>
         </div>
+      </div>
+    </div>
+  );
+};
+
+// ==========================================
+// User Background Profile Collection Modal Form
+// ==========================================
+interface UserProfileModalProps {
+  profile: any;
+  isOpen: boolean;
+  onClose: () => void;
+  onSave: (formData: any) => void;
+}
+
+const UserProfileModal = ({ profile, isOpen, onClose, onSave }: UserProfileModalProps) => {
+  const [formData, setFormData] = useState({
+    name: profile?.name || '',
+    gender: profile?.gender || '男',
+    phone: profile?.phone || '',
+    province: profile?.province || '浙江',
+    score: profile?.score || '',
+    rank: profile?.rank || '',
+    subjects: profile?.subjects || '物化生',
+    specialConditions: profile?.specialConditions || ''
+  });
+
+  useEffect(() => {
+    if (profile) {
+      setFormData({
+        name: profile.name || '',
+        gender: profile.gender || '男',
+        phone: profile.phone || '',
+        province: profile.province || '浙江',
+        score: profile.score || '',
+        rank: profile.rank || '',
+        subjects: profile.subjects || '物化生',
+        specialConditions: profile.specialConditions || ''
+      });
+    }
+  }, [profile]);
+
+  if (!isOpen) return null;
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.name.trim() || !formData.score || !formData.province) {
+      alert('请完整填写姓名、省份和高考分数！');
+      return;
+    }
+    onSave(formData);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-md flex justify-center items-center p-4 animate-in fade-in duration-300">
+      <div className="bg-white/95 backdrop-blur-2xl rounded-[36px] max-w-[560px] w-full max-h-[92vh] overflow-y-auto p-6 sm:p-8 shadow-2xl border-4 border-white space-y-5 animate-in zoom-in-95 duration-300">
+        
+        <div className="flex items-center justify-between border-b pb-4">
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-[#b3a4ed] to-[#f296b2] text-white flex items-center justify-center shadow-md">
+              <User size={22} />
+            </div>
+            <div>
+              <h3 className="font-black text-[#4a4365] text-[17px]">高考个人背景资料登记</h3>
+              <p className="text-[11px] text-[#8a84a4] font-medium mt-0.5">请填写真实高考信息，系统将为您评估位次与选科匹配度</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-2 rounded-2xl text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-all">
+            <X size={20} />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          
+          {/* Section 1: Basic Info */}
+          <div className="space-y-3">
+            <div className="text-[12px] font-black text-[#a494e8] uppercase tracking-wider flex items-center gap-1.5">
+              <User size={14} /> 第一部分：基本身份信息
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-[12px] font-bold text-[#4a4365] block mb-1">姓名 <span className="text-red-500">*</span></label>
+                <input
+                  type="text"
+                  required
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  placeholder="请输入您的姓名"
+                  className="w-full bg-[#f8f6fc] border border-gray-100 rounded-2xl px-4 py-2.5 text-[13px] outline-none focus:ring-2 focus:ring-[#a494e8]"
+                />
+              </div>
+
+              <div>
+                <label className="text-[12px] font-bold text-[#4a4365] block mb-1">性别</label>
+                <select
+                  value={formData.gender}
+                  onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
+                  className="w-full bg-[#f8f6fc] border border-gray-100 rounded-2xl px-4 py-2.5 text-[13px] outline-none focus:ring-2 focus:ring-[#a494e8]"
+                >
+                  <option value="男">男</option>
+                  <option value="女">女</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className="text-[12px] font-bold text-[#4a4365] block mb-1">手机号</label>
+              <input
+                type="tel"
+                value={formData.phone}
+                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                placeholder="请输入联系手机号（选填）"
+                className="w-full bg-[#f8f6fc] border border-gray-100 rounded-2xl px-4 py-2.5 text-[13px] outline-none focus:ring-2 focus:ring-[#a494e8]"
+              />
+            </div>
+          </div>
+
+          {/* Section 2: Gaokao Scores & Subjects */}
+          <div className="space-y-3 pt-2">
+            <div className="text-[12px] font-black text-[#a494e8] uppercase tracking-wider flex items-center gap-1.5">
+              <FileText size={14} /> 第二部分：高考成绩与选科
+            </div>
+
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <label className="text-[12px] font-bold text-[#4a4365] block mb-1">高考省份 <span className="text-red-500">*</span></label>
+                <select
+                  value={formData.province}
+                  onChange={(e) => setFormData({ ...formData, province: e.target.value })}
+                  className="w-full bg-[#f8f6fc] border border-gray-100 rounded-2xl px-3 py-2.5 text-[13px] outline-none focus:ring-2 focus:ring-[#a494e8]"
+                >
+                  {['浙江', '江苏', '广东', '四川', '山东', '河南', '湖北', '湖南', '福建', '安徽', '北京', '上海', '重庆', '陕西', '江西', '河北'].map(p => (
+                    <option key={p} value={p}>{p}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-[12px] font-bold text-[#4a4365] block mb-1">高考分数 <span className="text-red-500">*</span></label>
+                <input
+                  type="number"
+                  required
+                  min={100}
+                  max={750}
+                  value={formData.score}
+                  onChange={(e) => setFormData({ ...formData, score: e.target.value })}
+                  placeholder="如: 595"
+                  className="w-full bg-[#f8f6fc] border border-gray-100 rounded-2xl px-3 py-2.5 text-[13px] outline-none focus:ring-2 focus:ring-[#a494e8]"
+                />
+              </div>
+
+              <div>
+                <label className="text-[12px] font-bold text-[#4a4365] block mb-1">全省排名</label>
+                <input
+                  type="number"
+                  value={formData.rank}
+                  onChange={(e) => setFormData({ ...formData, rank: e.target.value })}
+                  placeholder="如: 15000"
+                  className="w-full bg-[#f8f6fc] border border-gray-100 rounded-2xl px-3 py-2.5 text-[13px] outline-none focus:ring-2 focus:ring-[#a494e8]"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="text-[12px] font-bold text-[#4a4365] block mb-1">选科情况</label>
+              <input
+                type="text"
+                value={formData.subjects}
+                onChange={(e) => setFormData({ ...formData, subjects: e.target.value })}
+                placeholder="如：物理/化学/生物 或 史地政、物化地等"
+                className="w-full bg-[#f8f6fc] border border-gray-100 rounded-2xl px-4 py-2.5 text-[13px] outline-none focus:ring-2 focus:ring-[#a494e8]"
+              />
+            </div>
+          </div>
+
+          {/* Section 3: Special Conditions */}
+          <div className="space-y-2 pt-2">
+            <div className="text-[12px] font-black text-[#a494e8] uppercase tracking-wider flex items-center gap-1.5">
+              <Sparkles size={14} /> 第三部分：特殊情况与考量
+            </div>
+            <div>
+              <label className="text-[12px] font-bold text-[#4a4365] block mb-1">特殊情况 / 加分 / 限制说明</label>
+              <textarea
+                rows={2}
+                value={formData.specialConditions}
+                onChange={(e) => setFormData({ ...formData, specialConditions: e.target.value })}
+                placeholder="如：艺考、单招、少数民族加分、体检视力受限、家庭预算考量等（无则填“无”）"
+                className="w-full bg-[#f8f6fc] border border-gray-100 rounded-2xl p-3 text-[12px] outline-none focus:ring-2 focus:ring-[#a494e8]"
+              />
+            </div>
+          </div>
+
+          {/* Score status tip */}
+          {formData.score && (
+            <div className={`p-3.5 rounded-2xl text-[12px] font-bold flex items-center gap-2 ${
+              Number(formData.score) > 580 
+                ? 'bg-gradient-to-r from-amber-50 via-purple-50 to-pink-50 text-amber-900 border border-amber-200 shadow-xs' 
+                : Number(formData.score) < 450 
+                ? 'bg-amber-50 text-amber-800 border border-amber-200' 
+                : 'bg-purple-50 text-purple-800 border border-purple-100'
+            }`}>
+              <Sparkles size={16} className="shrink-0 text-amber-500" />
+              <span>
+                {Number(formData.score) > 580 
+                  ? '✨ 分数判定：高考成绩 > 580 分！提交后将自动升级为【VIP 优先保障用户】，开启对话自动提炼与个人 RAG 专属记忆检索！' 
+                  : Number(formData.score) < 450 
+                  ? '⚠️ 提示：分数低于 450 分时，受算力队列限制，系统可能提示“服务正忙，请稍后再试”。' 
+                  : '✅ 分数判定：标准咨询段位，提供专业与填报建议。'}
+              </span>
+            </div>
+          )}
+
+          <div className="flex justify-end gap-2 pt-2 border-t">
+            <button
+              type="submit"
+              className="w-full bg-[#4a4365] hover:bg-[#342e49] text-white py-3.5 rounded-2xl font-bold text-[14px] shadow-lg active:scale-98 transition-all flex items-center justify-center gap-2"
+            >
+              <span>保存个人背景资料</span>
+              <ArrowRight size={16} />
+            </button>
+          </div>
+
+        </form>
+
+      </div>
+    </div>
+  );
+};
+
+// ==========================================
+// VIP Personal RAG Database Viewer Modal
+// ==========================================
+interface PersonalRagModalProps {
+  username?: string;
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+const PersonalRagModal = ({ username, isOpen, onClose }: PersonalRagModalProps) => {
+  const [items, setItems] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (isOpen && username) {
+      setLoading(true);
+      fetch(`${API_BASE}/api/user/personal-rag?username=${encodeURIComponent(username)}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.ok) setItems(data.items || []);
+        })
+        .catch(err => console.error('Personal RAG fetch err:', err))
+        .finally(() => setLoading(false));
+    }
+  }, [isOpen, username]);
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-md flex justify-center items-center p-4 animate-in fade-in duration-300">
+      <div className="bg-white/95 backdrop-blur-2xl rounded-[36px] max-w-[620px] w-full max-h-[85vh] overflow-y-auto p-6 shadow-2xl border-4 border-white space-y-4 animate-in zoom-in-95 duration-300">
+        
+        <div className="flex items-center justify-between border-b pb-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-r from-amber-400 to-purple-500 text-white flex items-center justify-center shadow-md">
+              <Sparkles size={20} />
+            </div>
+            <div>
+              <h3 className="font-bold text-[#4a4365] text-[16px]">VIP 个人 RAG 专属记忆数据库</h3>
+              <p className="text-[11px] text-[#8a84a4]">AI 在对话中为您自动总结并提炼的个人背景偏好与记忆数据</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-2 rounded-2xl text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors">
+            <X size={18} />
+          </button>
+        </div>
+
+        {loading ? (
+          <div className="py-8 text-center text-[13px] text-gray-400">正在检索个人 RAG 知识库...</div>
+        ) : items.length > 0 ? (
+          <div className="space-y-3">
+            {items.map((item, idx) => (
+              <div key={item.id || idx} className="bg-[#f8f6fc] p-4 rounded-2xl border border-purple-100 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-[#4a4365] text-[13px] flex items-center gap-1.5">
+                    <Bookmark size={14} className="text-[#a494e8]" />
+                    {item.title}
+                  </span>
+                  <span className="bg-purple-100 text-purple-700 text-[10px] px-2 py-0.5 rounded-md font-bold">
+                    {item.category || '个人档案'}
+                  </span>
+                </div>
+                <p className="text-[12px] text-[#6d648b] leading-relaxed">{item.content}</p>
+                <div className="text-[10px] text-gray-400 text-right pt-1">
+                  {item.createdAt ? new Date(item.createdAt).toLocaleString() : '自动生成'}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="py-10 text-center space-y-2">
+            <Database size={32} className="mx-auto text-gray-300" />
+            <p className="text-[13px] font-bold text-[#4a4365]">暂无提取的个人 RAG 节点</p>
+            <p className="text-[11px] text-gray-400">在与 AI 咨询对话过程中，系统将自动提炼您的意向专业、报考地区及特殊需求并存入此处。</p>
+          </div>
+        )}
+
+        <div className="flex justify-end pt-2 border-t">
+          <button onClick={onClose} className="bg-[#4a4365] text-white px-5 py-2 rounded-xl text-[12px] font-bold">
+            关闭
+          </button>
+        </div>
+
       </div>
     </div>
   );
