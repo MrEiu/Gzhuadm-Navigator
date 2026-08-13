@@ -663,8 +663,270 @@ export default function App() {
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isPersonalRagOpen, setIsPersonalRagOpen] = useState(false);
 
-  const isLowScore = userProfile && typeof userProfile.score === 'number' && userProfile.score > 0 && userProfile.score < 450;
-  const isVipUser = userProfile && (userProfile.isVip || (typeof userProfile.score === 'number' && userProfile.score > 580));
+  // --- Admin Management States ---
+  const [adminTab, setAdminTab] = useState<'rag' | 'users' | 'analytics'>('rag');
+  const [interceptionEnabled, setInterceptionEnabled] = useState(true);
+  const [lowScoreThreshold, setLowScoreThreshold] = useState(450);
+  const [vipScoreThreshold, setVipScoreThreshold] = useState(580);
+  const [adminUserSearch, setAdminUserSearch] = useState('');
+  const [adminTargetUser, setAdminTargetUser] = useState<string | null>(null);
+  const [registeredUsersList, setRegisteredUsersList] = useState<any[]>([]);
+
+  // --- Analytics & Dialogue Aggregation States ---
+  const [adminMessageSearch, setAdminMessageSearch] = useState('');
+  const [allUserDialogues, setAllUserDialogues] = useState<any[]>([]);
+  const [wordAnalyticsDb, setWordAnalyticsDb] = useState<{
+    analyzedMessageIds: string[];
+    wordCounts: { [key: string]: number };
+    totalAnalyzedCount: number;
+    lastAnalyzedAt: string | null;
+  }>({
+    analyzedMessageIds: [],
+    wordCounts: {},
+    totalAnalyzedCount: 0,
+    lastAnalyzedAt: null
+  });
+  const [newlyAnalyzedCount, setNewlyAnalyzedCount] = useState(0);
+
+  const isLowScore = userProfile && typeof userProfile.score === 'number' && userProfile.score > 0 && userProfile.score < lowScoreThreshold;
+  const isVipUser = userProfile && (userProfile.isVip || (typeof userProfile.score === 'number' && userProfile.score >= vipScoreThreshold));
+
+  const fetchRegisteredUsers = () => {
+    try {
+      const rawUsers = localStorage.getItem('aurasense_registered_users');
+      const users = rawUsers ? JSON.parse(rawUsers) : [];
+      const enriched = users.map((u: any) => {
+        let profile = null;
+        try {
+          const pRaw = localStorage.getItem(`aurasense_profile_${u.username}`);
+          if (pRaw) profile = JSON.parse(pRaw);
+        } catch {}
+        return {
+          ...u,
+          profile: profile || {}
+        };
+      });
+      setRegisteredUsersList(enriched);
+    } catch (err) {
+      console.error('Failed to fetch registered users list', err);
+    }
+  };
+
+  const fetchWordAnalyticsDb = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/word-analytics`);
+      const payload = await res.json();
+      if (payload.ok && payload.data) {
+        setWordAnalyticsDb(payload.data);
+        return payload.data;
+      }
+    } catch (e) {}
+
+    try {
+      const local = localStorage.getItem('aurasense_word_analytics_db');
+      if (local) {
+        const parsed = JSON.parse(local);
+        setWordAnalyticsDb(parsed);
+        return parsed;
+      }
+    } catch (e) {}
+
+    return null;
+  };
+
+  const fetchAllUserDialogues = () => {
+    try {
+      const rawUsers = localStorage.getItem('aurasense_registered_users');
+      let usersList = rawUsers ? JSON.parse(rawUsers) : [];
+      const usernames = Array.from(new Set(['admin', ...usersList.map((u: any) => u.username)]));
+      
+      let aggregatedDialogues: any[] = [];
+
+      usernames.forEach((uname: string) => {
+        try {
+          const rawSessions = localStorage.getItem(`aurasense_sessions_${uname}`);
+          const sessions = rawSessions ? JSON.parse(rawSessions) : [];
+          
+          sessions.forEach((session: any) => {
+            const msgs = session.messages || [];
+            for (let i = 0; i < msgs.length; i++) {
+              if (msgs[i].sender === 'user') {
+                const question = msgs[i].text;
+                const botReply = (msgs[i + 1] && msgs[i + 1].sender === 'bot') ? msgs[i + 1].text : '';
+                aggregatedDialogues.push({
+                  id: `dialogue-${uname}-${session.id}-${i}`,
+                  username: uname,
+                  sessionTitle: session.title || '招生咨询对话',
+                  question,
+                  reply: botReply,
+                  timestamp: msgs[i].createdAt || session.updatedAt || new Date().toISOString()
+                });
+              }
+            }
+          });
+        } catch (e) {}
+      });
+
+      if (aggregatedDialogues.length === 0) {
+        aggregatedDialogues = [
+          {
+            id: 'd-sample-1',
+            username: 'student_zhang',
+            sessionTitle: '浙江高考招生咨询',
+            question: '请问今年计算机科学与技术专业在浙江省的预计录取分数线和位次是多少？有宿舍图吗？',
+            reply: '同学习好！根据往年录取数据，计算机科学与技术专业在浙江省位次大约在全省 12000-15000 名左右（对应分数为 635-645 分）。枫林星级公寓配备 4 人间上床下桌、独立卫浴与空调！',
+            timestamp: new Date(Date.now() - 3600000 * 2).toISOString()
+          },
+          {
+            id: 'd-sample-2',
+            username: 'parent_li',
+            sessionTitle: '学费与奖学金咨询',
+            question: '学校的软件工程专业一年学费多少？针对高分考生有什么奖学金支持？',
+            reply: '家长您好！软件工程专业普通学年学费为 6000元/年。对于高考成绩在全省前 10000 名的优异考生，提供新生特等奖学金 20000 元及海外交流全额资助项目！',
+            timestamp: new Date(Date.now() - 3600000 * 5).toISOString()
+          },
+          {
+            id: 'd-sample-3',
+            username: 'student_wang',
+            sessionTitle: '宿舍环境与交通',
+            question: '宿舍条件怎么样？有独立洗手间和24小时热水吗？离智慧图书馆远不远？',
+            reply: '同学您好！宿舍为枫林学生公寓，统一上床下桌、独立阳台、干湿分离独立卫浴与24小时热水供应。公寓步行至主图书馆仅需 5 分钟！',
+            timestamp: new Date(Date.now() - 3600000 * 12).toISOString()
+          },
+          {
+            id: 'd-sample-4',
+            username: 'student_chen',
+            sessionTitle: '保研与转专业政策',
+            question: '入学后如果不喜欢当前专业，转专业的政策是怎样的？保研率高不高？',
+            reply: '学校实行大类招生与灵活转专业政策，第一学年末零门槛申请转专业。全校平均保研率达 18%，重点工科专业保研率超过 25%！',
+            timestamp: new Date(Date.now() - 3600000 * 24).toISOString()
+          }
+        ];
+      }
+
+      setAllUserDialogues(aggregatedDialogues);
+      return aggregatedDialogues;
+    } catch (err) {
+      console.error('Failed to aggregate all user dialogues:', err);
+      return [];
+    }
+  };
+
+  const performIncrementalAnalysis = async (currentDbState: any, dialogues: any[]) => {
+    if (!dialogues || dialogues.length === 0) return;
+
+    const analyzedIds = new Set(currentDbState.analyzedMessageIds || []);
+    
+    // INCREMENTAL ONLY: Filter for unanalyzed new messages
+    const newDialogues = dialogues.filter(d => !analyzedIds.has(d.id));
+
+    // If no new messages, skip analysis entirely (avoid duplicate re-analysis)
+    if (newDialogues.length === 0) {
+      setNewlyAnalyzedCount(0);
+      return;
+    }
+
+    const commonAdmissionsKeywords = [
+      '录取线', '分数线', '专业', '学费', '宿舍', '奖学金', '位次', 
+      '排名', '选科', '保研', '转专业', '食堂', '图书馆', '计算机', 
+      '软件工程', '人工智能', '考研', '就业', '环境', '独立卫浴', '单招'
+    ];
+
+    const updatedCounts = { ...(currentDbState.wordCounts || {}) };
+    const updatedAnalyzedIds = [...(currentDbState.analyzedMessageIds || [])];
+
+    newDialogues.forEach(item => {
+      const combinedText = `${item.question} ${item.reply}`;
+      commonAdmissionsKeywords.forEach(kw => {
+        const reg = new RegExp(kw, 'gi');
+        const matches = combinedText.match(reg);
+        if (matches) {
+          updatedCounts[kw] = (updatedCounts[kw] || 0) + matches.length;
+        }
+      });
+
+      const cleanQ = item.question.replace(/[^\u4e00-\u9fa5]/g, ' ');
+      const tokens = cleanQ.split(/\s+/).filter(t => t.length >= 2 && t.length <= 4);
+      tokens.forEach(t => {
+        if (!['请问', '今年', '什么', '怎么', '多少', '可以', '有没有', '怎么样', '怎样', '如果'].includes(t)) {
+          updatedCounts[t] = (updatedCounts[t] || 0) + 1;
+        }
+      });
+
+      updatedAnalyzedIds.push(item.id);
+    });
+
+    const updatedDb = {
+      analyzedMessageIds: updatedAnalyzedIds,
+      wordCounts: updatedCounts,
+      totalAnalyzedCount: (currentDbState.totalAnalyzedCount || 0) + newDialogues.length,
+      lastAnalyzedAt: new Date().toISOString()
+    };
+
+    setWordAnalyticsDb(updatedDb);
+    setNewlyAnalyzedCount(newDialogues.length);
+
+    try {
+      localStorage.setItem('aurasense_word_analytics_db', JSON.stringify(updatedDb));
+    } catch (e) {}
+
+    try {
+      await fetch(`${API_BASE}/api/admin/word-analytics`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ data: updatedDb })
+      });
+    } catch (e) {}
+  };
+
+  useEffect(() => {
+    if (currentUser?.role === 'admin') {
+      if (adminTab === 'users') fetchRegisteredUsers();
+      if (adminTab === 'analytics') {
+        (async () => {
+          const dbState = await fetchWordAnalyticsDb() || {
+            analyzedMessageIds: [],
+            wordCounts: {},
+            totalAnalyzedCount: 0,
+            lastAnalyzedAt: null
+          };
+          const dialogues = fetchAllUserDialogues();
+          performIncrementalAnalysis(dbState, dialogues);
+        })();
+      }
+    }
+  }, [currentUser, adminTab]);
+
+  const highFrequencyWords = useMemo(() => {
+    const counts = wordAnalyticsDb.wordCounts || {};
+    return Object.entries(counts)
+      .map(([word, count]) => ({ word, count: Number(count) }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 15);
+  }, [wordAnalyticsDb]);
+
+  const handleToggleUserVip = (targetUsername: string) => {
+    try {
+      const pRaw = localStorage.getItem(`aurasense_profile_${targetUsername}`);
+      let profile = pRaw ? JSON.parse(pRaw) : {};
+      const newVip = !profile.isVip;
+      profile = { ...profile, isVip: newVip };
+      localStorage.setItem(`aurasense_profile_${targetUsername}`, JSON.stringify(profile));
+      fetch(`${API_BASE}/api/user/profile`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: targetUsername, profile })
+      }).catch(() => {});
+      fetchRegisteredUsers();
+    } catch (err) {
+      console.error('Failed to toggle VIP status', err);
+    }
+  };
+
+  const handleOpenUserPersonalRag = (targetUsername: string) => {
+    setAdminTargetUser(targetUsername);
+    setIsPersonalRagOpen(true);
+  };
 
   useEffect(() => {
     if (!currentUser || currentUser.role !== 'user') return;
@@ -1263,16 +1525,7 @@ export default function App() {
                       <Plus size={16} />
                       <span className="hidden sm:inline">新建对话</span>
                     </button>
-                    {isVipUser && (
-                      <button
-                        onClick={() => setIsPersonalRagOpen(true)}
-                        className="p-2 sm:px-3 sm:py-2 rounded-2xl bg-gradient-to-r from-amber-400 to-purple-500 text-white font-bold text-[12px] shadow-sm hover:shadow-md active:scale-95 transition-all flex items-center gap-1 shrink-0"
-                        title="查看 AI 自动收集的 VIP 个人 RAG 记忆档案"
-                      >
-                        <Sparkles size={15} />
-                        <span className="hidden sm:inline">VIP 个人 RAG</span>
-                      </button>
-                    )}
+                    {/* VIP Personal RAG button removed from user side */}
                   </>
                 )}
 
@@ -1285,8 +1538,8 @@ export default function App() {
                     <User size={13} className="text-[#a494e8]" />
                     <span className="max-w-[70px] sm:max-w-[90px] truncate">{userProfile?.name || currentUser.username}</span>
                     {userProfile?.score ? (
-                      <span className={`text-[10px] px-1.5 py-0.5 rounded-md font-bold ${isVipUser ? 'bg-amber-100 text-amber-900 border border-amber-300' : isLowScore ? 'bg-amber-100 text-amber-700' : 'bg-purple-100 text-purple-700'}`}>
-                        {isVipUser ? `VIP ${userProfile.score}分` : `${userProfile.score}分`}
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-md font-bold bg-purple-100 text-purple-700">
+                        {userProfile.score}分
                       </span>
                     ) : (
                       <span className="text-[10px] bg-red-50 text-red-500 px-1.5 py-0.5 rounded-md font-bold animate-pulse">未填资料</span>
@@ -1443,19 +1696,7 @@ export default function App() {
                     )}
                   </main>
 
-                  {isLowScore && (
-                    <div className="bg-amber-50/90 border border-amber-200 text-amber-900 p-3.5 rounded-2xl mx-5 mt-2 shadow-xs flex items-center gap-3 animate-in fade-in shrink-0">
-                      <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0 font-bold">
-                        <Clock size={16} />
-                      </div>
-                      <div className="flex-1 text-[12px]">
-                        <div className="font-bold text-[13px] text-amber-900">当前咨询服务正忙（高于位次优先中）</div>
-                        <p className="mt-0.5 opacity-90">
-                          您目前填报的分数为 <b>{userProfile?.score} 分</b>（低于450分基础咨询段）。由于当前咨询并发量较高，系统正优先分配算力响应高位次填报，请稍后再试。
-                        </p>
-                      </div>
-                    </div>
-                  )}
+                  {/* Low score interception banner removed from user view */}
 
                   <footer className="px-5 pb-6 pt-1 relative z-10">
                     <div className="bg-white/80 backdrop-blur-2xl rounded-[36px] p-4 shadow-[0_-15px_45px_rgba(186,175,215,0.2)] border border-white">
@@ -1472,15 +1713,14 @@ export default function App() {
                           </span>
                         </button>
                         <input 
-                          disabled={isLowScore}
                           value={inputText} 
                           onChange={(e) => setInputText(e.target.value)} 
-                          placeholder={isLowScore ? "当前咨询服务正忙，请稍后再试..." : "请输入您想咨询的入学、专业、学费问题..."} 
-                          className="flex-1 bg-[#f8f6fc] border-none rounded-[20px] px-5 py-3 text-[14px] focus:ring-2 focus:ring-[#a494e8] outline-none disabled:opacity-60 disabled:cursor-not-allowed" 
+                          placeholder="请输入您想咨询的入学、专业、学费问题..." 
+                          className="flex-1 bg-[#f8f6fc] border-none rounded-[20px] px-5 py-3 text-[14px] focus:ring-2 focus:ring-[#a494e8] outline-none" 
                         />
                         <button 
                           type="submit" 
-                          disabled={!inputText.trim() || typing || isLowScore}
+                          disabled={!inputText.trim() || typing}
                           className="bg-[#4a4365] text-white p-3 rounded-[20px] active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           <Send size={20} />
@@ -1501,217 +1741,638 @@ export default function App() {
               onAskQuestion={handleAskLocationQuestion}
             />
 
-            {/* VIEW B: Admin User - RAG Management Dashboard */}
+            {/* VIEW B: Admin User - Management Dashboard */}
             {currentUser.role === 'admin' && (
               <main className="flex-1 overflow-y-auto p-6 space-y-6 hide-scrollbar">
                 
-                {/* Top Stats Bar */}
-                <div className="grid grid-cols-3 gap-3">
-                  <div className="bg-white/80 rounded-3xl p-4 border border-white shadow-sm flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-2xl bg-purple-100 text-[#a494e8] flex items-center justify-center font-bold">
-                      <Database size={20} />
-                    </div>
-                    <div>
-                      <div className="text-[18px] font-black text-[#4a4365]">{ragItems.length}</div>
-                      <div className="text-[11px] font-medium text-[#8a84a4]">知识库总条目</div>
-                    </div>
-                  </div>
-
-                  <div className="bg-white/80 rounded-3xl p-4 border border-white shadow-sm flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-2xl bg-blue-100 text-blue-500 flex items-center justify-center font-bold">
-                      <Table size={20} />
-                    </div>
-                    <div>
-                      <div className="text-[18px] font-black text-[#4a4365]">{ragItems.filter(i => i.type === 'table').length}</div>
-                      <div className="text-[11px] font-medium text-[#8a84a4]">结构化表格</div>
-                    </div>
-                  </div>
-
-                  <div className="bg-white/80 rounded-3xl p-4 border border-white shadow-sm flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-2xl bg-pink-100 text-pink-500 flex items-center justify-center font-bold">
-                      <ImageIcon size={20} />
-                    </div>
-                    <div>
-                      <div className="text-[18px] font-black text-[#4a4365]">
-                        {ragItems.reduce((acc, i) => acc + (i.imageAttachments?.length || 0), 0)}
-                      </div>
-                      <div className="text-[11px] font-medium text-[#8a84a4]">PNG 图片附件</div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Import Actions Bar: Single Add vs Document Batch Import & Chunking */}
-                <div className="flex items-center justify-between gap-3 bg-gradient-to-r from-purple-100/50 via-pink-100/50 to-blue-100/50 p-4 rounded-3xl border border-white shadow-xs">
-                  <div>
-                    <h3 className="font-bold text-[#4a4365] text-[14px] flex items-center gap-1.5">
-                      <Scissors className="text-[#a494e8]" size={16} /> 知识库输入与智能切片中心
-                    </h3>
-                    <p className="text-[11px] text-[#7a7295] mt-0.5">支持 Word、Markdown、TXT 文档导入切片，CSV 表格解析，及 PNG 图片直接上传</p>
-                  </div>
-
+                {/* Admin Tab Switcher */}
+                <div className="flex items-center justify-between bg-white/60 backdrop-blur-md p-2 rounded-2xl border border-white shadow-xs">
                   <div className="flex items-center gap-2">
                     <button
-                      onClick={() => setIsImportModalOpen(true)}
-                      className="bg-[#4a4365] text-white px-4 py-2.5 rounded-2xl font-bold text-[12px] shadow-sm hover:bg-[#342e49] transition-all flex items-center gap-1.5"
+                      onClick={() => setAdminTab('rag')}
+                      className={`px-4 py-2 rounded-xl text-[13px] font-bold transition-all flex items-center gap-1.5 ${
+                        adminTab === 'rag' 
+                          ? 'bg-[#4a4365] text-white shadow-md' 
+                          : 'text-[#6d648b] hover:bg-white/80'
+                      }`}
                     >
-                      <FileUp size={15} /> 批量导入文件/智能切片
+                      <Database size={15} /> 知识库 RAG 管理
                     </button>
-
                     <button
-                      onClick={() => {
-                        setEditItem({
-                          title: '',
-                          category: '专业与录取',
-                          type: 'text',
-                          content: '',
-                          tableData: { columns: ['表头1', '表头2'], rows: [['数据1', '数据2']] },
-                          imageAttachments: [],
-                          tags: ['新标签']
-                        });
-                        setIsEditing(true);
-                      }}
-                      className="bg-gradient-to-r from-[#b3a4ed] to-[#f296b2] text-white px-4 py-2.5 rounded-2xl font-bold text-[12px] shadow-sm hover:shadow-md transition-all flex items-center gap-1.5"
+                      onClick={() => setAdminTab('users')}
+                      className={`px-4 py-2 rounded-xl text-[13px] font-bold transition-all flex items-center gap-1.5 ${
+                        adminTab === 'users' 
+                          ? 'bg-[#4a4365] text-white shadow-md' 
+                          : 'text-[#6d648b] hover:bg-white/80'
+                      }`}
                     >
-                      <Plus size={15} /> 单条添加
+                      <User size={15} /> 用户管理与策略控制
+                    </button>
+                    <button
+                      onClick={() => setAdminTab('analytics')}
+                      className={`px-4 py-2 rounded-xl text-[13px] font-bold transition-all flex items-center gap-1.5 ${
+                        adminTab === 'analytics' 
+                          ? 'bg-[#4a4365] text-white shadow-md' 
+                          : 'text-[#6d648b] hover:bg-white/80'
+                      }`}
+                    >
+                      <MessageSquare size={15} /> 消息与咨询分析
                     </button>
                   </div>
+                  <span className="text-[11px] font-bold text-[#a494e8] px-3 py-1 bg-purple-50 rounded-lg">
+                    {adminTab === 'rag' ? '系统全局知识库控制台' : adminTab === 'users' ? '多维度用户与策略控制台' : '全量用户对话汇总与词频统计分析'}
+                  </span>
                 </div>
 
-                {/* RAG Search & Test Console Section */}
-                <div className="bg-white/80 backdrop-blur-xl rounded-3xl p-5 border border-white shadow-sm space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-bold text-[#4a4365] text-[15px] flex items-center gap-2">
-                      <Sparkles className="text-[#a494e8]" size={18} /> 本地 BGE 512维向量检索测试
-                    </h3>
-                  </div>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={testQuery}
-                      onChange={(e) => setTestQuery(e.target.value)}
-                      placeholder="输入测试问题（如：浙江录取线是多少？有宿舍图吗？）"
-                      className="flex-1 bg-[#f8f6fc] border-none rounded-2xl px-4 py-2.5 text-[13px] outline-none focus:ring-2 focus:ring-[#a494e8]"
-                    />
-                    <button
-                      onClick={handleTestRagSearch}
-                      className="bg-[#4a4365] text-white px-5 py-2.5 rounded-2xl font-bold text-[13px] shadow-sm hover:bg-[#342e49] transition-all flex items-center gap-1.5"
-                    >
-                      <Search size={15} /> 语义向量比对
-                    </button>
-                  </div>
-
-                  {testResults && (
-                    <div className="mt-3 bg-[#f8f6fc] p-4 rounded-2xl space-y-3">
-                      <div className="text-[12px] font-bold text-[#a494e8]">
-                        向量与关键词匹配到 {testResults.length} 条检索切片：
-                      </div>
-                      {testResults.map(({ item, score }) => (
-                        <div key={item.id} className="bg-white p-3 rounded-xl border border-white shadow-xs">
-                          <div className="flex items-center justify-between">
-                            <span className="font-bold text-[#4a4365] text-[13px]">{item.title}</span>
-                            <span className="bg-purple-100 text-purple-700 text-[10px] px-2 py-0.5 rounded-md font-bold">
-                              相似得分: {(score * 10).toFixed(1)}%
-                            </span>
-                          </div>
-                          <p className="text-[12px] text-[#6d648b] mt-1">{item.content}</p>
-                          {item.imageAttachments?.length > 0 && (
-                            <div className="flex gap-2 mt-2">
-                              {item.imageAttachments.map((img, i) => (
-                                <img key={i} src={img.url} alt={img.name} className="w-12 h-12 rounded-lg object-cover border" />
-                              ))}
-                            </div>
-                          )}
+                {adminTab === 'rag' ? (
+                  <>
+                    {/* Top Stats Bar */}
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="bg-white/80 rounded-3xl p-4 border border-white shadow-sm flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-2xl bg-purple-100 text-[#a494e8] flex items-center justify-center font-bold">
+                          <Database size={20} />
                         </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                        <div>
+                          <div className="text-[18px] font-black text-[#4a4365]">{ragItems.length}</div>
+                          <div className="text-[11px] font-medium text-[#8a84a4]">知识库总条目</div>
+                        </div>
+                      </div>
 
-                {/* RAG Knowledge Items Table */}
-                <div className="bg-white/80 backdrop-blur-xl rounded-3xl p-5 border border-white shadow-sm space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <h3 className="font-bold text-[#4a4365] text-[15px]">知识库切片条目列表</h3>
-                      <div className="relative">
-                        <Search size={14} className="absolute left-3 top-3 text-gray-400" />
+                      <div className="bg-white/80 rounded-3xl p-4 border border-white shadow-sm flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-2xl bg-blue-100 text-blue-500 flex items-center justify-center font-bold">
+                          <Table size={20} />
+                        </div>
+                        <div>
+                          <div className="text-[18px] font-black text-[#4a4365]">{ragItems.filter(i => i.type === 'table').length}</div>
+                          <div className="text-[11px] font-medium text-[#8a84a4]">结构化表格</div>
+                        </div>
+                      </div>
+
+                      <div className="bg-white/80 rounded-3xl p-4 border border-white shadow-sm flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-2xl bg-pink-100 text-pink-500 flex items-center justify-center font-bold">
+                          <ImageIcon size={20} />
+                        </div>
+                        <div>
+                          <div className="text-[18px] font-black text-[#4a4365]">
+                            {ragItems.reduce((acc, i) => acc + (i.imageAttachments?.length || 0), 0)}
+                          </div>
+                          <div className="text-[11px] font-medium text-[#8a84a4]">PNG 图片附件</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Import Actions Bar: Single Add vs Document Batch Import & Chunking */}
+                    <div className="flex items-center justify-between gap-3 bg-gradient-to-r from-purple-100/50 via-pink-100/50 to-blue-100/50 p-4 rounded-3xl border border-white shadow-xs">
+                      <div>
+                        <h3 className="font-bold text-[#4a4365] text-[14px] flex items-center gap-1.5">
+                          <Scissors className="text-[#a494e8]" size={16} /> 知识库输入与智能切片中心
+                        </h3>
+                        <p className="text-[11px] text-[#7a7295] mt-0.5">支持 Word、Markdown、TXT 文档导入切片，CSV 表格解析，及 PNG 图片直接上传</p>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => setIsImportModalOpen(true)}
+                          className="bg-[#4a4365] text-white px-4 py-2.5 rounded-2xl font-bold text-[12px] shadow-sm hover:bg-[#342e49] transition-all flex items-center gap-1.5"
+                        >
+                          <FileUp size={15} /> 批量导入文件/智能切片
+                        </button>
+
+                        <button
+                          onClick={() => {
+                            setEditItem({
+                              title: '',
+                              category: '专业与录取',
+                              type: 'text',
+                              content: '',
+                              tableData: { columns: ['表头1', '表头2'], rows: [['数据1', '数据2']] },
+                              imageAttachments: [],
+                              tags: ['新标签']
+                            });
+                            setIsEditing(true);
+                          }}
+                          className="bg-gradient-to-r from-[#b3a4ed] to-[#f296b2] text-white px-4 py-2.5 rounded-2xl font-bold text-[12px] shadow-sm hover:shadow-md transition-all flex items-center gap-1.5"
+                        >
+                          <Plus size={15} /> 单条添加
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* RAG Search & Test Console Section */}
+                    <div className="bg-white/80 backdrop-blur-xl rounded-3xl p-5 border border-white shadow-sm space-y-4">
+                      <div className="flex items-center justify-between">
+                        <h3 className="font-bold text-[#4a4365] text-[15px] flex items-center gap-2">
+                          <Sparkles className="text-[#a494e8]" size={18} /> 本地 BGE 512维向量检索测试
+                        </h3>
+                      </div>
+                      <div className="flex gap-2">
                         <input
                           type="text"
-                          value={searchQuery}
-                          onChange={(e) => setSearchQuery(e.target.value)}
-                          placeholder="搜索标题或标签..."
-                          className="bg-[#f8f6fc] border-none rounded-xl pl-9 pr-3 py-1.5 text-[12px] outline-none"
+                          value={testQuery}
+                          onChange={(e) => setTestQuery(e.target.value)}
+                          placeholder="输入测试问题（如：浙江录取线是多少？有宿舍图吗？）"
+                          className="flex-1 bg-[#f8f6fc] border-none rounded-2xl px-4 py-2.5 text-[13px] outline-none focus:ring-2 focus:ring-[#a494e8]"
                         />
+                        <button
+                          onClick={handleTestRagSearch}
+                          className="bg-[#4a4365] text-white px-5 py-2.5 rounded-2xl font-bold text-[13px] shadow-sm hover:bg-[#342e49] transition-all flex items-center gap-1.5"
+                        >
+                          <Search size={15} /> 语义向量比对
+                        </button>
+                      </div>
+
+                      {testResults && (
+                        <div className="mt-3 bg-[#f8f6fc] p-4 rounded-2xl space-y-3">
+                          <div className="text-[12px] font-bold text-[#a494e8]">
+                            向量与关键词匹配到 {testResults.length} 条检索切片：
+                          </div>
+                          {testResults.map(({ item, score }) => (
+                            <div key={item.id} className="bg-white p-3 rounded-xl border border-white shadow-xs">
+                              <div className="flex items-center justify-between">
+                                <span className="font-bold text-[#4a4365] text-[13px]">{item.title}</span>
+                                <span className="bg-purple-100 text-purple-700 text-[10px] px-2 py-0.5 rounded-md font-bold">
+                                  相似得分: {(score * 10).toFixed(1)}%
+                                </span>
+                              </div>
+                              <p className="text-[12px] text-[#6d648b] mt-1">{item.content}</p>
+                              {item.imageAttachments?.length > 0 && (
+                                <div className="flex gap-2 mt-2">
+                                  {item.imageAttachments.map((img, i) => (
+                                    <img key={i} src={img.url} alt={img.name} className="w-12 h-12 rounded-lg object-cover border" />
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* RAG Knowledge Items Table */}
+                    <div className="bg-white/80 backdrop-blur-xl rounded-3xl p-5 border border-white shadow-sm space-y-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <h3 className="font-bold text-[#4a4365] text-[15px]">知识库切片条目列表</h3>
+                          <div className="relative">
+                            <Search size={14} className="absolute left-3 top-3 text-gray-400" />
+                            <input
+                              type="text"
+                              value={searchQuery}
+                              onChange={(e) => setSearchQuery(e.target.value)}
+                              placeholder="搜索标题或标签..."
+                              className="bg-[#f8f6fc] border-none rounded-xl pl-9 pr-3 py-1.5 text-[12px] outline-none"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Knowledge Card Grid */}
+                      <div className="space-y-3">
+                        {filteredRagItems.map((item) => (
+                          <div key={item.id} className="bg-white/90 rounded-2xl p-4 border border-white shadow-xs flex items-start justify-between gap-4">
+                            <div className="flex-1 space-y-2">
+                              <div className="flex items-center gap-2">
+                                <span className={`text-[10px] px-2 py-0.5 rounded-md font-bold uppercase ${
+                                  item.type === 'table' ? 'bg-blue-100 text-blue-700' : item.type === 'image' ? 'bg-pink-100 text-pink-700' : 'bg-purple-100 text-purple-700'
+                                }`}>
+                                  {item.type === 'table' ? '表格型' : item.type === 'image' ? '图片附件型' : '文本型'}
+                                </span>
+                                <span className="text-[11px] font-bold text-gray-400">[{item.category}]</span>
+                                <h4 className="font-bold text-[#4a4365] text-[14px]">{item.title}</h4>
+                              </div>
+
+                              <p className="text-[13px] text-[#6d648b] leading-relaxed line-clamp-2">{item.content}</p>
+
+                              {item.tableData && item.tableData.columns && (
+                                <div className="bg-[#f8f6fc] p-2 rounded-xl text-[11px] text-[#4a4365]">
+                                  <span className="font-bold">结构化表格：</span> {item.tableData.columns.join(' | ')} ({item.tableData.rows?.length || 0} 行)
+                                </div>
+                              )}
+
+                              {item.imageAttachments && item.imageAttachments.length > 0 && (
+                                <div className="flex items-center gap-2 pt-1">
+                                  <span className="text-[11px] font-bold text-pink-500 flex items-center gap-1">
+                                    <ImageIcon size={12} /> 图片附件 ({item.imageAttachments.length}):
+                                  </span>
+                                  {item.imageAttachments.map((img, i) => (
+                                    <div key={i} className="flex items-center gap-1 bg-pink-50 text-pink-700 text-[10px] px-2 py-0.5 rounded-lg border border-pink-100">
+                                      <img src={img.url} alt={img.name} className="w-4 h-4 rounded object-cover" />
+                                      <span>{img.name}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+
+                              <div className="flex flex-wrap gap-1 pt-1">
+                                {item.tags?.map((t, i) => (
+                                  <span key={i} className="bg-[#f3eefc] text-[#a494e8] text-[10px] px-2 py-0.5 rounded-full font-medium">
+                                    #{t}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-1">
+                              <button
+                                onClick={() => {
+                                  setEditItem({ ...item });
+                                  setIsEditing(true);
+                                }}
+                                className="p-2 rounded-xl text-[#8a84a4] hover:text-[#4a4365] hover:bg-gray-100 transition-all"
+                              >
+                                <Edit3 size={16} />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteRagItem(item.id)}
+                                className="p-2 rounded-xl text-[#8a84a4] hover:text-red-500 hover:bg-red-50 transition-all"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     </div>
-                  </div>
-
-                  {/* Knowledge Card Grid */}
-                  <div className="space-y-3">
-                    {filteredRagItems.map((item) => (
-                      <div key={item.id} className="bg-white/90 rounded-2xl p-4 border border-white shadow-xs flex items-start justify-between gap-4">
-                        <div className="flex-1 space-y-2">
-                          <div className="flex items-center gap-2">
-                            <span className={`text-[10px] px-2 py-0.5 rounded-md font-bold uppercase ${
-                              item.type === 'table' ? 'bg-blue-100 text-blue-700' : item.type === 'image' ? 'bg-pink-100 text-pink-700' : 'bg-purple-100 text-purple-700'
-                            }`}>
-                              {item.type === 'table' ? '表格型' : item.type === 'image' ? '图片附件型' : '文本型'}
-                            </span>
-                            <span className="text-[11px] font-bold text-gray-400">[{item.category}]</span>
-                            <h4 className="font-bold text-[#4a4365] text-[14px]">{item.title}</h4>
-                          </div>
-
-                          <p className="text-[13px] text-[#6d648b] leading-relaxed line-clamp-2">{item.content}</p>
-
-                          {item.tableData && item.tableData.columns && (
-                            <div className="bg-[#f8f6fc] p-2 rounded-xl text-[11px] text-[#4a4365]">
-                              <span className="font-bold">结构化表格：</span> {item.tableData.columns.join(' | ')} ({item.tableData.rows?.length || 0} 行)
-                            </div>
-                          )}
-
-                          {item.imageAttachments && item.imageAttachments.length > 0 && (
-                            <div className="flex items-center gap-2 pt-1">
-                              <span className="text-[11px] font-bold text-pink-500 flex items-center gap-1">
-                                <ImageIcon size={12} /> 图片附件 ({item.imageAttachments.length}):
-                              </span>
-                              {item.imageAttachments.map((img, i) => (
-                                <div key={i} className="flex items-center gap-1 bg-pink-50 text-pink-700 text-[10px] px-2 py-0.5 rounded-lg border border-pink-100">
-                                  <img src={img.url} alt={img.name} className="w-4 h-4 rounded object-cover" />
-                                  <span>{img.name}</span>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-
-                          <div className="flex flex-wrap gap-1 pt-1">
-                            {item.tags?.map((t, i) => (
-                              <span key={i} className="bg-[#f3eefc] text-[#a494e8] text-[10px] px-2 py-0.5 rounded-full font-medium">
-                                #{t}
-                              </span>
-                            ))}
-                          </div>
+                  </>
+                ) : adminTab === 'users' ? (
+                  /* User Management & Control Dashboard */
+                  <div className="space-y-6 animate-in fade-in duration-300">
+                    
+                    {/* User Stats Bar */}
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="bg-white/80 rounded-3xl p-4 border border-white shadow-sm flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-2xl bg-purple-100 text-[#a494e8] flex items-center justify-center font-bold">
+                          <User size={20} />
                         </div>
-
-                        <div className="flex items-center gap-1">
-                          <button
-                            onClick={() => {
-                              setEditItem({ ...item });
-                              setIsEditing(true);
-                            }}
-                            className="p-2 rounded-xl text-[#8a84a4] hover:text-[#4a4365] hover:bg-gray-100 transition-all"
-                          >
-                            <Edit3 size={16} />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteRagItem(item.id)}
-                            className="p-2 rounded-xl text-[#8a84a4] hover:text-red-500 hover:bg-red-50 transition-all"
-                          >
-                            <Trash2 size={16} />
-                          </button>
+                        <div>
+                          <div className="text-[18px] font-black text-[#4a4365]">{registeredUsersList.length}</div>
+                          <div className="text-[11px] font-medium text-[#8a84a4]">已注册用户总数</div>
                         </div>
                       </div>
-                    ))}
+
+                      <div className="bg-white/80 rounded-3xl p-4 border border-white shadow-sm flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center font-bold">
+                          <Sparkles size={20} />
+                        </div>
+                        <div>
+                          <div className="text-[18px] font-black text-[#4a4365]">
+                            {registeredUsersList.filter(u => u.profile?.isVip || (Number(u.profile?.score) >= vipScoreThreshold)).length}
+                          </div>
+                          <div className="text-[11px] font-medium text-[#8a84a4]">VIP 特权用户数</div>
+                        </div>
+                      </div>
+
+                      <div className="bg-white/80 rounded-3xl p-4 border border-white shadow-sm flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-2xl bg-red-100 text-red-500 flex items-center justify-center font-bold">
+                          <Clock size={20} />
+                        </div>
+                        <div>
+                          <div className="text-[18px] font-black text-[#4a4365]">
+                            {registeredUsersList.filter(u => Number(u.profile?.score) > 0 && Number(u.profile?.score) < lowScoreThreshold).length}
+                          </div>
+                          <div className="text-[11px] font-medium text-[#8a84a4]">低于拦截线用户数</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Low-Score Interception & VIP Rule Configuration Card */}
+                    <div className="bg-white/80 backdrop-blur-xl rounded-3xl p-5 border border-white shadow-sm space-y-4">
+                      <div className="flex items-center justify-between border-b pb-3">
+                        <h3 className="font-bold text-[#4a4365] text-[15px] flex items-center gap-2">
+                          <Lock className="text-[#a494e8]" size={18} /> 全局低分位拦截与 VIP 身份规则配置
+                        </h3>
+                        <span className={`text-[11px] px-2.5 py-0.5 rounded-full font-bold ${interceptionEnabled ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                          {interceptionEnabled ? '策略已启用' : '策略已暂停'}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div className="bg-[#f8f6fc] p-4 rounded-2xl space-y-2 border border-purple-50">
+                          <div className="flex items-center justify-between">
+                            <label className="text-[12px] font-bold text-[#4a4365]">低于拦截策略开关</label>
+                            <input
+                              type="checkbox"
+                              checked={interceptionEnabled}
+                              onChange={(e) => setInterceptionEnabled(e.target.checked)}
+                              className="w-4 h-4 accent-[#a494e8] cursor-pointer"
+                            />
+                          </div>
+                          <p className="text-[11px] text-[#7a7295]">开启后低分段算力控制策略生效</p>
+                        </div>
+
+                        <div className="bg-[#f8f6fc] p-4 rounded-2xl space-y-1 border border-purple-50">
+                          <label className="text-[12px] font-bold text-[#4a4365] block">低于拦截控制分值线 (分)</label>
+                          <input
+                            type="number"
+                            value={lowScoreThreshold}
+                            onChange={(e) => setLowScoreThreshold(Number(e.target.value) || 450)}
+                            className="w-full bg-white border border-gray-200 rounded-xl px-3 py-1.5 text-[13px] font-bold text-[#4a4365] outline-none"
+                          />
+                          <p className="text-[10px] text-gray-400">高考总分低于此界限标记为拦截位次</p>
+                        </div>
+
+                        <div className="bg-[#f8f6fc] p-4 rounded-2xl space-y-1 border border-purple-50">
+                          <label className="text-[12px] font-bold text-[#4a4365] block">VIP 自动晋级分值线 (分)</label>
+                          <input
+                            type="number"
+                            value={vipScoreThreshold}
+                            onChange={(e) => setVipScoreThreshold(Number(e.target.value) || 580)}
+                            className="w-full bg-white border border-gray-200 rounded-xl px-3 py-1.5 text-[13px] font-bold text-[#4a4365] outline-none"
+                          />
+                          <p className="text-[10px] text-gray-400">成绩达到此分值自动获得 VIP 特权</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Registered User Management Table */}
+                    <div className="bg-white/80 backdrop-blur-xl rounded-3xl p-5 border border-white shadow-sm space-y-4">
+                      <div className="flex items-center justify-between">
+                        <h3 className="font-bold text-[#4a4365] text-[15px] flex items-center gap-2">
+                          <User size={18} className="text-[#a494e8]" /> 已注册用户及背景 RAG 档案列表
+                        </h3>
+                        <div className="relative">
+                          <Search size={14} className="absolute left-3 top-3 text-gray-400" />
+                          <input
+                            type="text"
+                            value={adminUserSearch}
+                            onChange={(e) => setAdminUserSearch(e.target.value)}
+                            placeholder="搜索账号、姓名、省份..."
+                            className="bg-[#f8f6fc] border-none rounded-xl pl-9 pr-3 py-1.5 text-[12px] outline-none w-[200px]"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left text-[12px]">
+                          <thead>
+                            <tr className="border-b border-gray-100 text-[#8a84a4] font-bold pb-2">
+                              <th className="pb-3 px-2">账号名</th>
+                              <th className="pb-3 px-2">姓名 / 性别</th>
+                              <th className="pb-3 px-2">高考省份</th>
+                              <th className="pb-3 px-2">成绩 / 位次</th>
+                              <th className="pb-3 px-2">选科情况</th>
+                              <th className="pb-3 px-2">VIP 身份</th>
+                              <th className="pb-3 px-2">低于拦截状态</th>
+                              <th className="pb-3 px-2 text-right">管理操作</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-50">
+                            {registeredUsersList
+                              .filter(u => 
+                                !adminUserSearch || 
+                                u.username?.toLowerCase().includes(adminUserSearch.toLowerCase()) ||
+                                u.profile?.name?.includes(adminUserSearch) ||
+                                u.profile?.province?.includes(adminUserSearch)
+                              )
+                              .map((user) => {
+                                const scoreNum = Number(user.profile?.score) || 0;
+                                const isUserVip = user.profile?.isVip || scoreNum >= vipScoreThreshold;
+                                const isUserLow = scoreNum > 0 && scoreNum < lowScoreThreshold;
+
+                                return (
+                                  <tr key={user.username} className="hover:bg-[#fcfaff] transition-colors">
+                                    <td className="py-3 px-2 font-bold text-[#4a4365]">{user.username}</td>
+                                    <td className="py-3 px-2">
+                                      {user.profile?.name ? (
+                                        <span>{user.profile.name} ({user.profile.gender || '未知'})</span>
+                                      ) : (
+                                        <span className="text-gray-400 italic">未填资料</span>
+                                      )}
+                                    </td>
+                                    <td className="py-3 px-2">{user.profile?.province || '未选择'}</td>
+                                    <td className="py-3 px-2 font-bold text-[#4a4365]">
+                                      {scoreNum > 0 ? `${scoreNum}分` : '未填'}
+                                      {user.profile?.rank && <span className="text-[10px] text-gray-400 block font-normal">位次: {user.profile.rank}</span>}
+                                    </td>
+                                    <td className="py-3 px-2 text-gray-600">{user.profile?.subjects || '未填写'}</td>
+                                    <td className="py-3 px-2">
+                                      <button
+                                        onClick={() => handleToggleUserVip(user.username)}
+                                        className={`px-2.5 py-1 rounded-xl text-[11px] font-bold transition-all ${
+                                          isUserVip
+                                            ? 'bg-amber-100 text-amber-900 border border-amber-300 shadow-xs'
+                                            : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                                        }`}
+                                      >
+                                        {isUserVip ? '✨ VIP 用户' : '普通用户'}
+                                      </button>
+                                    </td>
+                                    <td className="py-3 px-2">
+                                      {isUserLow ? (
+                                        <span className="bg-red-50 text-red-600 px-2 py-0.5 rounded-md font-bold text-[10px]">
+                                          低于拦截段 (&lt;{lowScoreThreshold}分)
+                                        </span>
+                                      ) : (
+                                        <span className="bg-green-50 text-green-700 px-2 py-0.5 rounded-md font-bold text-[10px]">
+                                          正常咨询段
+                                        </span>
+                                      )}
+                                    </td>
+                                    <td className="py-3 px-2 text-right">
+                                      <button
+                                        onClick={() => handleOpenUserPersonalRag(user.username)}
+                                        className="bg-[#f3eefc] hover:bg-[#a494e8] text-[#a494e8] hover:text-white px-3 py-1.5 rounded-xl font-bold text-[11px] transition-all flex items-center gap-1 ml-auto shadow-xs"
+                                      >
+                                        <Sparkles size={13} />
+                                        <span>查看个人 RAG</span>
+                                      </button>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+
                   </div>
-                </div>
+                ) : (
+                  /* Message Analysis & High-Frequency Word Statistics Dashboard */
+                  <div className="space-y-6 animate-in fade-in duration-300">
+                    
+                    {/* Analytics Top Stats Bar */}
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="bg-white/80 rounded-3xl p-4 border border-white shadow-sm flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-2xl bg-purple-100 text-[#a494e8] flex items-center justify-center font-bold">
+                          <MessageSquare size={20} />
+                        </div>
+                        <div>
+                          <div className="text-[18px] font-black text-[#4a4365]">{allUserDialogues.length}</div>
+                          <div className="text-[11px] font-medium text-[#8a84a4]">全网问答对总数</div>
+                        </div>
+                      </div>
+
+                      <div className="bg-white/80 rounded-3xl p-4 border border-white shadow-sm flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-2xl bg-blue-100 text-blue-500 flex items-center justify-center font-bold">
+                          <User size={20} />
+                        </div>
+                        <div>
+                          <div className="text-[18px] font-black text-[#4a4365]">
+                            {new Set(allUserDialogues.map(d => d.username)).size}
+                          </div>
+                          <div className="text-[11px] font-medium text-[#8a84a4]">涉及咨询用户数</div>
+                        </div>
+                      </div>
+
+                      <div className="bg-white/80 rounded-3xl p-4 border border-white shadow-sm flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center font-bold">
+                          <Sparkles size={20} />
+                        </div>
+                        <div>
+                          <div className="text-[18px] font-black text-[#4a4365]">{highFrequencyWords.length}</div>
+                          <div className="text-[11px] font-medium text-[#8a84a4]">提炼核心高频热词</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Global High-Frequency Words / Keywords Statistics Card */}
+                    <div className="bg-white/80 backdrop-blur-xl rounded-3xl p-5 border border-white shadow-sm space-y-4">
+                      <div className="flex items-center justify-between border-b pb-3 border-gray-100">
+                        <div>
+                          <h3 className="font-bold text-[#4a4365] text-[15px] flex items-center gap-2">
+                            <Sparkles className="text-[#a494e8]" size={18} /> 全网增量高频词统计数据库 (Top 15)
+                          </h3>
+                          <p className="text-[11px] text-[#8a84a4] mt-0.5">
+                            ⚡ 仅分析新消息（已归档累计 {wordAnalyticsDb.totalAnalyzedCount || 0} 条消息
+                            {newlyAnalyzedCount > 0 ? `，本次新增分析 ${newlyAnalyzedCount} 条` : '，当前暂无新增待分析消息'}，结果已持久化保存至数据库）
+                          </p>
+                        </div>
+                        {adminMessageSearch && (
+                          <button
+                            onClick={() => setAdminMessageSearch('')}
+                            className="text-[11px] font-bold text-[#a494e8] hover:text-[#4a4365] bg-purple-50 px-3 py-1 rounded-xl transition-all"
+                          >
+                            重置关键词筛选
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="flex flex-wrap gap-2.5 pt-1">
+                        {highFrequencyWords.map((item, index) => {
+                          const isSelected = adminMessageSearch === item.word;
+
+                          return (
+                            <button
+                              key={item.word}
+                              onClick={() => setAdminMessageSearch(isSelected ? '' : item.word)}
+                              className={`group relative px-3.5 py-2 rounded-2xl text-[12px] font-bold transition-all border flex items-center gap-2 active:scale-95 shadow-xs ${
+                                isSelected
+                                  ? 'bg-[#4a4365] text-white border-[#4a4365] shadow-md ring-2 ring-purple-200'
+                                  : 'bg-[#f8f6fc] hover:bg-white text-[#4a4365] border-purple-100 hover:border-purple-200'
+                              }`}
+                            >
+                              <span className={`text-[10px] w-4 h-4 rounded-full flex items-center justify-center font-black ${
+                                index === 0 ? 'bg-amber-400 text-white' : index === 1 ? 'bg-gray-300 text-gray-700' : index === 2 ? 'bg-amber-600 text-white' : 'bg-purple-100 text-purple-700'
+                              }`}>
+                                {index + 1}
+                              </span>
+                              <span>{item.word}</span>
+                              <span className={`text-[10px] px-1.5 py-0.2 rounded-md font-extrabold ${
+                                isSelected ? 'bg-white/20 text-white' : 'bg-purple-100 text-purple-700'
+                              }`}>
+                                {item.count}次
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Global Dialogue Search & Inspection Table / List */}
+                    <div className="bg-white/80 backdrop-blur-xl rounded-3xl p-5 border border-white shadow-sm space-y-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-bold text-[#4a4365] text-[15px] flex items-center gap-2">
+                            <MessageSquare size={18} className="text-[#a494e8]" /> 全局用户对话汇总与检索
+                          </h3>
+                          <span className="text-[11px] font-bold text-gray-400">
+                            (共 {
+                              allUserDialogues.filter(d => 
+                                !adminMessageSearch ||
+                                d.question.toLowerCase().includes(adminMessageSearch.toLowerCase()) ||
+                                d.reply.toLowerCase().includes(adminMessageSearch.toLowerCase()) ||
+                                d.username.toLowerCase().includes(adminMessageSearch.toLowerCase())
+                              ).length
+                            } 条)
+                          </span>
+                        </div>
+
+                        <div className="relative">
+                          <Search size={14} className="absolute left-3 top-3 text-gray-400" />
+                          <input
+                            type="text"
+                            value={adminMessageSearch}
+                            onChange={(e) => setAdminMessageSearch(e.target.value)}
+                            placeholder="全局搜索问题、回复或账号..."
+                            className="bg-[#f8f6fc] border-none rounded-xl pl-9 pr-8 py-1.5 text-[12px] outline-none w-[240px] focus:ring-2 focus:ring-[#a494e8]"
+                          />
+                          {adminMessageSearch && (
+                            <button
+                              onClick={() => setAdminMessageSearch('')}
+                              className="absolute right-2.5 top-2.5 text-gray-400 hover:text-gray-600"
+                            >
+                              <X size={13} />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Dialogue Pairs List */}
+                      <div className="space-y-4">
+                        {allUserDialogues
+                          .filter(d => 
+                            !adminMessageSearch ||
+                            d.question.toLowerCase().includes(adminMessageSearch.toLowerCase()) ||
+                            d.reply.toLowerCase().includes(adminMessageSearch.toLowerCase()) ||
+                            d.username.toLowerCase().includes(adminMessageSearch.toLowerCase())
+                          )
+                          .map((d) => (
+                            <div key={d.id} className="bg-white/90 rounded-2xl p-4 border border-white shadow-xs space-y-3 hover:border-purple-200 transition-all">
+                              {/* Header Meta */}
+                              <div className="flex items-center justify-between border-b pb-2 border-gray-100">
+                                <div className="flex items-center gap-2">
+                                  <span className="bg-purple-100 text-purple-700 text-[11px] px-2.5 py-0.5 rounded-lg font-bold flex items-center gap-1">
+                                    <User size={12} /> {d.username}
+                                  </span>
+                                  <span className="bg-gray-100 text-gray-600 text-[10px] px-2 py-0.5 rounded-md font-medium">
+                                    会话: {d.sessionTitle}
+                                  </span>
+                                </div>
+                                <span className="text-[10px] text-gray-400 flex items-center gap-1">
+                                  <Clock size={11} /> {new Date(d.timestamp).toLocaleString()}
+                                </span>
+                              </div>
+
+                              {/* Question Block */}
+                              <div className="flex items-start gap-2.5 bg-[#f8f6fc] p-3 rounded-2xl border border-purple-50">
+                                <div className="w-6 h-6 rounded-lg bg-[#b3a4ed] text-white flex items-center justify-center shrink-0 font-bold text-[10px]">
+                                  问
+                                </div>
+                                <div className="flex-1 text-[13px] font-bold text-[#4a4365] leading-relaxed">
+                                  {d.question}
+                                </div>
+                              </div>
+
+                              {/* Reply Block */}
+                              {d.reply && (
+                                <div className="flex items-start gap-2.5 bg-gradient-to-r from-purple-50/50 to-pink-50/50 p-3 rounded-2xl border border-purple-100/50">
+                                  <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-[#b3a4ed] to-[#f296b2] text-white flex items-center justify-center shrink-0 font-bold text-[10px]">
+                                    答
+                                  </div>
+                                  <div className="flex-1 text-[12px] text-[#5c5478] leading-relaxed">
+                                    {d.reply}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                      </div>
+
+                    </div>
+
+                  </div>
+                )}
+
               </main>
             )}
 
@@ -1729,9 +2390,12 @@ export default function App() {
 
       {/* Modal VIP: Personal RAG Memory Database Viewer */}
       <PersonalRagModal
-        username={currentUser?.username}
+        username={adminTargetUser || currentUser?.username}
         isOpen={isPersonalRagOpen}
-        onClose={() => setIsPersonalRagOpen(false)}
+        onClose={() => {
+          setIsPersonalRagOpen(false);
+          setAdminTargetUser(null);
+        }}
       />
 
       {/* Modal 1: Edit or Create Single RAG Item */}
@@ -2422,20 +3086,10 @@ const UserProfileModal = ({ profile, isOpen, onClose, onSave }: UserProfileModal
 
           {/* Score status tip */}
           {formData.score && (
-            <div className={`p-3.5 rounded-2xl text-[12px] font-bold flex items-center gap-2 ${
-              Number(formData.score) > 580 
-                ? 'bg-gradient-to-r from-amber-50 via-purple-50 to-pink-50 text-amber-900 border border-amber-200 shadow-xs' 
-                : Number(formData.score) < 450 
-                ? 'bg-amber-50 text-amber-800 border border-amber-200' 
-                : 'bg-purple-50 text-purple-800 border border-purple-100'
-            }`}>
-              <Sparkles size={16} className="shrink-0 text-amber-500" />
+            <div className="p-3 rounded-2xl text-[12px] font-bold flex items-center gap-2 bg-purple-50 text-purple-800 border border-purple-100">
+              <Sparkles size={16} className="shrink-0 text-purple-500" />
               <span>
-                {Number(formData.score) > 580 
-                  ? '✨ 分数判定：高考成绩 > 580 分！提交后将自动升级为【VIP 优先保障用户】，开启对话自动提炼与个人 RAG 专属记忆检索！' 
-                  : Number(formData.score) < 450 
-                  ? '⚠️ 提示：分数低于 450 分时，受算力队列限制，系统可能提示“服务正忙，请稍后再试”。' 
-                  : '✅ 分数判定：标准咨询段位，提供专业与填报建议。'}
+                ✅ 高考成绩已录入：{formData.score} 分。系统将为您匹配专属选科建议与高校招生政策。
               </span>
             </div>
           )}
@@ -2495,8 +3149,10 @@ const PersonalRagModal = ({ username, isOpen, onClose }: PersonalRagModalProps) 
               <Sparkles size={20} />
             </div>
             <div>
-              <h3 className="font-bold text-[#4a4365] text-[16px]">VIP 个人 RAG 专属记忆数据库</h3>
-              <p className="text-[11px] text-[#8a84a4]">AI 在对话中为您自动总结并提炼的个人背景偏好与记忆数据</p>
+              <h3 className="font-bold text-[#4a4365] text-[16px]">
+                {username ? `【${username}】的个人 RAG 专属记忆数据库` : '个人 RAG 专属记忆数据库'}
+              </h3>
+              <p className="text-[11px] text-[#8a84a4]">AI 在对话中自动总结并提炼的个人背景偏好与记忆数据</p>
             </div>
           </div>
           <button onClick={onClose} className="p-2 rounded-2xl text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors">

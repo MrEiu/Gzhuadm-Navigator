@@ -889,6 +889,52 @@ app.post('/api/admin/upload-image', (req, res) => {
   }
 });
 
+// --- Word Frequency Analytics Persistence API ---
+const wordAnalyticsFilePath = path.join(dataDir, 'word_analytics.json');
+
+const loadWordAnalyticsData = () => {
+  if (!fs.existsSync(wordAnalyticsFilePath)) {
+    return {
+      analyzedMessageIds: [],
+      wordCounts: {},
+      totalAnalyzedCount: 0,
+      lastAnalyzedAt: null
+    };
+  }
+  try {
+    return JSON.parse(fs.readFileSync(wordAnalyticsFilePath, 'utf8'));
+  } catch {
+    return {
+      analyzedMessageIds: [],
+      wordCounts: {},
+      totalAnalyzedCount: 0,
+      lastAnalyzedAt: null
+    };
+  }
+};
+
+const saveWordAnalyticsData = (data) => {
+  try {
+    fs.writeFileSync(wordAnalyticsFilePath, JSON.stringify(data, null, 2), 'utf8');
+  } catch (err) {
+    console.error('Failed to save word analytics data:', err);
+  }
+};
+
+app.get('/api/admin/word-analytics', (_req, res) => {
+  const data = loadWordAnalyticsData();
+  res.json({ ok: true, data });
+});
+
+app.post('/api/admin/word-analytics', (req, res) => {
+  const { data } = req.body || {};
+  if (data) {
+    saveWordAnalyticsData(data);
+    return res.json({ ok: true, data });
+  }
+  res.status(400).json({ ok: false, error: 'Analytics data payload missing' });
+});
+
 // --- User Sessions Persistence & Cache APIs ---
 const sessionsFilePath = path.join(dataDir, 'user_sessions.json');
 
