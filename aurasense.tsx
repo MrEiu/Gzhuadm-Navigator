@@ -522,7 +522,7 @@ const MapGuideModal = ({ locations, isOpen, onClose, onAskQuestion }) => {
 };
 
 // --- Markdown Component ---
-// Helper function to sanitize unclosed markdown syntax tags and auto-fence raw JSON widgets
+// Helper function to sanitize unclosed markdown syntax tags (images, tables)
 const sanitizeMarkdownContent = (rawText) => {
   if (!rawText) return '';
   let safeText = rawText;
@@ -539,22 +539,6 @@ const sanitizeMarkdownContent = (rawText) => {
     lines[lines.length - 1] = lastLine + ' |';
     safeText = lines.join('\n');
   }
-
-  // Auto-wrap unfenced JSON blocks (e.g. raw JSON objects output without ```json code block)
-  safeText = safeText.replace(/(^|\n)(\s*\{[\s\S]*?\n\s*\})(\n|$)/g, (match, p1, jsonStr, p3) => {
-    const trimmed = jsonStr.trim();
-    if (
-      (trimmed.includes('"front"') ||
-       trimmed.includes('"question"') ||
-       trimmed.includes('"type"') ||
-       trimmed.includes('"array"') ||
-       trimmed.includes('"options"')) &&
-      !trimmed.startsWith('```')
-    ) {
-      return `${p1}\n\`\`\`json\n${trimmed}\n\`\`\`\n${p3}`;
-    }
-    return match;
-  });
 
   return safeText;
 };
