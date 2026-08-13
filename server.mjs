@@ -153,9 +153,10 @@ let pgPool = null;
 let usePostgres = false;
 
 const initPostgres = async () => {
+  let targetPort = Number(process.env.POSTGRES_PORT || process.env.PGPORT || 35432);
   const pgConfig = {
     host: process.env.POSTGRES_HOST || process.env.PGHOST || 'localhost',
-    port: Number(process.env.POSTGRES_PORT || process.env.PGPORT || 5432),
+    port: targetPort,
     user: process.env.POSTGRES_USER || process.env.PGUSER || 'aurasense',
     password: process.env.POSTGRES_PASSWORD || process.env.PGPASSWORD || 'aurasensepass',
     database: process.env.POSTGRES_DB || process.env.PGDATABASE || 'aurasense',
@@ -164,10 +165,22 @@ const initPostgres = async () => {
 
   try {
     pgPool = new Pool(pgConfig);
-    const client = await pgPool.connect();
+    let client;
+    try {
+      client = await pgPool.connect();
+    } catch (firstErr) {
+      if (!process.env.POSTGRES_PORT && targetPort === 35432) {
+        pgConfig.port = 5432;
+        pgPool = new Pool(pgConfig);
+        client = await pgPool.connect();
+      } else {
+        throw firstErr;
+      }
+    }
     client.release();
     usePostgres = true;
     console.log(`✅ PostgreSQL Connected successfully to ${pgConfig.host}:${pgConfig.port}/${pgConfig.database}`);
+
 
     // Create Extension & Tables
     await pgPool.query(`
@@ -914,10 +927,15 @@ app.post('/api/aura/chat', async (req, res) => {
 });
 
 if (fs.existsSync(distDir)) {
-  app.get('*', (_req, res) => {
-    res.sendFile(path.join(distDir, 'index.html'));
+  app.use((req, res, next) => {
+    if (req.method === 'GET' && !req.path.startsWith('/api') && !req.path.startsWith('/uploads')) {
+      return res.sendFile(path.join(distDir, 'index.html'));
+    }
+    next();
   });
 }
+
+
 
 const port = Number(process.env.PORT || 3001);
 app.listen(port, () => {
