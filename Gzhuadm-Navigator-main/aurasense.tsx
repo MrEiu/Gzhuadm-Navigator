@@ -7,7 +7,8 @@ import {
   Search, X, Upload, Check, User, Lock, LogOut, ShieldCheck, 
   ArrowRight, FileText, FileUp, Scissors, Layers, Eye,
   MessageSquare, History, PanelLeftOpen, PanelLeftClose, Clock, ChevronRight,
-  MapPin, Compass, Map, Navigation, Tag, Info, ExternalLink, Bookmark
+  MapPin, Compass, Map, Navigation, Tag, Info, ExternalLink, Bookmark,
+  Paperclip, Globe2
 } from 'lucide-react';
 
 const API_BASE = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') ? `http://${window.location.hostname}:3001` : '';
@@ -341,6 +342,79 @@ const DEFAULT_CAMPUS_LOCATIONS = [
   }
 ];
 
+// The base map stays unchanged; these overlays provide the hand-drawn wayfinding hierarchy.
+const CAMPUS_MAP_ZONES = [
+  {
+    id: 'science',
+    label: '西侧理科教学楼区',
+    detail: '理工教学 · 实验中心',
+    style: { left: '3%', top: '22%', width: '31%', height: '55%' },
+    color: '#2f7d74',
+    fill: 'rgba(47, 125, 116, 0.08)',
+    shape: 'rounded-[30%_18%_24%_20%]'
+  },
+  {
+    id: 'library',
+    label: '图书馆中心',
+    detail: '学习与校园服务中轴',
+    style: { left: '35%', top: '37%', width: '29%', height: '29%' },
+    color: '#476da8',
+    fill: 'rgba(71, 109, 168, 0.08)',
+    shape: 'rounded-[42%_34%_38%_30%]'
+  },
+  {
+    id: 'sports',
+    label: '北侧运动场馆区',
+    detail: '操场 · 体育馆 · 户外活动',
+    style: { left: '39%', top: '3%', width: '48%', height: '27%' },
+    color: '#c27b32',
+    fill: 'rgba(194, 123, 50, 0.08)',
+    shape: 'rounded-[22%_30%_18%_26%]'
+  },
+  {
+    id: 'humanities',
+    label: '南侧文科教学楼区',
+    detail: '公共课 · 文科教学 · 行政服务',
+    style: { left: '27%', top: '70%', width: '47%', height: '25%' },
+    color: '#a65368',
+    fill: 'rgba(166, 83, 104, 0.08)',
+    shape: 'rounded-[24%_18%_30%_20%]'
+  },
+  {
+    id: 'dorms',
+    label: '东侧宿舍组团',
+    detail: '宿舍 · 食堂 · 生活服务',
+    style: { right: '2%', top: '22%', width: '31%', height: '66%' },
+    color: '#8b5e9f',
+    fill: 'rgba(139, 94, 159, 0.07)',
+    shape: 'rounded-[48%_38%_44%_42%]'
+  }
+];
+
+const CAMPUS_MAP_COORDINATES = {
+  // Reposition only the visual pins to follow the sketch zones.
+  'loc-001': { x: 50, y: 49 },
+  'loc-002': { x: 43, y: 73 },
+  'loc-003': { x: 53, y: 84 },
+  'loc-004': { x: 19, y: 42 },
+  'loc-005': { x: 55, y: 13 },
+  'loc-006': { x: 72, y: 14 },
+  'loc-007': { x: 80, y: 44 },
+  'loc-008': { x: 90, y: 47 },
+  'loc-009': { x: 79, y: 58 },
+  'loc-010': { x: 90, y: 70 },
+  'loc-011': { x: 27, y: 53 },
+  'loc-012': { x: 54, y: 94 },
+  'loc-013': { x: 78, y: 35 },
+  'loc-014': { x: 87, y: 37 },
+  'loc-015': { x: 78, y: 53 },
+  'loc-016': { x: 88, y: 63 },
+  'loc-017': { x: 42, y: 48 },
+  'loc-018': { x: 29, y: 38 },
+  'loc-019': { x: 34, y: 49 },
+  'loc-020': { x: 27, y: 9 }
+};
+
 // --- Map Guide Modal Component ---
 const MapGuideModal = ({ locations, isOpen, onClose, onAskQuestion }) => {
   const [activeCategory, setActiveCategory] = useState('全部');
@@ -479,14 +553,37 @@ const MapGuideModal = ({ locations, isOpen, onClose, onAskQuestion }) => {
                  <span>广州大学大学城校区 · 校园示意图</span>
               </div>
 
-              {/* Map Pins */}
-              <div className="relative h-full w-full min-h-[400px]">
-                {filteredLocations.map((loc) => {
-                  const isSelected = selectedLoc?.id === loc.id;
-                  return (
-                    <div
-                      key={loc.id}
-                      style={{ top: `${loc.coordinates.y}%`, left: `${loc.coordinates.x}%` }}
+               {/* Map Pins */}
+               <div className="relative h-full w-full min-h-[400px]">
+                 {/* Hand-drawn layout zones layered above the retained base map. */}
+                 {CAMPUS_MAP_ZONES.map((zone) => (
+                   <div
+                     key={zone.id}
+                     className="absolute z-10 border-2 border-dashed pointer-events-none"
+                     style={{
+                       ...zone.style,
+                       borderColor: zone.color,
+                       backgroundColor: zone.fill,
+                       borderRadius: zone.id === 'dorms' ? '48% 38% 44% 42%' : '24% 18% 30% 20%'
+                     }}
+                   >
+                     <div
+                       className="absolute left-1/2 top-2 -translate-x-1/2 whitespace-nowrap rounded-xl border px-2.5 py-1 text-center shadow-sm backdrop-blur-sm"
+                       style={{ color: zone.color, borderColor: `${zone.color}55`, backgroundColor: 'rgba(255,255,255,0.86)' }}
+                     >
+                       <div className="text-[11px] font-black tracking-wide sm:text-[12px]">{zone.label}</div>
+                       <div className="mt-0.5 text-[9px] font-medium opacity-75 sm:text-[10px]">{zone.detail}</div>
+                     </div>
+                   </div>
+                 ))}
+
+                 {filteredLocations.map((loc) => {
+                   const isSelected = selectedLoc?.id === loc.id;
+                   const coordinates = CAMPUS_MAP_COORDINATES[loc.id] || loc.coordinates;
+                   return (
+                     <div
+                       key={loc.id}
+                       style={{ top: `${coordinates.y}%`, left: `${coordinates.x}%` }}
                       className="absolute -translate-x-1/2 -translate-y-1/2 group/pin cursor-pointer z-20"
                       onClick={() => {
                         setSelectedLoc(loc);
@@ -849,7 +946,19 @@ const ChatMessageItem = React.memo(({ msg, isUser, bubbleStyle, roleColor, roleA
           )}
           <div className={`px-5 py-3.5 ${bubbleStyle} ${isUser ? 'rounded-[24px] rounded-br-sm' : 'rounded-[24px] rounded-tl-sm'}`}>
             <AuraMarkdownMessage content={msg.text} roleColor={isUser ? '#fff' : roleColor} />
+            {Array.isArray(msg.attachments) && msg.attachments.length > 0 && (
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                {msg.attachments.map((attachment: any, index: number) => (
+                  <a key={`${attachment.url}-${index}`} href={attachment.url} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-xl border border-white/50">
+                    <img src={attachment.url} alt={attachment.caption || attachment.name || '用户图片'} className="h-24 w-full object-cover" />
+                  </a>
+                ))}
+              </div>
+            )}
           </div>
+          <span className={`mt-1 px-1 text-[10px] ${isUser ? 'text-right text-gray-400' : 'text-gray-400'}`}>
+            {msg.createdAt ? new Date(msg.createdAt).toLocaleString([], { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : ''}
+          </span>
         </div>
       </div>
     </div>
@@ -1210,6 +1319,16 @@ export default function App() {
   const [typing, setTyping] = useState(false);
   const [inputText, setInputText] = useState('');
   const [isMapGuideOpen, setIsMapGuideOpen] = useState(false);
+  const [models, setModels] = useState<any[]>([]);
+  const [selectedModel, setSelectedModel] = useState('');
+  const [webSearchEnabled, setWebSearchEnabled] = useState(false);
+  const [agentEnabled, setAgentEnabled] = useState(true);
+  const [sessionSearchQuery, setSessionSearchQuery] = useState('');
+  const [pendingAttachments, setPendingAttachments] = useState<any[]>([]);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
+  const [editingSessionTitle, setEditingSessionTitle] = useState('');
+  const imageInputRef = useRef<HTMLInputElement>(null);
 
   // Derived active session & messages
   const createDefaultSession = () => ({
@@ -1222,6 +1341,19 @@ export default function App() {
 
   const activeSession = sessions.find(s => s.id === activeSessionId) || sessions[0] || null;
   const messages = activeSession ? (activeSession.messages || INITIAL_MESSAGES) : INITIAL_MESSAGES;
+  const visibleMessages = sessionSearchQuery.trim()
+    ? messages.filter((message: any) => String(message.text || '').toLowerCase().includes(sessionSearchQuery.trim().toLowerCase()))
+    : messages;
+
+  useEffect(() => {
+    if (!currentUser || currentUser.role !== 'user') return;
+    fetch(`${API_BASE}/api/models`).then(res => res.json()).then(data => {
+      if (data.ok && Array.isArray(data.models)) {
+        setModels(data.models);
+        setSelectedModel(activeSession?.model || data.defaultModel || data.models[0]?.id || '');
+      }
+    }).catch(() => {});
+  }, [currentUser, activeSessionId]);
 
   // Sync session state to LocalStorage & Server Backend
   const syncSessions = (username, updatedSessions, targetActiveId) => {
@@ -1253,6 +1385,8 @@ export default function App() {
 
     const initUserSessions = async () => {
       let loaded = [];
+      let serverActiveId = null;
+      let createdDefault = false;
       try {
         const raw = localStorage.getItem(`aurasense_sessions_${username}`);
         if (raw) {
@@ -1266,6 +1400,7 @@ export default function App() {
       try {
         const res = await fetch(`${API_BASE}/api/user/sessions?username=${encodeURIComponent(username)}`);
         const data = await res.json();
+        serverActiveId = data.activeSessionId || null;
         if (data.ok && Array.isArray(data.sessions) && data.sessions.length > 0) {
           loaded = data.sessions;
         }
@@ -1273,14 +1408,21 @@ export default function App() {
 
       if (loaded.length === 0) {
         loaded = [createDefaultSession()];
+        createdDefault = true;
       }
 
       setSessions(loaded);
-      const savedActive = localStorage.getItem(`aurasense_active_session_${username}`);
+      const savedActive = serverActiveId || localStorage.getItem(`aurasense_active_session_${username}`);
       if (savedActive && loaded.some(s => s.id === savedActive)) {
         setActiveSessionId(savedActive);
       } else {
         setActiveSessionId(loaded[0].id);
+      }
+      if (createdDefault) {
+        fetch(`${API_BASE}/api/user/sessions`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, session: loaded[0] })
+        }).catch(() => {});
       }
     };
 
@@ -1347,28 +1489,27 @@ export default function App() {
       return;
     }
 
-    if (u === 'admin' && p === 'admin123') {
-      const adminUser = { username: 'admin', role: 'admin' };
-      setCurrentUser(adminUser);
-      localStorage.setItem('aurasense_logged_user', JSON.stringify(adminUser));
-      return;
-    }
-
-    try {
-      const usersRaw = localStorage.getItem('aurasense_registered_users');
-      const users = usersRaw ? JSON.parse(usersRaw) : [];
-      const matched = users.find(user => user.username === u && user.password === p);
-
-      if (matched) {
-        const regularUser = { username: matched.username, role: 'user' };
-        setCurrentUser(regularUser);
-        localStorage.setItem('aurasense_logged_user', JSON.stringify(regularUser));
-      } else {
-        setAuthError('账号或密码不正确（管理员账号 admin / admin123）');
+    fetch(`${API_BASE}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: u, password: p })
+    }).then(async response => {
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.ok || !data.authenticated || !data.user) {
+        const error = new Error(data.error || '登录校验异常，请重试');
+        (error as any).code = data.code;
+        throw error;
       }
-    } catch {
-      setAuthError('登录校验异常，请重试');
-    }
+      return data;
+    }).then(data => {
+      const userState = { username: data.user.username, role: data.user.role || 'user' };
+      setCurrentUser(userState);
+      localStorage.setItem('aurasense_logged_user', JSON.stringify(userState));
+    }).catch((error: any) => {
+      if (error?.code === 'ACCOUNT_NOT_FOUND') setAuthError('账号不存在');
+      else if (error?.code === 'PASSWORD_INVALID') setAuthError('密码错误');
+      else setAuthError(error?.message || '登录校验异常，请重试');
+    });
   };
 
   const handleRegister = (e) => {
@@ -1388,30 +1529,32 @@ export default function App() {
       return;
     }
 
-    if (u === 'admin') {
+    if (u.toLowerCase() === 'admin') {
       setAuthError('admin 为系统预设管理员保留账号');
       return;
     }
 
-    try {
-      const usersRaw = localStorage.getItem('aurasense_registered_users');
-      const users = usersRaw ? JSON.parse(usersRaw) : [];
-
-      if (users.some(user => user.username === u)) {
-        setAuthError('该账号名已被注册，请更换账号名');
-        return;
+    fetch(`${API_BASE}/api/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: u, password: p })
+    }).then(async response => {
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.ok || data.persisted !== true || !data.user) {
+        const error = new Error(data.error || '注册保存失败，请重试');
+        (error as any).code = data.code;
+        throw error;
       }
-
-      const newUser = { username: u, password: p, role: 'user' };
-      users.push(newUser);
-      localStorage.setItem('aurasense_registered_users', JSON.stringify(users));
-
-      const userState = { username: u, role: 'user' };
+      return data;
+    }).then(data => {
+      const userState = { username: data.user.username, role: data.user.role || 'user' };
       setCurrentUser(userState);
       localStorage.setItem('aurasense_logged_user', JSON.stringify(userState));
-    } catch {
-      setAuthError('注册保存失败，请重试');
-    }
+    }).catch((error: any) => {
+      if (error?.code === 'ACCOUNT_EXISTS') setAuthError('该账号名已被注册，请更换账号名');
+      else if (error?.code === 'RESERVED_ACCOUNT') setAuthError('admin 为系统预设管理员保留账号');
+      else setAuthError(error?.message || '注册保存失败，请重试');
+    });
   };
 
   const handleLogout = () => {
@@ -1437,6 +1580,36 @@ export default function App() {
     try {
       localStorage.setItem(`aurasense_active_session_${currentUser.username}`, sessionId);
     } catch {}
+    fetch(`${API_BASE}/api/user/sessions/${sessionId}/activate`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: currentUser.username })
+    }).catch(() => {});
+  };
+
+  const handleRenameSession = async (sessionId, e) => {
+    if (e) e.stopPropagation();
+    if (!currentUser || !editingSessionTitle.trim()) return;
+    const title = editingSessionTitle.trim().slice(0, 120);
+    const updatedSessions = sessions.map(s => s.id === sessionId ? { ...s, title, updatedAt: new Date().toISOString() } : s);
+    syncSessions(currentUser.username, updatedSessions, activeSessionId);
+    setEditingSessionId(null);
+    setEditingSessionTitle('');
+    fetch(`${API_BASE}/api/user/sessions/${sessionId}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: currentUser.username, title })
+    }).catch(() => {});
+  };
+
+  const handleRenameSessionPrompt = (session, event) => {
+    event.stopPropagation();
+    const title = window.prompt('重命名会话', session.title || '新咨询对话');
+    if (!title?.trim() || !currentUser) return;
+    const updatedSessions = sessions.map(item => item.id === session.id ? { ...item, title: title.trim().slice(0, 120), updatedAt: new Date().toISOString() } : item);
+    syncSessions(currentUser.username, updatedSessions, activeSessionId);
+    fetch(`${API_BASE}/api/user/sessions/${session.id}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: currentUser.username, title: title.trim().slice(0, 120) })
+    }).catch(() => {});
   };
 
   const handleDeleteSession = (sessionId, e) => {
@@ -1464,10 +1637,14 @@ export default function App() {
   const handleSend = async (e, overrideText = null) => {
     if (e) e.preventDefault();
     const text = (overrideText || inputText).trim();
-    if (!text || typing || !currentUser || !activeSession) return;
+    if ((!text && pendingAttachments.length === 0) || typing || !currentUser || !activeSession) return;
+    const messageText = text || '请分析我上传的图片';
 
     setInputText('');
-    const userMsg = { id: Date.now(), sender: 'user', text, instant: true };
+    const transientAttachments = pendingAttachments;
+    const storedAttachments = transientAttachments.map(({ dataUrl, ...attachment }) => attachment);
+    const userMsg = { id: Date.now(), sender: 'user', text: messageText, attachments: storedAttachments, createdAt: new Date().toISOString(), instant: true };
+    setPendingAttachments([]);
 
     const currentMsgs = activeSession.messages || [];
     const updatedMsgs = [...currentMsgs, userMsg];
@@ -1475,12 +1652,13 @@ export default function App() {
     // Automatic Titling for new session or default title
     let newTitle = activeSession.title;
     if (newTitle === '新咨询对话' || currentMsgs.length <= 1) {
-      newTitle = text.length > 18 ? `${text.slice(0, 18)}...` : text;
+      newTitle = messageText.length > 18 ? `${messageText.slice(0, 18)}...` : messageText;
     }
 
     const updatedSession = {
       ...activeSession,
       title: newTitle,
+      model: selectedModel || activeSession.model,
       messages: updatedMsgs,
       updatedAt: new Date().toISOString()
     };
@@ -1491,7 +1669,8 @@ export default function App() {
 
     const historyForApi = updatedMsgs.slice(-10).map(m => ({
       role: m.sender === 'user' ? 'user' : 'assistant',
-      content: m.text
+      content: m.text,
+      attachments: m.id === userMsg.id ? transientAttachments : (m.attachments || [])
     }));
 
     try {
@@ -1501,14 +1680,17 @@ export default function App() {
         body: JSON.stringify({ 
           username: currentUser.username,
           userProfile,
-          messages: historyForApi 
+          messages: historyForApi,
+          model: selectedModel || activeSession.model,
+          agent: agentEnabled,
+          webSearch: webSearchEnabled
         })
       });
 
       const data = await response.json();
       const reply = data?.reply || '抱歉，我刚刚有些走神，请您再试一次。';
 
-      const botMsg = { id: Date.now() + 1, sender: 'bot', text: reply, instant: true };
+      const botMsg = { id: Date.now() + 1, sender: 'bot', text: reply, createdAt: new Date().toISOString(), model: data.model, source: data.source, instant: true };
       const finalMsgs = [...updatedMsgs, botMsg];
 
       const finalSession = {
@@ -1521,7 +1703,7 @@ export default function App() {
       syncSessions(currentUser.username, finalSessions, activeSession.id);
     } catch (err) {
       console.error(err);
-      const errorMsg = { id: Date.now() + 1, sender: 'bot', text: '网络连接出现异常，请检查后端服务是否启动。', instant: true };
+      const errorMsg = { id: Date.now() + 1, sender: 'bot', text: '网络连接出现异常，请检查后端服务是否启动。', createdAt: new Date().toISOString(), instant: true };
       const finalMsgs = [...updatedMsgs, errorMsg];
       const finalSession = {
         ...updatedSession,
@@ -1532,6 +1714,31 @@ export default function App() {
       syncSessions(currentUser.username, finalSessions, activeSession.id);
     } finally {
       setTyping(false);
+    }
+  };
+
+  const handleImageSelected = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file || !file.type.startsWith('image/')) return;
+    setIsUploadingImage(true);
+    try {
+      const base64Data = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+      const response = await fetch(`${API_BASE}/api/user/upload-image`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ base64Data, filename: file.name })
+      });
+      const data = await response.json();
+      if (data.ok && data.attachment) setPendingAttachments(prev => [...prev, { ...data.attachment, dataUrl: String(base64Data) }]);
+    } catch (error) {
+      console.error('Image upload failed', error);
+    } finally {
+      setIsUploadingImage(false);
     }
   };
 
@@ -1615,25 +1822,25 @@ export default function App() {
   });
 
   return (
-    <div className={`flex justify-center items-center h-screen ${THEME.bg} p-0 sm:p-6 selection:bg-indigo-100`}>
+    <div className={`flex w-full justify-center items-center ${currentUser ? 'h-screen p-0 sm:p-6 overflow-y-hidden' : 'min-h-[100dvh] h-auto p-4 sm:p-6 overflow-y-auto'} ${THEME.bg} overflow-x-hidden selection:bg-indigo-100`}>
       
       {/* SCENE 1: Login / Register Page */}
       {!currentUser && (
-        <div className={`w-full max-w-[400px] ${THEME.glass} sm:rounded-[40px] p-8 shadow-[0_45px_100px_rgba(186,175,215,0.4)] border-[6px] border-[#fdfcff] animate-in zoom-in-95 duration-500`}>
-          <div className="flex flex-col items-center text-center mb-6">
-            <div className="w-14 h-14 rounded-[20px] bg-gradient-to-br from-[#b3a4ed] to-[#f296b2] flex items-center justify-center shadow-[0_10px_25px_rgba(179,164,237,0.4)] border-2 border-white mb-3">
-              <BrainCircuit className="text-white" size={30} />
+        <div className={`w-full max-w-[400px] max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain ${THEME.glass} rounded-[28px] sm:rounded-[40px] p-5 sm:p-8 pb-[calc(1.25rem+env(safe-area-inset-bottom))] sm:pb-8 shadow-[0_45px_100px_rgba(186,175,215,0.4)] border-4 sm:border-[6px] border-[#fdfcff] my-2 sm:my-0 animate-in zoom-in-95 duration-500`}>
+          <div className="flex flex-col items-center text-center mb-5 sm:mb-6">
+            <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-[18px] sm:rounded-[20px] bg-gradient-to-br from-[#b3a4ed] to-[#f296b2] flex items-center justify-center shadow-[0_10px_25px_rgba(179,164,237,0.4)] border-2 border-white mb-2.5 sm:mb-3">
+              <BrainCircuit className="text-white" size={26} />
             </div>
-            <h1 className="font-black text-[#4a4365] text-[22px] tracking-tight">Gzadm Navigator</h1>
-            <p className="text-[11px] text-[#a494e8] font-bold tracking-wider mt-0.5">
+            <h1 className="font-black text-[#4a4365] text-[20px] sm:text-[22px] tracking-tight">Gzadm Navigator</h1>
+            <p className="text-[10px] sm:text-[11px] text-[#a494e8] font-bold tracking-wider mt-0.5">
               智能高效招生咨询
             </p>
           </div>
 
-          <div className="flex bg-[#f0ebf8] p-1 rounded-2xl mb-6">
+          <div className="flex bg-[#f0ebf8] p-1 rounded-2xl mb-5 sm:mb-6">
             <button
               onClick={() => { setAuthMode('login'); setAuthError(''); }}
-              className={`flex-1 py-2 rounded-xl text-[13px] font-bold transition-all ${
+              className={`flex-1 min-h-[40px] py-2 rounded-xl text-[12px] sm:text-[13px] font-bold transition-all ${
                 authMode === 'login' ? 'bg-white text-[#4a4365] shadow-xs' : 'text-[#8a84a4]'
               }`}
             >
@@ -1641,7 +1848,7 @@ export default function App() {
             </button>
             <button
               onClick={() => { setAuthMode('register'); setAuthError(''); }}
-              className={`flex-1 py-2 rounded-xl text-[13px] font-bold transition-all ${
+              className={`flex-1 min-h-[40px] py-2 rounded-xl text-[12px] sm:text-[13px] font-bold transition-all ${
                 authMode === 'register' ? 'bg-white text-[#4a4365] shadow-xs' : 'text-[#8a84a4]'
               }`}
             >
@@ -1655,7 +1862,7 @@ export default function App() {
             </div>
           )}
 
-          <form onSubmit={authMode === 'login' ? handleLogin : handleRegister} className="space-y-4">
+          <form onSubmit={authMode === 'login' ? handleLogin : handleRegister} className="space-y-3.5 sm:space-y-4">
             <div>
               <label className="text-[12px] font-bold text-[#4a4365] block mb-1">账号</label>
               <div className="relative">
@@ -1664,8 +1871,8 @@ export default function App() {
                   type="text"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  placeholder={authMode === 'login' ? "输入账号 (管理员: admin)" : "设置注册账号名"}
-                  className="w-full bg-[#f8f6fc] border-none rounded-2xl pl-10 pr-4 py-3 text-[13px] outline-none focus:ring-2 focus:ring-[#a494e8]"
+                  placeholder={authMode === 'login' ? "输入账号" : "设置注册账号名"}
+                  className="w-full min-h-[44px] bg-[#f8f6fc] border-none rounded-2xl pl-10 pr-4 py-2.5 sm:py-3 text-[14px] sm:text-[13px] outline-none focus:ring-2 focus:ring-[#a494e8]"
                 />
               </div>
             </div>
@@ -1678,8 +1885,8 @@ export default function App() {
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder={authMode === 'login' ? "输入密码 (管理员: admin123)" : "设置登录密码"}
-                  className="w-full bg-[#f8f6fc] border-none rounded-2xl pl-10 pr-4 py-3 text-[13px] outline-none focus:ring-2 focus:ring-[#a494e8]"
+                  placeholder={authMode === 'login' ? "输入密码" : "设置登录密码"}
+                  className="w-full min-h-[44px] bg-[#f8f6fc] border-none rounded-2xl pl-10 pr-4 py-2.5 sm:py-3 text-[14px] sm:text-[13px] outline-none focus:ring-2 focus:ring-[#a494e8]"
                 />
               </div>
             </div>
@@ -1694,7 +1901,7 @@ export default function App() {
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     placeholder="再次输入密码确认"
-                    className="w-full bg-[#f8f6fc] border-none rounded-2xl pl-10 pr-4 py-3 text-[13px] outline-none focus:ring-2 focus:ring-[#a494e8]"
+                    className="w-full min-h-[44px] bg-[#f8f6fc] border-none rounded-2xl pl-10 pr-4 py-2.5 sm:py-3 text-[14px] sm:text-[13px] outline-none focus:ring-2 focus:ring-[#a494e8]"
                   />
                 </div>
               </div>
@@ -1702,7 +1909,7 @@ export default function App() {
 
             <button
               type="submit"
-              className="w-full bg-[#4a4365] text-white py-3.5 rounded-2xl font-bold text-[14px] shadow-lg hover:bg-[#342e49] active:scale-95 transition-all flex items-center justify-center gap-2 mt-2"
+              className="w-full min-h-[46px] bg-[#4a4365] text-white py-3 rounded-2xl font-bold text-[14px] shadow-lg hover:bg-[#342e49] active:scale-95 transition-all flex items-center justify-center gap-2 mt-2"
             >
               <span>{authMode === 'login' ? '立即登录' : '创建账号并登录'}</span>
               <ArrowRight size={16} />
@@ -1832,12 +2039,20 @@ export default function App() {
                             }`}
                           >
                             <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-2 overflow-hidden pr-6">
+                              <div className="flex items-center gap-2 overflow-hidden pr-12">
                                 <MessageSquare size={14} className={isActive ? 'text-[#a494e8] shrink-0' : 'text-gray-400 shrink-0'} />
                                 <span className={`text-[13px] truncate ${isActive ? 'font-bold text-[#4a4365]' : 'font-medium text-gray-700'}`}>
                                   {sess.title || '新咨询对话'}
                                 </span>
                               </div>
+
+                              <button
+                                onClick={(e) => handleRenameSessionPrompt(sess, e)}
+                                title="重命名会话"
+                                className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-[#a494e8] rounded-lg hover:bg-purple-50 transition-all absolute right-7 top-2.5"
+                              >
+                                <Edit3 size={13} />
+                              </button>
 
                               <button
                                 onClick={(e) => handleDeleteSession(sess.id, e)}
@@ -1865,7 +2080,7 @@ export default function App() {
                 <div className="flex-1 flex flex-col h-full overflow-hidden relative">
                   
                   {/* Current Active Conversation Bar */}
-                  <div className="px-6 py-2.5 bg-white/30 backdrop-blur-sm border-b border-white/50 flex items-center justify-between text-[12px]">
+                  <div className="px-4 sm:px-6 py-2.5 bg-white/30 backdrop-blur-sm border-b border-white/50 flex items-center justify-between gap-3 text-[12px]">
                     <div className="flex items-center gap-2 text-[#4a4365]">
                       <span className="w-2 h-2 rounded-full bg-[#a494e8] animate-pulse" />
                       <span className="font-bold text-[13px] truncate max-w-[300px]">
@@ -1873,14 +2088,22 @@ export default function App() {
                       </span>
                     </div>
 
-                    <div className="text-[11px] text-gray-400 flex items-center gap-1">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <label className="relative block">
+                        <Search size={13} className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400" />
+                        <input value={sessionSearchQuery} onChange={e => setSessionSearchQuery(e.target.value)} placeholder="搜索本会话"
+                          className="w-28 sm:w-36 rounded-xl border border-white bg-white/70 py-1.5 pl-7 pr-7 text-[11px] outline-none focus:ring-2 focus:ring-[#d6cbf5]" />
+                        {sessionSearchQuery && <button type="button" onClick={() => setSessionSearchQuery('')} className="absolute right-1.5 top-1/2 -translate-y-1/2 text-gray-400"><X size={12} /></button>}
+                      </label>
+                      <div className="text-[11px] text-gray-400 flex items-center gap-1 whitespace-nowrap">
                       <Clock size={12} />
                       <span>{activeSession?.updatedAt ? new Date(activeSession.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '当前激活'}</span>
+                      </div>
                     </div>
                   </div>
 
                   <main ref={scrollRef} className="flex-1 overflow-y-auto px-5 pt-4 pb-1 space-y-5 hide-scrollbar relative scroll-smooth">
-                    {messages.map((msg) => {
+                    {visibleMessages.map((msg) => {
                       const isUser = msg.sender === 'user';
                       const bubbleStyle = isUser ? THEME.userBubble : THEME.botBubble;
 
@@ -1896,6 +2119,9 @@ export default function App() {
                         />
                       );
                     })}
+                    {sessionSearchQuery && visibleMessages.length === 0 && (
+                      <div className="py-12 text-center text-[13px] text-gray-400">当前会话没有匹配消息</div>
+                    )}
 
                     {typing && (
                       <div className="flex justify-start items-end gap-3 animate-in fade-in slide-in-from-bottom-2 duration-300">
@@ -1928,6 +2154,31 @@ export default function App() {
 
                   <footer className="px-5 pb-6 pt-1 relative z-10">
                     <div className="bg-white/80 backdrop-blur-2xl rounded-[36px] p-4 shadow-[0_-15px_45px_rgba(186,175,215,0.2)] border border-white">
+                      <div className="mb-2 flex flex-wrap items-center gap-2 px-1">
+                        <select value={selectedModel} onChange={e => setSelectedModel(e.target.value)} title="选择对话模型"
+                          className="max-w-[220px] rounded-xl border border-[#e4dcf8] bg-[#f8f6fc] px-3 py-1.5 text-[11px] font-medium text-[#4a4365] outline-none">
+                          {models.map(model => <option key={model.id} value={model.id}>{model.name}</option>)}
+                        </select>
+                        <button type="button" onClick={() => setAgentEnabled(value => !value)} title="Agent 模式"
+                          className={`flex items-center gap-1 rounded-xl border px-2.5 py-1.5 text-[11px] font-bold transition-colors ${agentEnabled ? 'border-purple-200 bg-purple-50 text-purple-700' : 'border-gray-200 bg-gray-50 text-gray-500'}`}>
+                          <BrainCircuit size={13} /> Agent
+                        </button>
+                        <button type="button" onClick={() => setWebSearchEnabled(value => !value)} title="联网搜索"
+                          className={`flex items-center gap-1 rounded-xl border px-2.5 py-1.5 text-[11px] font-bold transition-colors ${webSearchEnabled ? 'border-blue-200 bg-blue-50 text-blue-700' : 'border-gray-200 bg-gray-50 text-gray-500'}`}>
+                          <Globe2 size={13} /> 联网
+                        </button>
+                      </div>
+                      {pendingAttachments.length > 0 && (
+                        <div className="mb-2 flex gap-2 overflow-x-auto px-1">
+                          {pendingAttachments.map((attachment, index) => (
+                            <div key={`${attachment.url}-${index}`} className="relative h-14 w-14 shrink-0 overflow-hidden rounded-xl border border-purple-100 bg-white">
+                              <img src={attachment.url} alt={attachment.name || '待发送图片'} className="h-full w-full object-cover" />
+                              <button type="button" onClick={() => setPendingAttachments(items => items.filter((_, itemIndex) => itemIndex !== index))}
+                                className="absolute right-0 top-0 bg-black/60 p-0.5 text-white" title="移除图片"><X size={11} /></button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                       <form onSubmit={handleSend} className="flex gap-2 items-center">
                         <button 
                           type="button"
@@ -1940,6 +2191,11 @@ export default function App() {
                             地图导览
                           </span>
                         </button>
+                        <input ref={imageInputRef} type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={handleImageSelected} className="hidden" />
+                        <button type="button" onClick={() => imageInputRef.current?.click()} disabled={isUploadingImage}
+                          className="bg-[#f3eefc] text-[#a494e8] p-3 rounded-[20px] active:scale-95 transition-all disabled:opacity-50" title="上传图片">
+                          <Paperclip size={19} />
+                        </button>
                         <input 
                           value={inputText} 
                           onChange={(e) => setInputText(e.target.value)} 
@@ -1948,7 +2204,7 @@ export default function App() {
                         />
                         <button 
                           type="submit" 
-                          disabled={!inputText.trim() || typing}
+                          disabled={(!inputText.trim() && pendingAttachments.length === 0) || typing || isUploadingImage}
                           className="bg-[#4a4365] text-white p-3 rounded-[20px] active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           <Send size={20} />

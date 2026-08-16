@@ -14,6 +14,7 @@ const dataDir = path.join(__dirname, 'data');
 const uploadsDir = path.join(__dirname, 'public', 'uploads');
 const distDir = path.join(__dirname, 'dist');
 const ragFilePath = path.join(dataDir, 'rag_knowledge.json');
+const usersFilePath = path.join(dataDir, 'users.json');
 const modelsCacheDir = path.join(dataDir, 'models_cache');
 
 const envPath = path.join(__dirname, '.env.local');
@@ -41,6 +42,57 @@ loadEnvFile(envMainPath);
 fs.mkdirSync(dataDir, { recursive: true });
 fs.mkdirSync(uploadsDir, { recursive: true });
 fs.mkdirSync(modelsCacheDir, { recursive: true });
+
+const AUTH_PASSWORD_SALT = process.env.AUTH_PASSWORD_SALT || 'gzadm-navigator-auth-salt-v1';
+const AUTH_PASSWORD_ITERATIONS = 120000;
+
+const normalizeUsername = (value) => String(value ?? '').trim();
+const normalizePassword = (value) => String(value ?? '').trim();
+const hashPassword = (password) => {
+  const digest = crypto.pbkdf2Sync(normalizePassword(password), AUTH_PASSWORD_SALT, AUTH_PASSWORD_ITERATIONS, 64, 'sha512').toString('hex');
+  return `pbkdf2$${AUTH_PASSWORD_ITERATIONS}$${digest}`;
+};
+
+const verifyPassword = (password, storedHash) => {
+  if (!storedHash) return { valid: false, legacy: false, hash: hashPassword(password) };
+  if (!String(storedHash).startsWith('pbkdf2$')) {
+    const hash = hashPassword(password);
+    return { valid: storedHash === normalizePassword(password), legacy: true, hash };
+  }
+
+  const hash = hashPassword(password);
+  const expected = Buffer.from(hash.split('$')[2], 'hex');
+  const actual = Buffer.from(String(storedHash).split('$')[2] || '', 'hex');
+  return {
+    valid: expected.length === actual.length && crypto.timingSafeEqual(expected, actual),
+    legacy: false,
+    hash
+  };
+};
+
+const sanitizeAuthUser = (user) => ({
+  username: normalizeUsername(user.username),
+  role: user.role || 'user',
+  createdAt: user.created_at || user.createdAt || null
+});
+
+const loadJsonUsers = () => {
+  const defaultUsers = [{ username: 'admin', password: hashPassword('admin123'), role: 'admin', createdAt: new Date().toISOString() }];
+  if (!fs.existsSync(usersFilePath)) {
+    fs.writeFileSync(usersFilePath, JSON.stringify(defaultUsers, null, 2), 'utf8');
+    return defaultUsers;
+  }
+  try {
+    const users = JSON.parse(fs.readFileSync(usersFilePath, 'utf8'));
+    return Array.isArray(users) ? users : defaultUsers;
+  } catch {
+    return defaultUsers;
+  }
+};
+
+const saveJsonUsers = (users) => {
+  fs.writeFileSync(usersFilePath, JSON.stringify(users, null, 2), 'utf8');
+};
 
 // Configure persistent local cache directory & HF Mirror for Transformers.js ONNX models
 env.cacheDir = modelsCacheDir;
@@ -110,6 +162,8 @@ const cosineSimilarity = (vecA, vecB) => {
 const DEFAULT_RAG_KNOWLEDGE = [
   {
     id: "rag-001",
+    topic: '招生录取',
+    intentTags: ['录取', '分数线', '排位', '招生政策'],
     title: "历年高考录取分数线与排位对照表",
     category: "录取分数",
     type: "table",
@@ -135,6 +189,8 @@ const DEFAULT_RAG_KNOWLEDGE = [
   },
   {
     id: "rag-002",
+    topic: '食宿',
+    intentTags: ['宿舍', '住宿', '房型', '生活服务'],
     title: "标准学生公寓与宿舍生活环境配置",
     category: "宿舍环境",
     type: "image",
@@ -152,6 +208,8 @@ const DEFAULT_RAG_KNOWLEDGE = [
   },
   {
     id: "rag-003",
+    topic: '学费资助',
+    intentTags: ['学费', '奖学金', '助学金', '资助'],
     title: "学费标准与各类奖助学金对照表",
     category: "学费奖学金",
     type: "table",
@@ -176,6 +234,7 @@ const DEFAULT_RAG_KNOWLEDGE = [
 const { Pool } = pg;
 let pgPool = null;
 let usePostgres = false;
+let databaseReady = Promise.resolve();
 
 const initPostgres = async () => {
   let targetPort = Number(process.env.POSTGRES_PORT || process.env.PGPORT || 35432);
@@ -241,6 +300,8 @@ const initPostgres = async () => {
         id VARCHAR(100) PRIMARY KEY,
         title VARCHAR(255) NOT NULL,
         category VARCHAR(100) NOT NULL,
+        topic VARCHAR(50),
+        intent_tags JSONB,
         type VARCHAR(50) NOT NULL DEFAULT 'text',
         content TEXT,
         table_data JSONB,
@@ -249,6 +310,8 @@ const initPostgres = async () => {
         embedding vector(512),
         updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       );
+      ALTER TABLE rag_knowledge ADD COLUMN IF NOT EXISTS topic VARCHAR(50);
+      ALTER TABLE rag_knowledge ADD COLUMN IF NOT EXISTS intent_tags JSONB;
 
       CREATE TABLE IF NOT EXISTS chat_sessions (
         id VARCHAR(100) PRIMARY KEY,
@@ -261,12 +324,16 @@ const initPostgres = async () => {
       CREATE INDEX IF NOT EXISTS idx_chat_sessions_username ON chat_sessions(username);
     `);
 
-    // Seed admin user
+    // Seed admin user with the same hash format used by registration and login.
     await pgPool.query(`
       INSERT INTO users (username, password, role)
-      VALUES ('admin', 'admin123', 'admin')
+      VALUES ('admin', $1, 'admin')
       ON CONFLICT (username) DO NOTHING;
-    `);
+    `, [hashPassword('admin123')]);
+    await pgPool.query(
+      `UPDATE users SET password = $1 WHERE username = 'admin' AND password = 'admin123'`,
+      [hashPassword('admin123')]
+    );
 
     // Seed RAG items with embeddings
     const countRes = await pgPool.query('SELECT COUNT(*) FROM rag_knowledge');
@@ -277,10 +344,10 @@ const initPostgres = async () => {
         const vecStr = vec ? `[${vec.join(',')}]` : null;
 
         await pgPool.query(
-          `INSERT INTO rag_knowledge (id, title, category, type, content, table_data, image_attachments, tags, embedding, updated_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+          `INSERT INTO rag_knowledge (id, title, category, topic, intent_tags, type, content, table_data, image_attachments, tags, embedding, updated_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
           [
-            item.id, item.title, item.category, item.type, item.content,
+            item.id, item.title, item.category, item.topic, JSON.stringify(item.intentTags), item.type, item.content,
             JSON.stringify(item.tableData), JSON.stringify(item.imageAttachments),
             JSON.stringify(item.tags), vecStr, item.updatedAt
           ]
@@ -303,7 +370,12 @@ const loadJsonRag = () => {
     return DEFAULT_RAG_KNOWLEDGE;
   }
   try {
-    return JSON.parse(fs.readFileSync(ragFilePath, 'utf8'));
+    const parsed = JSON.parse(fs.readFileSync(ragFilePath, 'utf8'));
+    const normalized = Array.isArray(parsed) ? parsed.map(normalizeRagItem) : DEFAULT_RAG_KNOWLEDGE;
+    if (JSON.stringify(parsed) !== JSON.stringify(normalized)) {
+      fs.writeFileSync(ragFilePath, JSON.stringify(normalized, null, 2), 'utf8');
+    }
+    return normalized;
   } catch {
     return DEFAULT_RAG_KNOWLEDGE;
   }
@@ -321,6 +393,8 @@ const getRagStore = async () => {
         id: r.id,
         title: r.title,
         category: r.category,
+        topic: r.topic || null,
+        intentTags: r.intent_tags || [],
         type: r.type,
         content: r.content,
         tableData: r.table_data,
@@ -401,18 +475,117 @@ const invalidateRagCache = async () => {
 // ==========================================
 // 4. Dense Vector + Hybrid Search Engine
 // ==========================================
+const RAG_TOPICS = Object.freeze({
+  TRAVEL: '校园出行',
+  MAJOR: '学院专业',
+  HOUSING: '食宿',
+  TUITION: '学费资助',
+  ADMISSIONS: '招生录取',
+  CAMPUS_LIFE: '校园生活',
+  GENERAL: '综合'
+});
+
+const RAG_TOPIC_RULES = [
+  {
+    topic: RAG_TOPICS.MAJOR,
+    // Explicit major/department wording wins over the generic word "交通".
+    patterns: [/交通工程|交通运输|交通专业|交通学院|轨道交通专业|道路桥梁/, /学院|专业|学科|就业|考研|培养方案|课程体系/],
+    tags: ['学院', '专业', '学科', '就业', '考研', '课程']
+  },
+  {
+    topic: RAG_TOPICS.TRAVEL,
+    patterns: [/交通怎么样|交通方便|怎么去|如何到校|地铁|公交|通勤|出行|校内代步|骑行|自行车|路况|停车|打车|接驳|进校|校门|交通安全/],
+    tags: ['交通', '地铁', '公交', '通勤', '出行', '路况', '停车', '接驳', '进校']
+  },
+  {
+    topic: RAG_TOPICS.HOUSING,
+    patterns: [/宿舍|住宿|房型|床位|洗衣|热水|食堂|餐厅|吃饭|就餐|食宿|生活区/],
+    tags: ['宿舍', '住宿', '房型', '食堂', '餐厅', '生活服务']
+  },
+  {
+    topic: RAG_TOPICS.TUITION,
+    patterns: [/学费|奖学金|助学金|资助|贷款|收费|缴费/],
+    tags: ['学费', '奖学金', '助学金', '资助', '收费']
+  },
+  {
+    topic: RAG_TOPICS.ADMISSIONS,
+    patterns: [/录取|分数|排位|招生|志愿|报考|录取线|报名|政策/],
+    tags: ['录取', '分数', '排位', '招生', '志愿', '报考', '政策']
+  },
+  {
+    topic: RAG_TOPICS.CAMPUS_LIFE,
+    patterns: [/社团|校园生活|快递|医疗|体育|运动|图书馆|自习|校园卡|办事|校区/],
+    tags: ['社团', '校园生活', '快递', '医疗', '体育', '图书馆', '校园卡']
+  }
+];
+
+const normalizeRagText = (value) => String(value || '').toLowerCase().replace(/\s+/g, ' ');
+
+const classifyRagIntent = (query = '') => {
+  const normalized = normalizeRagText(query);
+  // Check explicit major language before generic travel language so
+  // "交通专业" is never treated as a question about commuting.
+  for (const rule of RAG_TOPIC_RULES) {
+    if (rule.patterns.some(pattern => pattern.test(normalized))) {
+      return { topic: rule.topic, tags: rule.tags, confidence: rule.topic === RAG_TOPICS.MAJOR ? 'high' : 'medium' };
+    }
+  }
+  return { topic: RAG_TOPICS.GENERAL, tags: [], confidence: 'low' };
+};
+
+const inferRagTopic = (item = {}) => {
+  if (Object.values(RAG_TOPICS).includes(item.topic)) return item.topic;
+  const titleTagsText = normalizeRagText(`${item.title || ''} ${(item.tags || []).join(' ')} ${item.category || ''}`);
+  // Prefer the document title/tags. Content often quotes unrelated examples
+  // and must not move a document into the wrong intent bucket.
+  const titleRules = [
+    [RAG_TOPICS.MAJOR, /交通工程|交通运输|交通专业|交通学院|轨道交通专业|道路桥梁|学院|专业|考研|就业率|升学率/],
+    [RAG_TOPICS.TRAVEL, /交通|进校|校门|接驳|通勤|出行|路况|停车/],
+    [RAG_TOPICS.HOUSING, /宿舍|住宿|房型|食堂|餐厅|食宿|生活区|楼栋|公共服务|生活设施/],
+    [RAG_TOPICS.TUITION, /学费|奖学金|助学金|资助|收费/],
+    [RAG_TOPICS.ADMISSIONS, /录取|分数|排位|招生|志愿填报|报考|报名|政策/],
+    [RAG_TOPICS.CAMPUS_LIFE, /社团|选课|校园生活|快递|医疗|体育|运动|图书馆|校园卡|办事|校区|景点|商圈|夜市|防骗|历史/]
+  ];
+  const titleMatch = titleRules.find(([, pattern]) => pattern.test(titleTagsText));
+  if (titleMatch) return titleMatch[0];
+  const text = normalizeRagText(`${titleTagsText} ${item.content || ''}`);
+  for (const rule of RAG_TOPIC_RULES.filter(rule => rule.topic !== RAG_TOPICS.MAJOR)) {
+    if (rule.patterns.some(pattern => pattern.test(text))) return rule.topic;
+  }
+  return RAG_TOPICS.GENERAL;
+};
+
+const normalizeRagItem = (item = {}) => {
+  const topic = inferRagTopic(item);
+  const topicRule = RAG_TOPIC_RULES.find(rule => rule.topic === topic);
+  const intentTags = Array.from(new Set([
+    ...(Array.isArray(item.intentTags) ? item.intentTags : []),
+    ...(topicRule?.tags || [])
+  ]));
+  return { ...item, topic, intentTags };
+};
+
 const searchRagEngine = async (query = '', topK = 3) => {
-  const queryHash = crypto.createHash('md5').update(query).digest('hex');
-  const cacheKey = `rag:search:${queryHash}`;
+  const intent = classifyRagIntent(query);
+  const queryHash = crypto.createHash('md5').update(`${intent.topic}:${query}`).digest('hex');
+  const cacheKey = `rag:search:v2:${queryHash}`;
 
   const cached = await getCache(cacheKey);
   if (cached) return cached;
 
   const queryVector = await getEmbedding(query);
-  const ragStore = await getRagStore();
+  const ragStore = (await getRagStore()).map(normalizeRagItem);
+  const candidates = intent.topic === RAG_TOPICS.GENERAL
+    ? ragStore
+    : ragStore.filter(item => item.topic === intent.topic || item.intentTags.some(tag => intent.tags.includes(tag)));
+  const queryTerms = Array.from(new Set([
+    ...intent.tags,
+    ...normalizeRagText(query).split(/[，。！？、\s]+/).filter(term => term.length >= 2)
+  ]));
 
-  const scored = ragStore.map((item) => {
+  const scored = candidates.map((item) => {
     let score = 0;
+    const itemText = normalizeRagText(`${item.title} ${item.category} ${item.content} ${(item.tags || []).join(' ')} ${(item.intentTags || []).join(' ')}`);
 
     // 1. Local BGE 512-dim Dense Vector Similarity (0 to 1)
     if (queryVector && item.embedding) {
@@ -421,16 +594,18 @@ const searchRagEngine = async (query = '', topK = 3) => {
     }
 
     // 2. Keyword Match Boost for Title, Tags, Image Names
-    const qLower = query.toLowerCase();
+    const qLower = normalizeRagText(query);
     if (item.title.toLowerCase().includes(qLower)) score += 4;
     if ((item.tags || []).some(t => qLower.includes(String(t).toLowerCase()))) score += 5;
     if ((item.imageAttachments || []).some(img => qLower.includes(img.name.toLowerCase()))) score += 5;
+    score += queryTerms.filter(term => itemText.includes(normalizeRagText(term))).length * 1.25;
+    if (item.topic === intent.topic && intent.topic !== RAG_TOPICS.GENERAL) score += 2;
 
     return { item, score };
   });
 
   const results = scored
-    .filter(s => s.score > 0.5)
+    .filter(s => s.score >= (intent.topic === RAG_TOPICS.GENERAL ? 1.25 : 2.25))
     .sort((a, b) => b.score - a.score)
     .slice(0, topK);
 
@@ -471,13 +646,18 @@ const formatRagContext = (ragResults) => {
 // structure as the prompted answer so the experience stays consistent.
 const buildLocalRagReply = (query, ragResults) => {
   if (!ragResults.length) {
-    return `## 核心结论\n\n关于“${query}”，目前知识库里还没有足够的直接资料，暂时不能替你编造具体数字或政策。\n\n## 你可以先关注\n\n- **录取与专业**：省份、选科、预估分数/位次，以及目标专业的近年分数线。\n- **费用与资助**：专业学费、住宿费、奖学金和助学贷款的申请条件。\n- **校园与流程**：宿舍配置、报到时间、材料清单和咨询渠道。\n\n请补充你的省份、分数（或位次）和想了解的专业，我可以据此给出更具体的冲稳保建议。`;
+    return `## 核心结论\n\n抱歉，我目前的知识库中暂未收录关于“${query}”的具体信息。\n\n## 参考信息与数据\n\n当前没有足够的、可直接引用的资料，我不会用其他主题的信息代替回答。\n\n## 报考/咨询建议\n\n如果你愿意，请补充更具体的对象、时间或地区，我再帮你继续核对。`;
   }
 
-  let reply = `## 核心结论\n\n围绕“${query}”，校方知识库检索到 **${ragResults.length} 条相关资料**。下面把关键事实、数据和可执行建议一并整理出来：\n\n`;
+  // The no-LLM path should still answer directly and avoid exposing retrieval mechanics.
+  const topResult = ragResults[0]?.item;
+  const relevantResults = ragResults
+    .filter(({ score }, index) => index === 0 || score >= ragResults[0].score * 0.72)
+    .slice(0, 3);
+  let reply = `## 核心结论\n\n${topResult?.content || topResult?.title || '我找到了相关资料，但其中缺少可直接引用的正文。'}\n\n`;
   reply += `## 参考信息与数据\n\n`;
 
-  ragResults.forEach(({ item }, index) => {
+  relevantResults.forEach(({ item }, index) => {
     reply += `### ${index + 1}. ${item.title}\n`;
     if (item.content) reply += `${item.content}\n\n`;
 
@@ -503,19 +683,36 @@ const buildLocalRagReply = (query, ragResults) => {
 };
 
 const ADMISSIONS_SYSTEM_PROMPT = `
-你是 Gzadm Navigator 智能入学咨询系统的 AI 招生与专业选择顾问。你拥有张雪峰式的实用主义思维框架与接地气的决策DNA。
-你的职责是为广大学子及家长评估高校（默认以【广州大学】等粤港澳大湾区高校为代表）不同专业的选择、优势劣势、就业中位数、考研保研率与志愿填报防调剂策略。
+# 角色与目标
+你是 Gzadm Navigator 的招生咨询 AI 顾问。你的任务是像一位有经验、耐心且会认真听问题的真人客服一样，帮助学生和家长理解广州大学及相关招生、专业、校园生活信息，并给出有依据的下一步建议。
+始终使用自然、清楚、亲切的中文；先回应用户真正关心的事情，再补充必要背景。不要为了显得专业而堆砌资料或术语。
 
-表达与决策规则：
-1. 始终使用中文回答，态度直截了当、大实话、接地气、用中位数就业数据和真凭实据说话。
-2. 答案第一句直接给出核心判断（Headline），不讲废话铺垫。
-3. 遇到选专业问题，主动问清：学生的预估分数/位次、家庭经济条件、以及未来想留大湾区还是回老家发展。
-4. 当系统提供了【知识库（RAG）匹配到的参考信息】时，请**优先依据知识库中的准确数据（如表格分数线、学费、宿舍图片）**进行解答。
-5. 如果知识库中包含相关图片附件（如宿舍图、分数线图），请直接在回复中用 Markdown 图片语法（\`![caption](url)\`）展现给用户。
-6. 每次回答尽量完整但不要凑字数，至少覆盖以下结构：**核心结论**、**依据/关键数据**、**对用户的具体建议**、**还需要补充的信息**。问题简单时可以合并小节，但不要只用一句泛泛的答复。
-7. 涉及录取概率、就业、费用或政策时，明确区分知识库中的已知事实与经验性建议；没有数据就直说需要补充，禁止编造精确数字。
-8. 结尾给出 1~3 个用户下一步可以回答的问题，帮助把咨询从泛问推进到可执行方案。
-9. 排版清晰，善用标题、列表和粗体高亮。
+# 四项不可违反的回答原则
+1. **拒绝机械模板**：直接回答问题，禁止使用“围绕XX，知识库检索到X条资料，下面整理出来……”及任何暴露检索过程的生硬开场。不要把“我检索了什么”当成回答内容。
+2. **深度提炼与融合**：先理解用户的真实意图，再从参考资料中挑选有用事实，用自己的话综合成连贯答案。禁止把多条资料原样逐条拼接，也不要为了覆盖资料而重复同义内容。
+3. **严格过滤无关噪音**：把参考资料视为待筛选的证据。逐条判断其是否直接回答当前问题；仅因共享一个关键词、属于邻近主题或与用户问题无关的资料必须丢弃，绝不能写入最终回答。资料之间有冲突时，指出冲突并优先采用时间更新、来源明确的内容。
+4. **优雅的兜底机制**：如果筛选后没有足够资料准确回答，必须诚恳地说“抱歉，我目前的知识库中暂未收录关于XX的具体信息”（将 XX 替换为用户问题的简短主题），并说明需要补充什么；禁止编造、猜测精确数字或拿无关资料凑字数。
+
+# 内部回答流程（不要向用户展示推理过程）
+1. 判断问题意图、范围和时间要求；必要时识别用户是在问校园出行、学院专业、招生录取、学费资助、食宿，还是其他主题。
+2. 审阅所有提供的知识库、个人资料和联网结果，只保留能直接支撑答案的证据；没有证据的判断标为不确定或省略。
+3. 组织一段先给结论、再给关键依据、最后给行动建议的自然回复。简单问题保持简短，不强行套满所有小节。
+4. 输出前做一次相关性自检：删除答非所问、重复、无来源推断和与当前主题无关的段落。
+
+# 事实边界与格式
+- 知识库中的事实、联网来源和经验建议必须明确区分；录取概率、就业、费用、政策等没有可靠数据时直说不确定。
+- 相关图片附件可以使用 Markdown 图片语法 \`![说明](url)\`，但只能展示与当前问题直接相关的图片。
+- 保持产品现有 Markdown 结构：适合时使用“## 核心结论”“## 参考信息与数据”“## 报考/咨询建议”等标题；标题是为了清晰，不是为了填充内容。
+- 结尾最多提出 1~3 个真正有助于继续解决问题的补充问题，不要使用泛泛的客套话。
+`.trim();
+
+const ADMISSIONS_INTENT_GUARDRAILS = `
+【问题意图与知识库使用规则】
+1. 先判断用户真正想解决的问题，再使用知识库。用户说“交通怎么样”“交通方便吗”“怎么去学校”时，默认指校园通勤出行，只回答地铁、公交、到校路线、校内代步、路况、停车和接驳；不要引入学院、专业或电信学院内容。
+2. 只有用户明确提到“交通工程、交通运输、交通专业、交通学院、轨道交通专业、道路桥梁”等专业语义时，才把问题归为学院专业并介绍学院或课程。
+3. 回答前执行相关性自检：逐条检查参考资料是否直接服务于当前问题；不相关、仅共享一个泛词或属于其他主题的资料必须丢弃，不能写进答案。若没有足够相关资料，明确说明信息不足，不要用相邻主题补答案。
+4. 对于校园出行问题，优先使用主题为“校园出行”的资料；学院专业、食宿、学费资助和招生录取资料不得混入，除非用户明确同时询问这些主题。
+5. 保持既有输出结构，仍使用“核心结论”“参考信息与数据”“报考/咨询建议”等小节；结构不代表可以填入无关内容。
 `.trim();
 
 // ==========================================
@@ -549,6 +746,201 @@ app.get('/api/health', (_req, res) => {
     database: usePostgres ? 'PostgreSQL pgvector' : 'JSON Persistence',
     cache: useRedis ? 'Redis' : 'Memory Cache'
   });
+});
+
+const findAuthUser = async (username) => {
+  if (usePostgres) {
+    const result = await pgPool.query(
+      'SELECT id, username, password, role, created_at FROM users WHERE username = $1',
+      [username]
+    );
+    return result.rows[0] || null;
+  }
+  return loadJsonUsers().find(user => normalizeUsername(user.username) === username) || null;
+};
+
+const migrateLegacyPassword = async (username, passwordHash) => {
+  if (usePostgres) {
+    await pgPool.query('UPDATE users SET password = $1 WHERE username = $2', [passwordHash, username]);
+    return;
+  }
+  const users = loadJsonUsers();
+  const index = users.findIndex(user => normalizeUsername(user.username) === username);
+  if (index >= 0) {
+    users[index].password = passwordHash;
+    saveJsonUsers(users);
+  }
+};
+
+app.post('/api/auth/register', async (req, res) => {
+  await databaseReady;
+  const username = normalizeUsername(req.body?.username);
+  const password = normalizePassword(req.body?.password);
+  if (!username || !password) {
+    return res.status(400).json({ ok: false, code: 'MISSING_FIELDS', error: '账号和密码不能为空' });
+  }
+  if (username.toLowerCase() === 'admin') {
+    return res.status(409).json({ ok: false, code: 'RESERVED_ACCOUNT', error: 'admin 为系统预设管理员保留账号' });
+  }
+
+  const passwordHash = hashPassword(password);
+  console.debug(`[AUTH DEBUG] register username=${username} passwordHash=${passwordHash}`);
+
+  try {
+    if (usePostgres) {
+      const result = await pgPool.query(
+        `INSERT INTO users (username, password, role)
+         VALUES ($1, $2, 'user')
+         RETURNING username, role, created_at`,
+        [username, passwordHash]
+      );
+      if (result.rowCount !== 1) {
+        return res.status(500).json({ ok: false, code: 'PERSISTENCE_FAILED', error: '注册信息未成功写入数据库' });
+      }
+      return res.status(201).json({ ok: true, persisted: true, user: sanitizeAuthUser(result.rows[0]) });
+    }
+
+    const users = loadJsonUsers();
+    if (users.some(user => normalizeUsername(user.username) === username)) {
+      return res.status(409).json({ ok: false, code: 'ACCOUNT_EXISTS', error: '该账号名已被注册，请更换账号名' });
+    }
+    const newUser = { username, password: passwordHash, role: 'user', createdAt: new Date().toISOString() };
+    users.push(newUser);
+    saveJsonUsers(users);
+    const persisted = loadJsonUsers().some(user => user.username === username && user.password === passwordHash);
+    if (!persisted) {
+      return res.status(500).json({ ok: false, code: 'PERSISTENCE_FAILED', error: '注册信息未成功保存' });
+    }
+    return res.status(201).json({ ok: true, persisted: true, user: sanitizeAuthUser(newUser) });
+  } catch (error) {
+    if (error?.code === '23505') {
+      return res.status(409).json({ ok: false, code: 'ACCOUNT_EXISTS', error: '该账号名已被注册，请更换账号名' });
+    }
+    console.error('[AUTH] registration persistence failed:', error);
+    return res.status(500).json({ ok: false, code: 'PERSISTENCE_FAILED', error: '注册保存失败，请稍后重试' });
+  }
+});
+
+app.post('/api/auth/login', async (req, res) => {
+  await databaseReady;
+  const username = normalizeUsername(req.body?.username);
+  const password = normalizePassword(req.body?.password);
+  if (!username || !password) {
+    return res.status(400).json({ ok: false, code: 'MISSING_FIELDS', error: '请输入账号和密码' });
+  }
+
+  try {
+    const user = await findAuthUser(username);
+    if (!user) {
+      console.debug(`[AUTH DEBUG] login username=${username} accountHash=NOT_FOUND`);
+      return res.status(404).json({ ok: false, code: 'ACCOUNT_NOT_FOUND', error: '账号不存在' });
+    }
+
+    const verification = verifyPassword(password, user.password);
+    console.debug(`[AUTH DEBUG] login username=${username} passwordHash=${verification.hash} storedHash=${user.password}`);
+    if (!verification.valid) {
+      return res.status(401).json({ ok: false, code: 'PASSWORD_INVALID', error: '密码错误' });
+    }
+
+    if (verification.legacy) {
+      await migrateLegacyPassword(username, verification.hash);
+      console.debug(`[AUTH DEBUG] migrated legacy password username=${username} passwordHash=${verification.hash}`);
+    }
+    return res.json({ ok: true, authenticated: true, user: sanitizeAuthUser(user) });
+  } catch (error) {
+    console.error('[AUTH] login persistence failure:', error);
+    return res.status(503).json({ ok: false, code: 'AUTH_SERVICE_UNAVAILABLE', error: '登录服务暂不可用，请稍后重试' });
+  }
+});
+
+// --- Configurable model registry and lightweight web-search tool ---
+const DEFAULT_MODELS = [
+  { id: 'deepseek-chat', name: 'DeepSeek Chat', provider: 'deepseek', endpoint: 'https://api.deepseek.com/chat/completions', apiKeyEnv: 'DEEPSEEK_API_KEY', supportsVision: false, temperature: 0.7, maxTokens: 4096 },
+  { id: 'deepseek-reasoner', name: 'DeepSeek Reasoner', provider: 'deepseek', endpoint: 'https://api.deepseek.com/chat/completions', apiKeyEnv: 'DEEPSEEK_API_KEY', supportsVision: false, temperature: 0.4, maxTokens: 4096 },
+  { id: 'openai-gpt-4o-mini', name: 'GPT-4o mini (OpenAI-compatible)', provider: 'openai', endpoint: 'https://api.openai.com/v1/chat/completions', apiKeyEnv: 'OPENAI_API_KEY', supportsVision: true, temperature: 0.7, maxTokens: 4096 }
+];
+const modelConfigFilePath = path.join(dataDir, 'model_config.json');
+
+const loadModelConfig = () => {
+  try {
+    const configured = process.env.MODEL_CONFIG_JSON ? JSON.parse(process.env.MODEL_CONFIG_JSON) : null;
+    if (Array.isArray(configured) && configured.length) return configured;
+  } catch {}
+  try {
+    const fileConfig = JSON.parse(fs.readFileSync(modelConfigFilePath, 'utf8'));
+    if (Array.isArray(fileConfig) && fileConfig.length) return fileConfig;
+  } catch {}
+  return DEFAULT_MODELS;
+};
+
+const getModelConfig = (modelId) => {
+  const models = loadModelConfig();
+  return models.find(m => m.id === modelId) || models.find(m => m.id === process.env.DEFAULT_MODEL) || models[0];
+};
+
+const publicModel = (model) => ({
+  id: model.id, name: model.name || model.id, provider: model.provider || 'openai-compatible',
+  supportsVision: Boolean(model.supportsVision), temperature: Number(model.temperature ?? 0.7),
+  maxTokens: Number(model.maxTokens ?? 4096), enabled: model.enabled !== false
+});
+
+app.get('/api/models', (_req, res) => res.json({ ok: true, models: loadModelConfig().filter(m => m.enabled !== false).map(publicModel), defaultModel: getModelConfig().id }));
+app.get('/api/admin/models', (_req, res) => res.json({ ok: true, models: loadModelConfig() }));
+app.put('/api/admin/models', (req, res) => {
+  const models = req.body?.models;
+  if (!Array.isArray(models) || !models.length) return res.status(400).json({ ok: false, error: 'A non-empty models array is required' });
+  const sanitized = models.map(model => ({
+    ...model,
+    id: String(model.id || '').trim(),
+    endpoint: String(model.endpoint || '').trim(),
+    apiKey: undefined
+  })).filter(model => model.id && model.endpoint);
+  if (!sanitized.length) return res.status(400).json({ ok: false, error: 'Every model needs an id and endpoint' });
+  try {
+    fs.writeFileSync(modelConfigFilePath, JSON.stringify(sanitized, null, 2), 'utf8');
+    res.json({ ok: true, models: sanitized });
+  } catch { res.status(500).json({ ok: false, error: 'Failed to persist model configuration' }); }
+});
+
+const webSearch = async (query, limit = 5) => {
+  const cleanQuery = String(query || '').trim().slice(0, 300);
+  if (!cleanQuery) return [];
+  const configuredUrl = process.env.WEB_SEARCH_URL;
+  try {
+    let payload;
+    if (configuredUrl) {
+      const url = configuredUrl.replace('{query}', encodeURIComponent(cleanQuery));
+      const response = await fetch(url, { signal: AbortSignal.timeout(8000), headers: process.env.WEB_SEARCH_API_KEY ? { Authorization: `Bearer ${process.env.WEB_SEARCH_API_KEY}` } : {} });
+      if (!response.ok) throw new Error(`web search ${response.status}`);
+      payload = await response.json();
+      const items = payload.results || payload.organic_results || payload.data || [];
+      return items.slice(0, limit).map(item => ({ title: item.title || item.name || '', url: item.url || item.link || '', snippet: item.snippet || item.description || item.content || '' })).filter(item => item.title || item.snippet);
+    }
+    const response = await fetch(`https://api.duckduckgo.com/?q=${encodeURIComponent(cleanQuery)}&format=json&no_html=1&no_redirect=1`, { signal: AbortSignal.timeout(8000), headers: { 'User-Agent': 'Gzadm-Navigator/1.0' } });
+    if (!response.ok) throw new Error(`DuckDuckGo ${response.status}`);
+    payload = await response.json();
+    const results = [];
+    if (payload.AbstractText) results.push({ title: payload.Heading || cleanQuery, url: payload.AbstractURL || '', snippet: payload.AbstractText });
+    (payload.RelatedTopics || []).forEach(topic => {
+      if (topic.Text) results.push({ title: topic.Text.split(' - ')[0], url: topic.FirstURL || '', snippet: topic.Text });
+      (topic.Topics || []).forEach(child => { if (child.Text) results.push({ title: child.Text.split(' - ')[0], url: child.FirstURL || '', snippet: child.Text }); });
+    });
+    return results.slice(0, limit);
+  } catch (error) {
+    console.warn('Web search unavailable:', error.message);
+    return [];
+  }
+};
+
+app.get('/api/search/web', async (req, res) => {
+  const query = req.query.q || req.query.query || '';
+  if (!String(query).trim()) return res.status(400).json({ ok: false, error: 'Query is required' });
+  res.json({ ok: true, query, results: await webSearch(query, Number(req.query.limit) || 5) });
+});
+app.post('/api/search/web', async (req, res) => {
+  const query = req.body?.query || req.body?.q || '';
+  if (!String(query).trim()) return res.status(400).json({ ok: false, error: 'Query is required' });
+  res.json({ ok: true, query, results: await webSearch(query, Number(req.body?.limit) || 5) });
 });
 
 // --- Smart Document Parsing & Automated Chunking API ---
@@ -747,7 +1139,7 @@ app.post('/api/admin/rag/batch', async (req, res) => {
     const textToEmbed = `${chunk.title} ${chunk.category} ${chunk.content} ${(chunk.tags || []).join(' ')}`;
     const vec = await getEmbedding(textToEmbed);
 
-    const newItem = {
+    const newItem = normalizeRagItem({
       id: `rag-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
       title: chunk.title || '新建切片',
       category: chunk.category || '通用',
@@ -758,15 +1150,15 @@ app.post('/api/admin/rag/batch', async (req, res) => {
       tags: Array.isArray(chunk.tags) ? chunk.tags : [],
       embedding: vec,
       updatedAt: new Date().toISOString()
-    };
+    });
 
     if (usePostgres) {
       const vecStr = vec ? `[${vec.join(',')}]` : null;
       await pgPool.query(
-        `INSERT INTO rag_knowledge (id, title, category, type, content, table_data, image_attachments, tags, embedding, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+        `INSERT INTO rag_knowledge (id, title, category, topic, intent_tags, type, content, table_data, image_attachments, tags, embedding, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
         [
-          newItem.id, newItem.title, newItem.category, newItem.type, newItem.content,
+          newItem.id, newItem.title, newItem.category, newItem.topic, JSON.stringify(newItem.intentTags), newItem.type, newItem.content,
           JSON.stringify(newItem.tableData), JSON.stringify(newItem.imageAttachments),
           JSON.stringify(newItem.tags), vecStr, newItem.updatedAt
         ]
@@ -806,7 +1198,7 @@ app.post('/api/admin/rag', async (req, res) => {
   const textToEmbed = `${title} ${category} ${content} ${tags.join(' ')}`;
   const vec = await getEmbedding(textToEmbed);
 
-  const newItem = {
+  const newItem = normalizeRagItem({
     id: `rag-${Date.now()}`,
     title,
     category,
@@ -817,15 +1209,15 @@ app.post('/api/admin/rag', async (req, res) => {
     tags,
     embedding: vec,
     updatedAt: new Date().toISOString()
-  };
+  });
 
   if (usePostgres) {
     const vecStr = vec ? `[${vec.join(',')}]` : null;
     await pgPool.query(
-      `INSERT INTO rag_knowledge (id, title, category, type, content, table_data, image_attachments, tags, embedding, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+      `INSERT INTO rag_knowledge (id, title, category, topic, intent_tags, type, content, table_data, image_attachments, tags, embedding, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
       [
-        newItem.id, newItem.title, newItem.category, newItem.type, newItem.content,
+        newItem.id, newItem.title, newItem.category, newItem.topic, JSON.stringify(newItem.intentTags), newItem.type, newItem.content,
         JSON.stringify(newItem.tableData), JSON.stringify(newItem.imageAttachments),
         JSON.stringify(newItem.tags), vecStr, newItem.updatedAt
       ]
@@ -846,6 +1238,7 @@ app.put('/api/admin/rag/:id', async (req, res) => {
   const category = req.body.category;
   const content = req.body.content;
   const tags = req.body.tags;
+  const normalizedItem = normalizeRagItem({ ...req.body, id, title, category, content, tags });
 
   const textToEmbed = `${title || ''} ${category || ''} ${content || ''} ${(tags || []).join(' ')}`;
   const vec = await getEmbedding(textToEmbed);
@@ -854,10 +1247,10 @@ app.put('/api/admin/rag/:id', async (req, res) => {
     const vecStr = vec ? `[${vec.join(',')}]` : null;
     await pgPool.query(
       `UPDATE rag_knowledge
-       SET title = $1, category = $2, type = $3, content = $4, table_data = $5, image_attachments = $6, tags = $7, embedding = $8, updated_at = $9
-       WHERE id = $10`,
+       SET title = $1, category = $2, topic = $3, intent_tags = $4, type = $5, content = $6, table_data = $7, image_attachments = $8, tags = $9, embedding = $10, updated_at = $11
+       WHERE id = $12`,
       [
-        req.body.title, req.body.category, req.body.type, req.body.content,
+        req.body.title, req.body.category, normalizedItem.topic, JSON.stringify(normalizedItem.intentTags), req.body.type, req.body.content,
         JSON.stringify(req.body.tableData), JSON.stringify(req.body.imageAttachments),
         JSON.stringify(req.body.tags), vecStr, new Date().toISOString(), id
       ]
@@ -866,12 +1259,12 @@ app.put('/api/admin/rag/:id', async (req, res) => {
     const jsonStore = loadJsonRag();
     const index = jsonStore.findIndex(item => item.id === id);
     if (index !== -1) {
-      jsonStore[index] = {
+      jsonStore[index] = normalizeRagItem({
         ...jsonStore[index],
         ...req.body,
         embedding: vec,
         updatedAt: new Date().toISOString()
-      };
+      });
       saveJsonRag(jsonStore);
     }
   }
@@ -899,25 +1292,31 @@ app.post('/api/admin/rag/search', async (req, res) => {
   res.json({ ok: true, matches });
 });
 
-app.post('/api/admin/upload-image', (req, res) => {
+const handleImageUpload = (req, res) => {
   const { base64Data, filename } = req.body || {};
   if (!base64Data || !filename) {
     return res.status(400).json({ ok: false, error: 'base64Data and filename required' });
   }
 
   try {
+    const match = String(base64Data).match(/^data:(image\/(?:png|jpeg|webp|gif));base64,([A-Za-z0-9+/=]+)$/);
+    if (!match) return res.status(400).json({ ok: false, error: 'Only PNG, JPEG, WEBP and GIF images are supported' });
     const cleanFilename = `${Date.now()}_${filename.replace(/[^\w.-]/g, '_')}`;
     const filePath = path.join(uploadsDir, cleanFilename);
-    const buffer = Buffer.from(base64Data.replace(/^data:image\/\w+;base64,/, ''), 'base64');
+    const buffer = Buffer.from(match[2], 'base64');
+    if (!buffer.length || buffer.length > 4 * 1024 * 1024) return res.status(413).json({ ok: false, error: 'Image must be smaller than 4MB' });
 
     fs.writeFileSync(filePath, buffer);
-    const fileUrl = `http://localhost:${process.env.PORT || 3001}/uploads/${cleanFilename}`;
+    const origin = process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get('host')}`;
+    const fileUrl = `${origin}/uploads/${cleanFilename}`;
     
     res.json({
       ok: true,
       attachment: {
         name: filename,
         url: fileUrl,
+        type: 'image',
+        mimeType: match[1],
         caption: filename.replace(/\.[^/.]+$/, '')
       }
     });
@@ -925,7 +1324,10 @@ app.post('/api/admin/upload-image', (req, res) => {
     console.error('Image upload failed:', err);
     res.status(500).json({ ok: false, error: 'Upload failed' });
   }
-});
+};
+
+app.post('/api/admin/upload-image', handleImageUpload);
+app.post('/api/user/upload-image', handleImageUpload);
 
 // --- Word Frequency Analytics Persistence API ---
 const wordAnalyticsFilePath = path.join(dataDir, 'word_analytics.json');
@@ -975,6 +1377,7 @@ app.post('/api/admin/word-analytics', (req, res) => {
 
 // --- User Sessions Persistence & Cache APIs ---
 const sessionsFilePath = path.join(dataDir, 'user_sessions.json');
+const sessionPreferencesFilePath = path.join(dataDir, 'session_preferences.json');
 
 const loadJsonSessions = () => {
   if (!fs.existsSync(sessionsFilePath)) return {};
@@ -993,59 +1396,154 @@ const saveJsonSessions = (data) => {
   }
 };
 
-app.get('/api/user/sessions', async (req, res) => {
-  const username = req.query.username;
-  if (!username) return res.status(400).json({ ok: false, error: 'Username is required' });
+const loadSessionPreferences = () => {
+  if (!fs.existsSync(sessionPreferencesFilePath)) return {};
+  try { return JSON.parse(fs.readFileSync(sessionPreferencesFilePath, 'utf8')); } catch { return {}; }
+};
+const saveSessionPreferences = (data) => fs.writeFileSync(sessionPreferencesFilePath, JSON.stringify(data, null, 2), 'utf8');
 
+const normalizeAttachment = (attachment) => ({
+  name: String(attachment?.name || 'image'),
+  url: String(attachment?.url || ''),
+  type: String(attachment?.type || 'image'),
+  caption: String(attachment?.caption || attachment?.name || 'image')
+});
+
+const normalizeMessage = (message = {}) => ({
+  id: message.id || `msg-${Date.now()}-${crypto.randomUUID()}`,
+  sender: message.sender === 'bot' || message.role === 'assistant' ? 'bot' : 'user',
+  text: String(message.text ?? message.content ?? ''),
+  attachments: Array.isArray(message.attachments) ? message.attachments.map(normalizeAttachment).filter(a => a.url) : [],
+  createdAt: message.createdAt || message.timestamp || new Date().toISOString(),
+  source: message.source || undefined,
+  model: message.model || undefined
+});
+
+const normalizeSession = (session = {}) => {
+  const now = new Date().toISOString();
+  return {
+    id: String(session.id || `session-${Date.now()}-${crypto.randomUUID()}`),
+    title: String(session.title || '新咨询对话').slice(0, 120),
+    messages: Array.isArray(session.messages) ? session.messages.map(normalizeMessage) : [],
+    createdAt: session.createdAt || now,
+    updatedAt: session.updatedAt || now,
+    model: session.model || undefined
+  };
+};
+
+const persistSession = async (username, session) => {
+  const normalized = normalizeSession(session);
+  if (usePostgres) {
+    await pgPool.query(
+      `INSERT INTO chat_sessions (id, username, title, messages, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       ON CONFLICT (id) DO UPDATE SET title = EXCLUDED.title, messages = EXCLUDED.messages, updated_at = EXCLUDED.updated_at`,
+      [normalized.id, username, normalized.title, JSON.stringify(normalized.messages), normalized.createdAt, normalized.updatedAt]
+    );
+  }
+  const allJson = loadJsonSessions();
+  const sessions = allJson[username] || [];
+  const index = sessions.findIndex(item => item.id === normalized.id);
+  if (index >= 0) sessions[index] = normalized; else sessions.unshift(normalized);
+  allJson[username] = sessions.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+  saveJsonSessions(allJson);
+  return normalized;
+};
+
+const readUserSessions = async (username) => {
   if (usePostgres) {
     try {
       const dbRes = await pgPool.query(
         'SELECT id, title, messages, created_at AS "createdAt", updated_at AS "updatedAt" FROM chat_sessions WHERE username = $1 ORDER BY updated_at DESC',
         [username]
       );
-      return res.json({ ok: true, sessions: dbRes.rows });
+      return dbRes.rows.map(normalizeSession);
     } catch (e) {
       console.error('PostgreSQL session fetch error, fallback to JSON:', e);
     }
   }
+  return (loadJsonSessions()[username] || []).map(normalizeSession).sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+};
 
-  const allJson = loadJsonSessions();
-  const userSessions = allJson[username] || [];
-  res.json({ ok: true, sessions: userSessions });
+app.get('/api/user/sessions', async (req, res) => {
+  const username = req.query.username || req.body?.username;
+  if (!username) return res.status(400).json({ ok: false, error: 'Username is required' });
+  const query = String(req.query.q || '').trim().toLowerCase();
+  let sessions = await readUserSessions(username);
+  if (query) sessions = sessions.filter(session => session.title.toLowerCase().includes(query) || session.messages.some(message => message.text.toLowerCase().includes(query)));
+  res.json({ ok: true, sessions, activeSessionId: loadSessionPreferences()[username]?.activeSessionId || null });
 });
 
 app.post('/api/user/sessions', async (req, res) => {
-  const { username, sessions } = req.body || {};
-  if (!username || !Array.isArray(sessions)) {
-    return res.status(400).json({ ok: false, error: 'Username and sessions array required' });
+  const { username, session, sessions } = req.body || {};
+  if (!username || (!session && !Array.isArray(sessions))) return res.status(400).json({ ok: false, error: 'Username and session payload required' });
+  try {
+    if (session) return res.status(201).json({ ok: true, session: await persistSession(username, session) });
+    const saved = [];
+    for (const item of sessions) saved.push(await persistSession(username, item));
+    return res.json({ ok: true, count: saved.length, sessions: saved });
+  } catch (e) {
+    console.error('Session save error:', e);
+    return res.status(500).json({ ok: false, error: 'Failed to persist session' });
   }
+});
 
-  if (usePostgres) {
-    try {
-      for (const s of sessions) {
-        await pgPool.query(
-          `INSERT INTO chat_sessions (id, username, title, messages, updated_at)
-           VALUES ($1, $2, $3, $4, $5)
-           ON CONFLICT (id) DO UPDATE
-           SET title = EXCLUDED.title, messages = EXCLUDED.messages, updated_at = EXCLUDED.updated_at`,
-          [s.id, username, s.title, JSON.stringify(s.messages), s.updatedAt || new Date().toISOString()]
-        );
-      }
-    } catch (e) {
-      console.error('PostgreSQL session save error:', e);
-    }
-  }
+app.get('/api/user/sessions/:sessionId', async (req, res) => {
+  const username = req.query.username;
+  if (!username) return res.status(400).json({ ok: false, error: 'Username is required' });
+  const session = (await readUserSessions(username)).find(item => item.id === req.params.sessionId);
+  if (!session) return res.status(404).json({ ok: false, error: 'Session not found' });
+  res.json({ ok: true, session });
+});
 
-  const allJson = loadJsonSessions();
-  allJson[username] = sessions;
-  saveJsonSessions(allJson);
+app.get('/api/user/sessions/:sessionId/search', async (req, res) => {
+  const username = req.query.username;
+  const query = String(req.query.q || '').trim().toLowerCase();
+  if (!username || !query) return res.status(400).json({ ok: false, error: 'Username and query are required' });
+  const session = (await readUserSessions(username)).find(item => item.id === req.params.sessionId);
+  if (!session) return res.status(404).json({ ok: false, error: 'Session not found' });
+  const messages = session.messages.filter(message => message.text.toLowerCase().includes(query));
+  res.json({ ok: true, sessionId: session.id, query, messages });
+});
 
-  res.json({ ok: true, count: sessions.length });
+const updateSession = async (req, res) => {
+  const username = req.body?.username || req.query.username;
+  if (!username) return res.status(400).json({ ok: false, error: 'Username is required' });
+  const existing = (await readUserSessions(username)).find(item => item.id === req.params.sessionId);
+  if (!existing) return res.status(404).json({ ok: false, error: 'Session not found' });
+  const updated = { ...existing, ...req.body, id: existing.id, messages: req.body.messages || existing.messages, updatedAt: new Date().toISOString() };
+  try { res.json({ ok: true, session: await persistSession(username, updated) }); }
+  catch { res.status(500).json({ ok: false, error: 'Failed to update session' }); }
+};
+app.patch('/api/user/sessions/:sessionId', updateSession);
+app.put('/api/user/sessions/:sessionId', updateSession);
+
+app.post('/api/user/sessions/:sessionId/messages', async (req, res) => {
+  const username = req.body?.username;
+  if (!username || !req.body?.message) return res.status(400).json({ ok: false, error: 'Username and message are required' });
+  const existing = (await readUserSessions(username)).find(item => item.id === req.params.sessionId);
+  if (!existing) return res.status(404).json({ ok: false, error: 'Session not found' });
+  const message = normalizeMessage(req.body.message);
+  existing.messages.push(message);
+  existing.updatedAt = new Date().toISOString();
+  const session = await persistSession(username, existing);
+  res.status(201).json({ ok: true, message, session });
+});
+
+app.put('/api/user/sessions/:sessionId/activate', async (req, res) => {
+  const username = req.body?.username;
+  if (!username) return res.status(400).json({ ok: false, error: 'Username is required' });
+  const exists = (await readUserSessions(username)).some(item => item.id === req.params.sessionId);
+  if (!exists) return res.status(404).json({ ok: false, error: 'Session not found' });
+  const preferences = loadSessionPreferences();
+  preferences[username] = { activeSessionId: req.params.sessionId, updatedAt: new Date().toISOString() };
+  saveSessionPreferences(preferences);
+  res.json({ ok: true, activeSessionId: req.params.sessionId });
 });
 
 app.delete('/api/user/sessions/:sessionId', async (req, res) => {
   const sessionId = req.params.sessionId;
-  const username = req.query.username;
+  const username = req.query.username || req.body?.username;
   if (!username || !sessionId) {
     return res.status(400).json({ ok: false, error: 'Username and sessionId are required' });
   }
@@ -1061,7 +1559,16 @@ app.delete('/api/user/sessions/:sessionId', async (req, res) => {
   const allJson = loadJsonSessions();
   if (allJson[username]) {
     allJson[username] = allJson[username].filter(s => s.id !== sessionId);
+    if (allJson[username].length === 0) delete allJson[username];
     saveJsonSessions(allJson);
+  }
+
+  const preferences = loadSessionPreferences();
+  if (preferences[username]?.activeSessionId === sessionId) {
+    const fallbackSessionId = allJson[username]?.[0]?.id;
+    if (fallbackSessionId) preferences[username] = { activeSessionId: fallbackSessionId, updatedAt: new Date().toISOString() };
+    else delete preferences[username];
+    saveSessionPreferences(preferences);
   }
 
   res.json({ ok: true });
@@ -1260,10 +1767,14 @@ app.get('/api/user/personal-rag', async (req, res) => {
 
 // --- Chat Endpoint with RAG Integration ---
 app.post('/api/aura/chat', async (req, res) => {
-  const apiKey = process.env.DEEPSEEK_API_KEY;
+  const modelConfig = getModelConfig(req.body?.model);
+  const apiKey = modelConfig.apiKey || process.env[modelConfig.apiKeyEnv || 'DEEPSEEK_API_KEY'];
   const username = req.body?.username || '';
   const incomingMessages = Array.isArray(req.body?.messages) ? req.body.messages : [];
-  const lastUserMsg = [...incomingMessages].reverse().find(m => m.role === 'user')?.content || '';
+  const contentToText = (content) => Array.isArray(content)
+    ? content.map(part => typeof part === 'string' ? part : (part?.text || '')).join(' ')
+    : String(content || '');
+  const lastUserMsg = contentToText([...incomingMessages].reverse().find(m => m.role === 'user')?.content);
 
   // Retrieve user background profile
   let userProfile = req.body?.userProfile || null;
@@ -1312,8 +1823,25 @@ app.post('/api/aura/chat', async (req, res) => {
   // repeating only the single highest-scoring knowledge item.
   const ragMatches = await searchRagEngine(lastUserMsg, 5);
   const ragContext = formatRagContext(ragMatches);
+  const agentEnabled = req.body?.agent !== false;
+  const webSearchEnabled = req.body?.webSearch === true;
+  const webResults = agentEnabled && webSearchEnabled ? await webSearch(lastUserMsg, 5) : [];
+  const webContext = webResults.length ? `【联网搜索工具返回（信息可能变化，请标注来源并提醒用户核验）】：\n${webResults.map((item, index) => `${index + 1}. ${item.title}\n${item.snippet}\n来源：${item.url}`).join('\n\n')}` : '';
+  const agentTrace = [
+    { tool: 'profile', status: userProfile ? 'used' : 'skipped' },
+    { tool: 'personal-memory', status: personalRagContext ? 'used' : 'skipped' },
+    { tool: 'campus-rag', status: ragMatches.length ? 'used' : 'empty', count: ragMatches.length },
+    { tool: 'web-search', status: webSearchEnabled ? (webResults.length ? 'used' : 'empty') : 'disabled', count: webResults.length }
+  ];
+  const buildFallbackReply = () => {
+    let reply = buildLocalRagReply(lastUserMsg, ragMatches);
+    if (webResults.length) {
+      reply += `\n\n## 联网检索参考\n\n${webResults.map(item => `- [${item.title || item.url}](${item.url})${item.snippet ? `：${item.snippet}` : ''}`).join('\n')}`;
+    }
+    return reply;
+  };
 
-  let systemPromptWithProfile = ADMISSIONS_SYSTEM_PROMPT;
+  let systemPromptWithProfile = `${ADMISSIONS_SYSTEM_PROMPT}\n\n${ADMISSIONS_INTENT_GUARDRAILS}`;
   if (userProfile) {
     systemPromptWithProfile += `\n\n【当前咨询学生背景资料】：
 - 姓名：${userProfile.name || username}
@@ -1329,47 +1857,60 @@ ${isVip ? '✨ 该学生为 VIP 优先保障咨询用户 (高考成绩 > 580分)
 
   const messages = [
     { role: 'system', content: systemPromptWithProfile },
+    ...(agentEnabled ? [{ role: 'system', content: '你正在以招生咨询 Agent 模式工作。先判断问题所需工具，再综合用户画像、个人记忆、校内知识库和联网搜索证据；事实冲突时优先采用时间更新且来源明确的信息，并明确不确定性。' }] : []),
     ...(personalRagContext ? [{ role: 'system', content: personalRagContext }] : []),
     ...(ragContext ? [{ role: 'system', content: ragContext }] : []),
+    ...(webContext ? [{ role: 'system', content: webContext }] : []),
     ...incomingMessages
-      .filter((m) => m && typeof m.role === 'string' && typeof m.content === 'string')
-      .map((m) => ({ role: m.role, content: m.content })),
+      .filter((m) => m && typeof m.role === 'string' && (typeof m.content === 'string' || Array.isArray(m.content)))
+      .map((m) => {
+        const attachments = Array.isArray(m.attachments) ? m.attachments.filter(a => a?.url) : [];
+        if (!attachments.length) return { role: m.role, content: m.content };
+        if (modelConfig.supportsVision) {
+          return { role: m.role, content: [{ type: 'text', text: contentToText(m.content) }, ...attachments.map(a => ({ type: 'image_url', image_url: { url: a.dataUrl || a.url } }))] };
+        }
+        return { role: m.role, content: `${contentToText(m.content)}\n\n用户附图：${attachments.map(a => a.url).join('、')}` };
+      }),
   ];
 
   // 2. If no API key, serve local response using RAG context
   if (!apiKey) {
     return res.json({
       ok: true,
-      reply: buildLocalRagReply(lastUserMsg, ragMatches),
-      source: ragMatches.length ? 'local-bge-rag-db' : 'local-fallback'
+      reply: buildFallbackReply(),
+      source: ragMatches.length ? 'local-bge-rag-db' : 'local-fallback',
+      model: modelConfig.id,
+      agent: { enabled: agentEnabled, trace: agentTrace, webResults }
     });
   }
 
-  // 3. DeepSeek LLM Call with RAG context
+  // 3. OpenAI-compatible model call with Agent/RAG context
   try {
-    const deepseekResponse = await fetch('https://api.deepseek.com/chat/completions', {
+    const modelResponse = await fetch(modelConfig.endpoint, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: process.env.DEEPSEEK_MODEL || 'deepseek-chat',
+        model: modelConfig.model || modelConfig.id.replace(/^openai-/, ''),
         messages,
-        temperature: 0.7,
+        temperature: Math.max(0, Math.min(2, Number(req.body?.modelParams?.temperature ?? modelConfig.temperature ?? 0.7))),
+        max_tokens: Math.max(128, Math.min(16384, Number(req.body?.modelParams?.maxTokens ?? modelConfig.maxTokens ?? 4096))),
         stream: false,
       }),
     });
 
-    if (!deepseekResponse.ok) {
+    if (!modelResponse.ok) {
       return res.json({
         ok: true,
-        reply: buildLocalRagReply(lastUserMsg, ragMatches),
-        source: 'rag-fallback'
+        reply: buildFallbackReply(),
+        source: 'rag-fallback', model: modelConfig.id,
+        agent: { enabled: agentEnabled, trace: agentTrace, webResults }
       });
     }
 
-    const payload = await deepseekResponse.json();
+    const payload = await modelResponse.json();
     let reply = payload?.choices?.[0]?.message?.content?.trim() || '我刚刚有点走神了，您可以再说一次吗？';
 
     const matchedImages = ragMatches.flatMap(m => m.item.imageAttachments || []);
@@ -1381,12 +1922,14 @@ ${isVip ? '✨ 该学生为 VIP 优先保障咨询用户 (高考成绩 > 580分)
       });
     }
 
-    res.json({ ok: true, reply, source: 'deepseek-bge-rag-api' });
+    const source = modelConfig.id.startsWith('deepseek') ? 'deepseek-bge-rag-api' : `${modelConfig.provider || 'model'}-agent-rag-api`;
+    res.json({ ok: true, reply, source, model: modelConfig.id, agent: { enabled: agentEnabled, trace: agentTrace, webResults } });
   } catch (error) {
     res.json({
       ok: true,
-      reply: buildLocalRagReply(lastUserMsg, ragMatches),
-      source: 'rag-fallback'
+      reply: buildFallbackReply(),
+      source: 'rag-fallback', model: modelConfig.id,
+      agent: { enabled: agentEnabled, trace: agentTrace, webResults }
     });
   }
 });
@@ -1408,8 +1951,9 @@ app.listen(port, '0.0.0.0', () => {
 
   // Asynchronous background initializations so port 3001 is open IMMEDIATELY (< 50ms)
   (async () => {
+    databaseReady = initPostgres();
     await initEmbedder();
-    await initPostgres();
+    await databaseReady;
     await initRedis();
   })();
 });

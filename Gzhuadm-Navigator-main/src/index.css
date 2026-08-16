@@ -6,6 +6,8 @@ html,
 body,
 #root {
   height: 100%;
+  min-height: 100%;
+  overflow-x: hidden;
 }
 
 body {
@@ -13,6 +15,16 @@ body {
   font-family: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
   background: #f6f4fc;
   color: #1a1525;
+  overscroll-behavior-x: none;
+}
+
+@media (max-width: 640px) {
+  html,
+  body,
+  #root {
+    min-height: 100dvh;
+    overflow-x: hidden;
+  }
 }
 
 * {
