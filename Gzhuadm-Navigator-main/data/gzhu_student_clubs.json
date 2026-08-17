@@ -1,0 +1,134 @@
+{
+  "id": "gzhu-complete-student-club-directory",
+  "title": "百团大战·广大全部学生社团完整清单",
+  "knowledgeCategory": "校园生活-社团文化与志愿服务",
+  "tags": ["百团大战", "社团文化", "学生社团", "广大社团", "校园生活", "文档切片"],
+  "rules": {
+    "trial": "编号数字在前、字母在后的社团为试运行学生社团。",
+    "joinLimit": "学校规定每位学生每学年最多只能加入 2 个学生社团。"
+  },
+  "managementUnit": "校团委学生社团管理中心",
+  "categories": [
+    {
+      "name": "思想政治类",
+      "clubs": [
+        { "id": "T1", "name": "广州大学学生党建理论研究会", "trial": false },
+        { "id": "T2", "name": "广州大学模拟政协学生社团", "trial": false }
+      ]
+    },
+    {
+      "name": "学术科技类",
+      "clubs": [
+        { "id": "A1", "name": "广州大学学生经济学会", "trial": false },
+        { "id": "A2", "name": "广州大学学生师范技能协会", "trial": false },
+        { "id": "A3", "name": "广州大学学生投资学会", "trial": false },
+        { "id": "A4", "name": "广州大学学生物业管理学会", "trial": false },
+        { "id": "A5", "name": "广州大学学生营销学会", "trial": false },
+        { "id": "A6", "name": "广州大学ERP学生学术交流协会", "trial": false },
+        { "id": "A7", "name": "广州大学学生暮秋学社", "trial": false },
+        { "id": "A8", "name": "广州大学学生天文爱好者协会", "trial": false },
+        { "id": "A9", "name": "广州大学学生物流学会", "trial": false },
+        { "id": "A10", "name": "广州大学学生虚拟现实技术协会", "trial": false },
+        { "id": "A11", "name": "广州大学学生英语俱乐部", "trial": false },
+        { "id": "A12", "name": "广州大学学生房地产研究学会", "trial": false },
+        { "id": "A13", "name": "广州大学学生社会学与社会工作协会", "trial": false },
+        { "id": "A14", "name": "广州大学学生工程项目管理研究学会", "trial": false },
+        { "id": "A15", "name": "广州大学学生行政管理协会", "trial": false },
+        { "id": "A16", "name": "广州大学学生电子协会", "trial": false },
+        { "id": "A17", "name": "广州大学学生景园研究协会", "trial": false },
+        { "id": "A18", "name": "广州大学学生人力资源管理学会", "trial": false },
+        { "id": "A19", "name": "广州大学学生财金研究协会", "trial": false },
+        { "id": "A20", "name": "广州大学学生竞技航模协会", "trial": false },
+        { "id": "A21", "name": "广州大学学生智能车协会", "trial": false },
+        { "id": "A22", "name": "广州大学学生a2uc信息安全协会", "trial": false },
+        { "id": "A23", "name": "广州大学学生创客协会", "trial": false },
+        { "id": "A24", "name": "广州大学学生光信息协会", "trial": false },
+        { "id": "A25", "name": "广州大学学生结构设计协会", "trial": false },
+        { "id": "A26", "name": "广州大学学生会展协会", "trial": false },
+        { "id": "A27", "name": "广州大学学生建筑信息化学会", "trial": false },
+        { "id": "A28", "name": "广州大学学生气象爱好者协会", "trial": false },
+        { "id": "A29", "name": "广州大学学生清廉知行学社", "trial": false },
+        { "id": "A30", "name": "广州大学学生网络空间安全学会", "trial": false },
+        { "id": "A31", "name": "广州大学学生软件技术应用协会", "trial": false },
+        { "id": "32A", "name": "广州大学学生智能计算与数字仿真协会", "trial": true },
+        { "id": "33A", "name": "广州大学学生旅游协会", "trial": true }
+      ]
+    },
+    {
+      "name": "创新创业类",
+      "clubs": [
+        { "id": "I1", "name": "广州大学学生电子商务协会", "trial": false },
+        { "id": "I2", "name": "广州大学学生工商管理学会", "trial": false },
+        { "id": "I3", "name": "广州大学学生创业联萌协会", "trial": false }
+      ]
+    },
+    {
+      "name": "自律互助类",
+      "clubs": [
+        { "id": "S1", "name": "广州大学学生校园安全管理服务协会", "trial": false },
+        { "id": "S2", "name": "广州大学学生爱护动物协会", "trial": false },
+        { "id": "S3", "name": "广州大学学生绿色动力协会", "trial": false },
+        { "id": "4S", "name": "广州大学学生考研协会", "trial": true },
+        { "id": "S5", "name": "广州大学新长城学生自强社", "trial": false },
+        { "id": "6S", "name": "广州大学学生劳动教育协会", "trial": true },
+        { "id": "7S", "name": "广州大学学生朋辈心理互助协会", "trial": true }
+      ]
+    },
+    {
+      "name": "文化体育类",
+      "clubs": [
+        { "id": "C1", "name": "广州大学学生武术协会", "trial": false },
+        { "id": "C2", "name": "广州大学学生羽毛球协会", "trial": false },
+        { "id": "C3", "name": "广州大学学生舞蹈协会", "trial": false },
+        { "id": "4C", "name": "广州大学学生足球协会", "trial": true },
+        { "id": "C5", "name": "广州大学学生茶艺协会", "trial": false },
+        { "id": "C6", "name": "广州大学学生定向越野俱乐部", "trial": false },
+        { "id": "C7", "name": "广州大学学生书画协会", "trial": false },
+        { "id": "C8", "name": "广州大学学生象槐文学社", "trial": false },
+        { "id": "C9", "name": "广州大学学生网球协会", "trial": false },
+        { "id": "C10", "name": "广州大学学生原色映像动漫协会", "trial": false },
+        { "id": "C11", "name": "广州大学学生书友会", "trial": false },
+        { "id": "C12", "name": "广州大学DIY学生手工艺术协会", "trial": false },
+        { "id": "C13", "name": "广州大学Goulee学生演艺团体", "trial": false },
+        { "id": "C14", "name": "广州大学Salsa社交舞学生协会", "trial": false },
+        { "id": "C15", "name": "广州大学学生电影文化协会", "trial": false },
+        { "id": "C16", "name": "广州大学学生电子竞技协会", "trial": false },
+        { "id": "17C", "name": "广州大学学生跳绳协会", "trial": true },
+        { "id": "C18", "name": "广州大学学生广袖青衿汉服社", "trial": false },
+        { "id": "C19", "name": "广州大学学生吉他协会", "trial": false },
+        { "id": "C20", "name": "广州大学学生街舞协会", "trial": false },
+        { "id": "C21", "name": "广州大学学生模型协会", "trial": false },
+        { "id": "C22", "name": "广州大学学生古诗词尤克里里协会", "trial": false },
+        { "id": "C23", "name": "广州大学GZHU-ISLAND学生说唱社", "trial": false },
+        { "id": "C24", "name": "广州大学学生曲艺社", "trial": false },
+        { "id": "C25", "name": "广州大学学生散打协会", "trial": false },
+        { "id": "C26", "name": "广州大学学生音乐协会", "trial": false },
+        { "id": "C27", "name": "广州大学学生自行车协会", "trial": false },
+        { "id": "C28", "name": "广州大学学生乒乓球协会", "trial": false },
+        { "id": "C29", "name": "广州大学学生跆拳道协会", "trial": false },
+        { "id": "C30", "name": "广州大学学生笛箫协会", "trial": false },
+        { "id": "C31", "name": "广州大学学生风云棋社", "trial": false },
+        { "id": "C32", "name": "广州大学学生魔方社", "trial": false },
+        { "id": "C33", "name": "广州大学学生RS轮滑协会", "trial": false },
+        { "id": "C34", "name": "广州大学学生流觞亭诗社", "trial": false },
+        { "id": "C35", "name": "广州大学学生摄影协会", "trial": false },
+        { "id": "C36", "name": "广州大学学生粤语童谣社", "trial": false },
+        { "id": "C37", "name": "广州大学学生魔术协会", "trial": false },
+        { "id": "C38", "name": "广州大学学生CUA桌游协会", "trial": false },
+        { "id": "C39", "name": "广州大学学生运动安全与防护协会", "trial": false },
+        { "id": "C40", "name": "广州大学学生艺术团表演团队", "trial": false },
+        { "id": "C41", "name": "广州大学学生篮球裁判协会", "trial": false },
+        { "id": "42C", "name": "广州大学学生田径协会", "trial": true },
+        { "id": "43C", "name": "广州大学学生排球协会", "trial": true }
+      ]
+    },
+    {
+      "name": "志愿公益类",
+      "clubs": [
+        { "id": "V1", "name": "广州大学学生法律咨询服务社", "trial": false },
+        { "id": "V2", "name": "广州大学学生阳光义工团", "trial": false }
+      ]
+    }
+  ],
+  "updatedAt": "2026-08-17T00:00:00.000+08:00"
+}

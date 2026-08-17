@@ -1,6 +1,9 @@
 node_modules/
 dist/
-data/
+data/*
+!data/gzhu_2025_guangdong_admissions.json
+!data/gzhu_student_clubs.json
+!data/gzhu_core_guides.json
 dockerdata/
 valkey/
 .env

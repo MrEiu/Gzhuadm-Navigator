@@ -16,6 +16,15 @@ const distDir = path.join(__dirname, 'dist');
 const ragFilePath = path.join(dataDir, 'rag_knowledge.json');
 const usersFilePath = path.join(dataDir, 'users.json');
 const modelsCacheDir = path.join(dataDir, 'models_cache');
+const curatedAdmissionsFilePath = path.join(dataDir, 'gzhu_2025_guangdong_admissions.json');
+const curatedClubsFilePath = path.join(dataDir, 'gzhu_student_clubs.json');
+const curatedCoreGuidesFilePath = path.join(dataDir, 'gzhu_core_guides.json');
+const ragSettingsFilePath = path.join(dataDir, 'rag_settings.json');
+const runtimeStatsFilePath = path.join(dataDir, 'runtime_stats.json');
+const modelLogsFilePath = path.join(dataDir, 'model_call_logs.json');
+const feedbackFilePath = path.join(dataDir, 'answer_feedback.json');
+const CLUB_DIRECTORY_ID = 'gzhu-complete-student-club-directory';
+const APP_BUILD = '2026-08-17-platform-iteration-v6';
 
 const envPath = path.join(__dirname, '.env.local');
 const envMainPath = path.join(__dirname, '.env');
@@ -94,6 +103,43 @@ const saveJsonUsers = (users) => {
   fs.writeFileSync(usersFilePath, JSON.stringify(users, null, 2), 'utf8');
 };
 
+const readJsonFile = (filePath, fallback) => {
+  try {
+    if (!fs.existsSync(filePath)) return structuredClone(fallback);
+    return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+  } catch {
+    return structuredClone(fallback);
+  }
+};
+
+const writeJsonFile = (filePath, value) => {
+  fs.writeFileSync(filePath, JSON.stringify(value, null, 2), 'utf8');
+};
+
+const DEFAULT_RAG_SETTINGS = Object.freeze({
+  similarityThreshold: 0.28,
+  autoWebSearch: true,
+  requireGroundedAnswer: true,
+  pendingDocuments: 0
+});
+const loadRagSettings = () => ({ ...DEFAULT_RAG_SETTINGS, ...readJsonFile(ragSettingsFilePath, DEFAULT_RAG_SETTINGS) });
+const saveRagSettings = (settings) => writeJsonFile(ragSettingsFilePath, { ...DEFAULT_RAG_SETTINGS, ...settings });
+
+const DEFAULT_RUNTIME_STATS = Object.freeze({
+  totalQueries: 0,
+  ragHits: 0,
+  modelCalls: 0,
+  modelFailures: 0,
+  lastQueryAt: null
+});
+const loadRuntimeStats = () => ({ ...DEFAULT_RUNTIME_STATS, ...readJsonFile(runtimeStatsFilePath, DEFAULT_RUNTIME_STATS) });
+const updateRuntimeStats = (patch) => {
+  const current = loadRuntimeStats();
+  const next = typeof patch === 'function' ? patch(current) : { ...current, ...patch };
+  writeJsonFile(runtimeStatsFilePath, next);
+  return next;
+};
+
 // Configure persistent local cache directory & HF Mirror for Transformers.js ONNX models
 env.cacheDir = modelsCacheDir;
 env.remoteHost = 'https://hf-mirror.com';
@@ -160,33 +206,6 @@ const cosineSimilarity = (vecA, vecB) => {
 
 // --- Seed RAG Knowledge Base ---
 const DEFAULT_RAG_KNOWLEDGE = [
-  {
-    id: "rag-001",
-    topic: '招生录取',
-    intentTags: ['录取', '分数线', '排位', '招生政策'],
-    title: "历年高考录取分数线与排位对照表",
-    category: "录取分数",
-    type: "table",
-    content: "招生办发布的近年重点省份本科批次最低录取分数线与全省排位对照参考。",
-    tableData: {
-      columns: ["省份", "专业", "2025录取线", "2024录取线", "参考排位"],
-      rows: [
-        ["浙江", "计算机科学与技术", "645分", "642分", "12000名"],
-        ["江苏", "人工智能实验班", "638分", "635分", "10500名"],
-        ["广东", "数字媒体与交互设计", "612分", "608分", "22000名"],
-        ["四川", "智能制造与自动化", "605分", "601分", "25000名"]
-      ]
-    },
-    imageAttachments: [
-      {
-        name: "score_cutoff_chart.png",
-        url: "https://images.unsplash.com/photo-1434030216411-0b793f4b4173?q=80&w=600&auto=format&fit=crop",
-        caption: "高考录取分数趋势图"
-      }
-    ],
-    tags: ["录取分数", "分数线", "排位", "浙江", "江苏", "广东", "四川", "计算机"],
-    updatedAt: new Date().toISOString()
-  },
   {
     id: "rag-002",
     topic: '食宿',
@@ -416,21 +435,34 @@ const getRagStore = async () => {
 // ==========================================
 let redisClient = null;
 let useRedis = false;
+let redisState = { mode: 'memory', status: 'disabled', message: '未配置 Redis，已使用内存缓存' };
 const memoryCache = new Map();
 
 const initRedis = async () => {
-  const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
+  const redisUrl = String(process.env.REDIS_URL || '').trim();
+  if (!redisUrl) {
+    redisState = { mode: 'memory', status: 'healthy', message: 'Redis 未启用，内存缓存运行正常' };
+    console.log('ℹ️ [Cache] REDIS_URL is not configured; using in-memory cache.');
+    return;
+  }
   console.log(`⏳ [Redis Cache] Connecting to ${redisUrl}...`);
   try {
-    redisClient = createClient({ url: redisUrl, socket: { connectTimeout: 3000 } });
-    redisClient.on('error', (err) => console.warn('  ⚠️ [Redis Socket Warning]:', err.message));
+    redisClient = createClient({
+      url: redisUrl,
+      socket: { connectTimeout: 3000, reconnectStrategy: false }
+    });
+    redisClient.on('error', (err) => {
+      redisState = { mode: 'memory', status: 'degraded', message: `Redis 不可用：${err.message}` };
+    });
     await redisClient.connect();
     useRedis = true;
+    redisState = { mode: 'redis', status: 'healthy', message: 'Redis 缓存连接正常' };
     console.log(`✅ [Redis Cache Ready] High-speed cache active at ${redisUrl}`);
   } catch (err) {
-    console.warn(`⚠️ [Redis Cache Warning] Failed to connect to ${redisUrl} (${err.message}).`);
-    console.warn(`  👉 Fallback in-memory Map cache activated.`);
+    console.warn(`⚠️ [Redis Cache] ${redisUrl} unavailable; switched to memory cache (${err.message}).`);
+    if (redisClient?.isOpen) await redisClient.disconnect().catch(() => {});
     useRedis = false;
+    redisState = { mode: 'memory', status: 'degraded', message: `Redis 连接失败，已自动降级：${err.message}` };
   }
 };
 
@@ -514,15 +546,263 @@ const RAG_TOPIC_RULES = [
   },
   {
     topic: RAG_TOPICS.CAMPUS_LIFE,
-    patterns: [/社团|校园生活|快递|医疗|体育|运动|图书馆|自习|校园卡|办事|校区/],
-    tags: ['社团', '校园生活', '快递', '医疗', '体育', '图书馆', '校园卡']
+    patterns: [/社团|百团大战|学生组织|校园生活|快递|医疗|体育|运动|图书馆|自习|校园卡|办事|校区/],
+    tags: ['社团', '百团大战', '学生组织', '校园生活', '快递', '医疗', '体育', '图书馆', '校园卡']
   }
 ];
 
 const normalizeRagText = (value) => String(value || '').toLowerCase().replace(/\s+/g, ' ');
+const isOfficialGzhuUrl = (value) => {
+  try {
+    const hostname = new URL(String(value || '')).hostname.toLowerCase();
+    return hostname === 'gzhu.edu.cn' || hostname.endsWith('.gzhu.edu.cn');
+  } catch {
+    return false;
+  }
+};
+
+const isTrustedGzhuAdmissionsItem = (item = {}) => {
+  const text = `${item.title || ''} ${item.category || ''} ${item.content || ''} ${(item.tags || []).join(' ')}`;
+  const urls = text.match(/https?:\/\/[^\s)\]】]+/g) || [];
+  const hasOfficialSource = /(官方招生数据|招生办|本科招生网)/.test(text) && urls.some(isOfficialGzhuUrl);
+  const isUserProvidedSource = item.sourceType === 'user-provided-screenshot';
+  return /广州大学|广大/.test(text) && (hasOfficialSource || isUserProvidedSource);
+};
+
+let curatedAdmissionsDatasetCache = null;
+const loadCuratedAdmissionsDataset = () => {
+  if (curatedAdmissionsDatasetCache) return curatedAdmissionsDatasetCache;
+  if (!fs.existsSync(curatedAdmissionsFilePath)) return null;
+  try {
+    const dataset = JSON.parse(fs.readFileSync(curatedAdmissionsFilePath, 'utf8'));
+    if (!Array.isArray(dataset.rows) || !dataset.rows.length) return null;
+    curatedAdmissionsDatasetCache = dataset;
+    return dataset;
+  } catch (error) {
+    console.warn('Curated admissions data warning:', error.message);
+    return null;
+  }
+};
+
+const normalizeMajorBaseName = (value) => String(value || '').replace(/\(.*$/, '').trim();
+const MAJOR_QUERY_ALIASES = Object.freeze({
+  '计算机科学与技术': ['计算机'],
+  '汉语言文学': ['汉语言', '中文'],
+  '数学与应用数学': ['数学'],
+  '数据科学与大数据技术': ['大数据'],
+  '网络空间安全': ['网络安全', '网安'],
+  '电气工程及其自动化': ['电气'],
+  '机械设计制造及其自动化': ['机械'],
+  '电子信息工程': ['电子信息'],
+  '集成电路设计与集成系统': ['集成电路', '芯片'],
+  '人工智能': ['AI'],
+  '国际经济与贸易': ['国贸'],
+  '人文地理与城乡规划': ['人文地理'],
+  '广播电视编导': ['广电编导'],
+  '播音与主持艺术': ['播音主持']
+});
+
+const getMajorQueryNames = (majorName) => [majorName, ...(MAJOR_QUERY_ALIASES[majorName] || [])]
+  .map(normalizeRagText);
+
+const buildMajorVariantNote = (programNames = []) => {
+  const notes = [];
+  const text = programNames.join('、');
+  if (/师范/.test(text)) notes.push('师范方向通常还包含教育学、学科教学法和教育实习，教师资格与招聘条件需按当年政策核对');
+  if (/定向至/.test(text)) notes.push('教师专项带有定向培养和服务地区要求，报考前必须确认户籍、协议及服务年限');
+  if (/国际班/.test(text)) notes.push('国际班的培养模式、外语要求、学费及升学路径与普通班不同，应单独查看当年项目说明');
+  if (/中外合作办学/.test(text)) notes.push('中外合作办学项目需重点核对合作院校、培养地点、学费和学位授予条件');
+  if (/创新班/.test(text)) notes.push('创新班通常更强调研究训练和拔尖培养，具体选拔与分流方式以当年培养方案为准');
+  if (/双学士学位/.test(text)) notes.push('双学士学位项目跨学科培养，课程负担、学位授予条件和分流规则需单独核对');
+  if (/工程金融/.test(text)) notes.push('工程金融方向侧重金融与工程项目、投融资管理的交叉应用');
+  if (/科技金融/.test(text)) notes.push('科技金融方向侧重金融、数据分析与科技产业场景的交叉应用');
+  if (/高水平运动队/.test(text)) notes.push('高水平运动队执行专项招生与测试规则，文化分不能与普通类直接比较');
+  return notes.join('；');
+};
+
+const loadCuratedAdmissionsRag = () => {
+  const dataset = loadCuratedAdmissionsDataset();
+  if (!dataset) return [];
+  return [normalizeRagItem({
+      id: dataset.id,
+      title: dataset.title,
+      category: '录取分数',
+      topic: RAG_TOPICS.ADMISSIONS,
+      intentTags: ['广州大学', '录取', '分数', '位次', '广东', '专业'],
+      type: 'table',
+      content: dataset.description,
+      tableData: { columns: dataset.columns, rows: dataset.rows },
+      imageAttachments: dataset.imageUrl ? [{ name: '广州大学2025年广东省内录取情况', url: dataset.imageUrl, caption: '用户提供的原始录取表截图' }] : [],
+      tags: ['广州大学', '2025', '广东省', '专业录取', '用户提供资料'],
+      sourceType: 'user-provided-screenshot',
+      updatedAt: dataset.updatedAt
+  })];
+};
+
+const loadCuratedMajorRag = () => {
+  const dataset = loadCuratedAdmissionsDataset();
+  if (!dataset || !dataset.majorIntroductions) return [];
+
+  const rowsByMajor = new Map();
+  dataset.rows.forEach(row => {
+    const baseName = normalizeMajorBaseName(row[2]);
+    if (!rowsByMajor.has(baseName)) rowsByMajor.set(baseName, []);
+    rowsByMajor.get(baseName).push(row);
+  });
+
+  return Array.from(rowsByMajor.entries()).map(([majorName, rows]) => {
+    const programNames = Array.from(new Set(rows.map(row => String(row[2]))));
+    const introduction = dataset.majorIntroductions[majorName]
+      || `${majorName}专业的具体培养目标、核心课程和实践环节应以广州大学当年培养方案为准。`;
+    const variantNote = buildMajorVariantNote(programNames);
+    return normalizeRagItem({
+      id: `gzhu-major-${crypto.createHash('md5').update(majorName).digest('hex').slice(0, 12)}`,
+      title: `广州大学${majorName}专业介绍与2025年广东录取数据`,
+      category: '专业介绍与录取',
+      topic: RAG_TOPICS.MAJOR,
+      intentTags: ['广州大学', '专业介绍', '培养方向', '录取分数', '最低位次'],
+      type: 'table',
+      content: `${introduction}${variantNote ? `\n\n特别说明：${variantNote}。` : ''}`,
+      tableData: { columns: dataset.columns, rows },
+      imageAttachments: [],
+      sourceImageUrl: dataset.imageUrl || '',
+      tags: ['广州大学', majorName, ...programNames, '2025广东录取', '最低分', '最低位次'],
+      sourceType: 'curated-major-profile',
+      kind: 'major-profile',
+      majorName,
+      programNames,
+      introduction,
+      updatedAt: dataset.updatedAt
+    });
+  });
+};
+
+let curatedClubsDatasetCache = null;
+const loadCuratedClubsDataset = () => {
+  if (curatedClubsDatasetCache) return curatedClubsDatasetCache;
+  if (!fs.existsSync(curatedClubsFilePath)) return null;
+  try {
+    const dataset = JSON.parse(fs.readFileSync(curatedClubsFilePath, 'utf8'));
+    if (!Array.isArray(dataset.categories) || !dataset.categories.length) return null;
+    curatedClubsDatasetCache = dataset;
+    return dataset;
+  } catch (error) {
+    console.warn('Curated club data warning:', error.message);
+    return null;
+  }
+};
+
+const buildClubDirectoryContent = (dataset) => {
+  const total = dataset.categories.reduce((sum, category) => sum + category.clubs.length, 0);
+  let content = `【社团分类总览+全部社团名录】\n\n共 ${dataset.categories.length} 类、${total} 个学生社团。\n\n`;
+  dataset.categories.forEach(category => {
+    content += `### ${category.name}（${category.clubs.length} 个）\n`;
+    category.clubs.forEach(club => {
+      content += `- ${club.id} ${club.name}${club.trial ? '（试运行社团）' : ''}\n`;
+    });
+    content += `\n`;
+  });
+  content += `【社团加入规则限制】\n\n- ${dataset.rules.trial}\n- ${dataset.rules.joinLimit}\n\n`;
+  content += `【社团管理单位】\n\n- ${dataset.managementUnit}`;
+  return content;
+};
+
+const loadCuratedClubRag = () => {
+  const dataset = loadCuratedClubsDataset();
+  if (!dataset) return [];
+  const rows = dataset.categories.flatMap(category => category.clubs.map(club => [
+    category.name,
+    club.id,
+    club.name,
+    club.trial ? '是' : '否'
+  ]));
+  return [normalizeRagItem({
+    id: CLUB_DIRECTORY_ID,
+    title: dataset.title,
+    category: dataset.knowledgeCategory,
+    topic: RAG_TOPICS.CAMPUS_LIFE,
+    intentTags: ['社团', '百团大战', '学生社团', '社团规则', '校园生活'],
+    type: 'text',
+    content: buildClubDirectoryContent(dataset),
+    tableData: { columns: ['分类', '编号', '社团名称', '试运行'], rows },
+    imageAttachments: [],
+    tags: dataset.tags,
+    sourceType: 'user-provided-club-image',
+    kind: 'club-directory',
+    readOnly: true,
+    updatedAt: dataset.updatedAt
+  })];
+};
+
+let curatedCoreGuidesCache = null;
+const loadCuratedCoreGuides = () => {
+  if (curatedCoreGuidesCache) return curatedCoreGuidesCache;
+  const items = readJsonFile(curatedCoreGuidesFilePath, []);
+  curatedCoreGuidesCache = Array.isArray(items)
+    ? items.map(item => normalizeRagItem({
+        ...item,
+        intentTags: item.tags || [],
+        imageAttachments: item.imageAttachments || [],
+        tableData: item.tableData || null,
+        readOnly: true,
+        updatedAt: item.updatedAt || '2026-08-17T00:00:00.000+08:00'
+      }))
+    : [];
+  return curatedCoreGuidesCache;
+};
+
+let curatedClubEmbeddingPromise = null;
+const getCuratedClubEmbedding = async (clubItem) => {
+  if (!embedder || !clubItem) return null;
+  if (!curatedClubEmbeddingPromise) {
+    const dataset = loadCuratedClubsDataset();
+    const searchText = [
+      clubItem.title,
+      clubItem.category,
+      ...(clubItem.tags || []),
+      '社团有哪些 百团大战 能加几个社团 学生组织 社团加入限制',
+      dataset?.rules?.trial,
+      dataset?.rules?.joinLimit,
+      dataset?.managementUnit,
+      ...(dataset?.categories || []).map(category => category.name)
+    ].filter(Boolean).join(' ');
+    curatedClubEmbeddingPromise = getEmbedding(searchText).then(vector => {
+      if (!vector) curatedClubEmbeddingPromise = null;
+      return vector;
+    });
+  }
+  return curatedClubEmbeddingPromise;
+};
+
+const isClubKnowledgeQuery = (query = '') => {
+  const text = String(query);
+  if (/社团|百团大战|学生组织|能加几个|最多.{0,4}(加入|参加)/.test(text)) return true;
+  const dataset = loadCuratedClubsDataset();
+  return Boolean(dataset?.categories?.some(category => category.clubs.some(club => {
+    const shortName = club.name.replace(/^广州大学(?:学生)?/, '');
+    return text.includes(club.name) || (shortName.length >= 4 && text.includes(shortName));
+  })));
+};
 
 const classifyRagIntent = (query = '') => {
   const normalized = normalizeRagText(query);
+  // A score/rank or application question needs admissions records even when
+  // the same sentence also names a major.
+  if (/录取|分数|位次|排位|招生|志愿|报考|录取线|匹配|冲稳保|能不能上|能否上/.test(normalized)) {
+    const admissionsRule = RAG_TOPIC_RULES.find(rule => rule.topic === RAG_TOPICS.ADMISSIONS);
+    return { topic: RAG_TOPICS.ADMISSIONS, tags: admissionsRule.tags, confidence: 'high' };
+  }
+  if (isClubKnowledgeQuery(query)) {
+    const campusRule = RAG_TOPIC_RULES.find(rule => rule.topic === RAG_TOPICS.CAMPUS_LIFE);
+    return { topic: RAG_TOPICS.CAMPUS_LIFE, tags: campusRule.tags, confidence: 'high' };
+  }
+  const dataset = loadCuratedAdmissionsDataset();
+  const mentionsKnownMajor = dataset?.rows?.some(row => getMajorQueryNames(normalizeMajorBaseName(row[2]))
+    .some(name => normalized.includes(name)));
+  if (mentionsKnownMajor) {
+    const majorRule = RAG_TOPIC_RULES.find(rule => rule.topic === RAG_TOPICS.MAJOR);
+    return { topic: RAG_TOPICS.MAJOR, tags: majorRule.tags, confidence: 'high' };
+  }
   // Check explicit major language before generic travel language so
   // "交通专业" is never treated as a question about commuting.
   for (const rule of RAG_TOPIC_RULES) {
@@ -555,6 +835,44 @@ const inferRagTopic = (item = {}) => {
   return RAG_TOPICS.GENERAL;
 };
 
+const KNOWLEDGE_PRIMARY_CATEGORY = Object.freeze({
+  [RAG_TOPICS.HOUSING]: '校区住宿',
+  [RAG_TOPICS.MAJOR]: '学院专业',
+  [RAG_TOPICS.CAMPUS_LIFE]: '校园生活',
+  [RAG_TOPICS.TUITION]: '招生就业',
+  [RAG_TOPICS.ADMISSIONS]: '招生就业',
+  [RAG_TOPICS.TRAVEL]: '办事指南',
+  [RAG_TOPICS.GENERAL]: '校园打卡'
+});
+
+const inferCampus = (item = {}) => {
+  const text = `${item.title || ''} ${item.category || ''} ${item.content || ''} ${(item.tags || []).join(' ')}`;
+  if (/桂花岗/.test(text)) return '桂花岗校区';
+  if (/黄埔|研究生院/.test(text)) return '黄埔校区';
+  if (/大学城|番禺/.test(text)) return '大学城校区';
+  return '全校通用';
+};
+
+const inferCollege = (item = {}) => {
+  const text = `${item.title || ''} ${item.category || ''} ${item.content || ''} ${(item.tags || []).join(' ')}`;
+  const match = text.match(/([\u4e00-\u9fa5A-Za-z]{2,18}(?:学院|学部))/);
+  return match?.[1] || '全校通用';
+};
+
+const normalizeTags = (tags = []) => Array.from(new Set((Array.isArray(tags) ? tags : [])
+  .map(tag => String(tag || '').trim().replace(/^#+/, ''))
+  .filter(Boolean))).slice(0, 20);
+const curatedEmbeddingCache = new Map();
+
+const hydrateCuratedEmbedding = async (item) => {
+  if (!embedder || item.embedding || item.sourceType !== 'curated-guidance') return item;
+  if (!curatedEmbeddingCache.has(item.id)) {
+    curatedEmbeddingCache.set(item.id, getEmbedding(`${item.title} ${item.category} ${item.coreInfo || item.content} ${(item.tags || []).join(' ')}`));
+  }
+  const embedding = await curatedEmbeddingCache.get(item.id);
+  return embedding ? { ...item, embedding } : item;
+};
+
 const normalizeRagItem = (item = {}) => {
   const topic = inferRagTopic(item);
   const topicRule = RAG_TOPIC_RULES.find(rule => rule.topic === topic);
@@ -562,22 +880,99 @@ const normalizeRagItem = (item = {}) => {
     ...(Array.isArray(item.intentTags) ? item.intentTags : []),
     ...(topicRule?.tags || [])
   ]));
-  return { ...item, topic, intentTags };
+  const tags = normalizeTags(item.tags);
+  const itemText = `${item.title || ''} ${item.category || ''} ${tags.join(' ')} ${item.content || ''}`;
+  const linkedKnowledgeIds = item.id !== CLUB_DIRECTORY_ID && /社团|百团大战|志愿服务/.test(itemText)
+    ? Array.from(new Set([...(item.linkedKnowledgeIds || []), CLUB_DIRECTORY_ID]))
+    : (item.linkedKnowledgeIds || []);
+  return {
+    ...item,
+    topic,
+    intentTags,
+    tags,
+    primaryCategory: item.primaryCategory || KNOWLEDGE_PRIMARY_CATEGORY[topic] || '校园生活',
+    secondaryCategory: item.secondaryCategory || item.category || '其他',
+    campus: item.campus || inferCampus(item),
+    college: item.college || inferCollege(item),
+    audience: Array.isArray(item.audience) && item.audience.length ? item.audience : ['考生', '家长', '在校生'],
+    coreInfo: item.coreInfo || item.content || '',
+    commonQuestions: Array.isArray(item.commonQuestions) ? item.commonQuestions : [],
+    reviewStatus: item.reviewStatus || 'approved',
+    linkedKnowledgeIds
+  };
 };
 
 const searchRagEngine = async (query = '', topK = 3) => {
   const intent = classifyRagIntent(query);
+  const ragSettings = loadRagSettings();
+  const isClubDirectoryQuery = isClubKnowledgeQuery(query);
+
+  // Club questions must always resolve to the curated full directory. Keep
+  // this before cache and embedding lookup so stale generic campus results
+  // cannot shadow the authoritative club slice.
+  if (isClubDirectoryQuery) {
+    const clubItem = loadCuratedClubRag()[0];
+    if (!clubItem) return [];
+    const [queryVector, clubVector] = await Promise.all([
+      getEmbedding(query),
+      getCuratedClubEmbedding(clubItem)
+    ]);
+    if (clubVector) clubItem.embedding = clubVector;
+    const vectorScore = queryVector && clubVector ? Math.max(0, cosineSimilarity(queryVector, clubVector)) : 0;
+    return [{ item: clubItem, score: 100 + vectorScore, vectorSimilarity: vectorScore || null }];
+  }
+
   const queryHash = crypto.createHash('md5').update(`${intent.topic}:${query}`).digest('hex');
-  const cacheKey = `rag:search:v2:${queryHash}`;
+  const cacheKey = `rag:search:v6:${queryHash}`;
 
   const cached = await getCache(cacheKey);
   if (cached) return cached;
 
   const queryVector = await getEmbedding(query);
-  const ragStore = (await getRagStore()).map(normalizeRagItem);
-  const candidates = intent.topic === RAG_TOPICS.GENERAL
+  const ragStore = [
+    ...(await getRagStore()).map(normalizeRagItem),
+    ...loadCuratedAdmissionsRag(),
+    ...loadCuratedMajorRag(),
+    ...loadCuratedClubRag(),
+    ...loadCuratedCoreGuides()
+  ];
+  let candidates = intent.topic === RAG_TOPICS.GENERAL
     ? ragStore
     : ragStore.filter(item => item.topic === intent.topic || item.intentTags.some(tag => intent.tags.includes(tag)));
+  if (intent.topic === RAG_TOPICS.ADMISSIONS) {
+    candidates = candidates.filter(isTrustedGzhuAdmissionsItem);
+  }
+  if (intent.topic === RAG_TOPICS.MAJOR) {
+    const normalizedQuery = normalizeRagText(query);
+    candidates = candidates.filter(item => !/爆款指数|绝对王牌|起薪|极度抢手|铁饭碗/.test(String(item.content || '')));
+    const directlyMentioned = candidates.filter(item => item.kind === 'major-profile'
+      && getMajorQueryNames(item.majorName).some(name => normalizedQuery.includes(name)));
+    if (directlyMentioned.length) {
+      const rangesFor = (name) => {
+        const ranges = [];
+        let start = normalizedQuery.indexOf(name);
+        while (start !== -1) {
+          ranges.push({ start, end: start + name.length });
+          start = normalizedQuery.indexOf(name, start + 1);
+        }
+        return ranges;
+      };
+      const mentionedWithRanges = directlyMentioned.map(item => {
+        const matchedName = getMajorQueryNames(item.majorName)
+          .filter(name => normalizedQuery.includes(name))
+          .sort((a, b) => b.length - a.length)[0];
+        return { item, name: matchedName, ranges: rangesFor(matchedName) };
+      });
+      candidates = mentionedWithRanges
+        .filter(current => current.ranges.some(range => !mentionedWithRanges.some(other =>
+          other !== current
+          && other.name.length > current.name.length
+          && other.ranges.some(otherRange => otherRange.start <= range.start && otherRange.end >= range.end))))
+        .sort((a, b) => a.ranges[0].start - b.ranges[0].start)
+        .map(entry => entry.item);
+    }
+  }
+  if (queryVector) candidates = await Promise.all(candidates.map(hydrateCuratedEmbedding));
   const queryTerms = Array.from(new Set([
     ...intent.tags,
     ...normalizeRagText(query).split(/[，。！？、\s]+/).filter(term => term.length >= 2)
@@ -585,12 +980,13 @@ const searchRagEngine = async (query = '', topK = 3) => {
 
   const scored = candidates.map((item) => {
     let score = 0;
+    let vectorSimilarity = null;
     const itemText = normalizeRagText(`${item.title} ${item.category} ${item.content} ${(item.tags || []).join(' ')} ${(item.intentTags || []).join(' ')}`);
 
     // 1. Local BGE 512-dim Dense Vector Similarity (0 to 1)
     if (queryVector && item.embedding) {
-      const vecSim = cosineSimilarity(queryVector, item.embedding);
-      score += vecSim * 10;
+      vectorSimilarity = cosineSimilarity(queryVector, item.embedding);
+      score += vectorSimilarity * 10;
     }
 
     // 2. Keyword Match Boost for Title, Tags, Image Names
@@ -600,11 +996,11 @@ const searchRagEngine = async (query = '', topK = 3) => {
     if ((item.imageAttachments || []).some(img => qLower.includes(img.name.toLowerCase()))) score += 5;
     score += queryTerms.filter(term => itemText.includes(normalizeRagText(term))).length * 1.25;
     if (item.topic === intent.topic && intent.topic !== RAG_TOPICS.GENERAL) score += 2;
-
-    return { item, score };
+    return { item, score, vectorSimilarity };
   });
 
   const results = scored
+    .filter(result => result.vectorSimilarity === null || result.vectorSimilarity >= ragSettings.similarityThreshold)
     .filter(s => s.score >= (intent.topic === RAG_TOPICS.GENERAL ? 1.25 : 2.25))
     .sort((a, b) => b.score - a.score)
     .slice(0, topK);
@@ -617,11 +1013,14 @@ const formatRagContext = (ragResults) => {
   if (!ragResults.length) return '';
 
   let ctx = `【知识库（RAG）匹配到的参考信息】：\n\n`;
-  ragResults.forEach(({ item, score }, index) => {
-    ctx += `${index + 1}. **${item.title}** (${item.category}) [相似度: ${(score * 10).toFixed(1)}%]\n`;
+  ragResults.forEach(({ item, score, vectorSimilarity }, index) => {
+    const relevance = typeof vectorSimilarity === 'number'
+      ? `${(vectorSimilarity * 100).toFixed(1)}%`
+      : `${Math.min(100, Math.max(0, score * 10)).toFixed(1)}%`;
+    ctx += `${index + 1}. **${item.title}** (${item.category}) [相关度: ${relevance}]\n`;
     if (item.content) ctx += `   说明：${item.content}\n`;
 
-    if (item.tableData && item.tableData.columns && item.tableData.rows) {
+    if (item.kind !== 'club-directory' && item.tableData && item.tableData.columns && item.tableData.rows) {
       ctx += `   数据表格：\n`;
       ctx += `   | ${item.tableData.columns.join(' | ')} |\n`;
       ctx += `   | ${item.tableData.columns.map(() => '---').join(' | ')} |\n`;
@@ -644,10 +1043,150 @@ const formatRagContext = (ragResults) => {
 
 // Build a useful answer even when the LLM is unavailable. Keep the same
 // structure as the prompted answer so the experience stays consistent.
-const buildLocalRagReply = (query, ragResults) => {
+const buildAdmissionsFollowUp = (userProfile = {}) => {
+  userProfile = userProfile || {};
+  const missingFields = [
+    { present: userProfile.admissionYear, label: '报考年份', example: '报考年份：2027' },
+    { present: userProfile.province, label: '高考省份', example: '高考省份：广东' },
+    { present: userProfile.score || userProfile.rank, label: '预估分数或省排名', example: '预估分数：610｜省排名：28000' },
+    { present: userProfile.subjects, label: '选科组合', example: '选科：物理+化学+生物' },
+    { present: userProfile.admissionCategory, label: '招生类别', example: '招生类别：普通文理' },
+    { present: userProfile.targetMajors, label: '意向专业', example: '意向专业：计算机、人工智能' },
+    { present: userProfile.annualBudget, label: '年度预算', example: '年度预算：2万元' },
+    { present: userProfile.preferences, label: '填报偏好', example: '填报偏好：专业优先，可接受调剂' }
+  ].filter(field => !String(field.present || '').trim());
+
+  let followUp = `## 继续帮你细化\n\n`;
+  if (missingFields.length) {
+    followUp += `为了让判断更可靠，还需要补充：**${missingFields.map(field => field.label).join('、')}**。可直接按下面的格式回复：\n\n`;
+    followUp += `> ${missingFields.map(field => field.example).join('｜')}\n\n`;
+  } else {
+    followUp += `你的关键信息已经比较完整，我会直接结合现有资料继续分析。\n\n`;
+  }
+  followUp += `我会在现有可靠数据范围内给出：**选科限制、位次匹配、冲稳保判断、费用风险**，以及一份可执行的**下一步核对清单**；数据不足的部分会明确标注，不会给出虚假的录取概率。`;
+  return followUp;
+};
+
+const buildLocalAdmissionsMatch = (query, ragResults, userProfile = {}) => {
+  userProfile = userProfile || {};
+  const admissionsItem = ragResults.map(result => result.item).find(item => item.sourceType === 'user-provided-screenshot');
+  if (!admissionsItem) return null;
+
+  const explicitlyRequestsGuangdong = /广东/.test(String(query));
+  if (userProfile.province && userProfile.province !== '广东' && !explicitlyRequestsGuangdong) {
+    return `## 核心结论\n\n当前已录入的是广州大学 **2025 年广东省内**专业录取数据，不能直接用于${userProfile.province}考生的匹配。\n\n## 风险点\n\n各省招生计划、选科要求和录取位次不可横向替代，需要补充广州大学在${userProfile.province}的同口径专业录取表。\n\n${buildAdmissionsFollowUp(userProfile)}`;
+  }
+
+  const admissionCategory = String(userProfile.admissionCategory || '普通文理');
+  const subjects = String(userProfile.subjects || '');
+  const subjectType = admissionCategory === '体育统考'
+    ? '体育(不分科目类)'
+    : ((admissionCategory === '艺术统考' || /艺术/.test(subjects))
+      ? '艺术(不分科目类)'
+      : (/历史|史/.test(subjects) ? '历史类' : (/物理|物/.test(subjects) ? '物理类' : '')));
+  const targetMajors = String(userProfile.targetMajors || '')
+    .split(/[、,，/；;]+/)
+    .map(value => value.trim())
+    .filter(Boolean);
+  const allRows = admissionsItem.tableData?.rows || [];
+  const queryMajors = allRows
+    .map(row => String(row[2]))
+    .filter(major => String(query).includes(major));
+  const requestedMajors = Array.from(new Set([...targetMajors, ...queryMajors]));
+
+  if ((!Number(userProfile.score) && !Number(userProfile.rank)) || !subjectType || !requestedMajors.length) {
+    return `## 核心结论\n\n我已经有广州大学 2025 年广东省内专业录取表，但还不能准确定位到同一录取口径。\n\n## 需要补充\n\n请确认首选科目（物理或历史）、招生类别（如普通文理、地方专项）和广州大学意向专业。\n\n${buildAdmissionsFollowUp(userProfile)}`;
+  }
+
+  const matchedRows = allRows.filter(row => row[0] === subjectType
+    && row[1] === admissionCategory
+    && requestedMajors.some(major => String(row[2]).includes(major) || major.includes(String(row[2]))));
+
+  if (!matchedRows.length) {
+    return `## 核心结论\n\n用户提供的广州大学 2025 年广东省内录取表中，没有找到“${subjectType} / ${admissionCategory} / ${requestedMajors.join('、')}”这一组合，暂时不能给出分数匹配结论。\n\n## 风险点\n\n可能是该类别没有投放该专业，也可能是专业名称或招生类别不一致；需要对照当年招生专业目录复核。\n\n${buildAdmissionsFollowUp(userProfile)}`;
+  }
+
+  const candidateRank = Number(userProfile.rank) || 0;
+  const candidateScore = Number(userProfile.score) || 0;
+  const assessments = matchedRows.map(row => {
+    const cutoffScore = Number(row[3]);
+    const cutoffRank = Number(row[4]);
+    if (candidateRank) {
+      const margin = cutoffRank - candidateRank;
+      const nearThreshold = Math.max(1500, Math.round(cutoffRank * 0.05));
+      const status = margin >= nearThreshold
+        ? '高于 2025 最低位次线'
+        : (margin >= 0 ? '接近且略高于 2025 最低位次线' : (Math.abs(margin) <= nearThreshold ? '接近但略低于 2025 最低位次线' : '低于 2025 最低位次线'));
+      return { row, status, detail: margin >= 0 ? `领先 ${margin} 位` : `落后 ${Math.abs(margin)} 位` };
+    }
+    const scoreMargin = candidateScore - cutoffScore;
+    const status = scoreMargin >= 5
+      ? '高于 2025 最低分'
+      : (scoreMargin >= 0 ? '接近且略高于 2025 最低分' : (scoreMargin >= -5 ? '接近但略低于 2025 最低分' : '低于 2025 最低分'));
+    return { row, status, detail: scoreMargin >= 0 ? `高 ${scoreMargin} 分` : `低 ${Math.abs(scoreMargin)} 分` };
+  });
+
+  let reply = `## 核心结论\n\n`;
+  reply += assessments.map(({ row, status, detail }) => `**${row[2]}：${status}（${detail}）**`).join('；');
+  reply += `。这只是与 2025 年最低录取结果的单年对照，不等同于下一年度“稳录”。\n\n`;
+  if (userProfile.province && userProfile.province !== '广东') {
+    reply += `> 注意：你的档案省份是${userProfile.province}，下列结果是按你明确要求进行的广东数据横向对照，不能作为${userProfile.province}录取判断。\n\n`;
+  }
+  reply += `## 广州大学 2025 年广东参考\n\n`;
+  reply += `| 科类 | 类别 | 专业 | 最低分 | 最低分位次 | 你的对照 |\n| --- | --- | --- | ---: | ---: | --- |\n`;
+  assessments.forEach(({ row, status, detail }) => {
+    reply += `| ${row[0]} | ${row[1]} | ${row[2]} | ${row[3]} | ${row[4]} | ${status}，${detail} |\n`;
+  });
+  reply += `\n数据来源：[用户提供的原始录取表截图](${admissionsItem.imageAttachments?.[0]?.url || '#'})。\n\n`;
+  reply += `## 风险点与下一步\n\n- 当前只有 2025 年单年数据，不能计算可靠的“冲、稳、保”区间；还需补齐至少近三年同口径位次。\n- 最低分和最低位次只代表当年最后一名录取结果，招生计划变化会造成波动。\n- 正式填报前，核对当年广州大学招生专业目录、选科要求、专业组设置和组内调剂范围。`;
+  return reply;
+};
+
+const buildLocalMajorReply = (ragResults) => {
+  const majorItems = ragResults
+    .map(result => result.item)
+    .filter(item => item.kind === 'major-profile')
+    .filter((item, index, items) => items.findIndex(candidate => candidate.majorName === item.majorName) === index);
+  if (!majorItems.length) return null;
+
+  let reply = majorItems.length === 1 ? '' : `## 专业逐项对比\n\n`;
+  majorItems.forEach((majorItem, index) => {
+    reply += `${majorItems.length === 1 ? '##' : '###'} ${majorItems.length === 1 ? '' : `${index + 1}. `}${majorItem.majorName}专业介绍\n\n${majorItem.content}\n\n`;
+    reply += `${majorItems.length === 1 ? '##' : '####'} 广州大学 2025 年广东录取参考\n\n`;
+    reply += `| 科类 | 招生类别 | 招生专业名称 | 最低分 | 最低分位次 |\n| --- | --- | --- | ---: | ---: |\n`;
+    majorItem.tableData.rows.forEach(row => {
+      reply += `| ${row[0]} | ${row[1]} | ${row[2]} | ${row[3]} | ${row[4]} |\n`;
+    });
+    reply += `\n`;
+  });
+  reply += `数据来自[用户提供的广州大学 2025 年广东省内录取表截图](${majorItems[0].sourceImageUrl || '#'})。专业介绍是学科培养方向概览，具体课程、校区、选科要求和培养方案以广州大学当年官方文件为准。\n\n`;
+  reply += `## 怎么判断是否适合\n\n- 先看课程和能力要求是否与你的兴趣、学科基础匹配。\n- 再按自己的科类和招生类别查对应行，优先比较最低位次，不要跨类别套用分数。\n- 当前只有 2025 年数据，正式判断“冲、稳、保”还需要近三年同口径位次和当年招生计划。`;
+  return reply;
+};
+
+const buildLocalClubReply = (ragResults) => {
+  const clubItem = ragResults.map(result => result.item).find(item => item.kind === 'club-directory');
+  if (!clubItem) return null;
+  return `## ${clubItem.title}\n\n${clubItem.content}\n\n> 名录根据用户提供的《广州大学学生社团一览表》图片录入；社团状态和招新安排可能调整，参加前请向校团委学生社团管理中心复核。`;
+};
+
+const buildLocalRagReply = (query, ragResults, userProfile = {}) => {
+  userProfile = userProfile || {};
   if (!ragResults.length) {
+    if (classifyRagIntent(query).topic === RAG_TOPICS.ADMISSIONS) {
+      return `## 核心结论\n\n当前知识库中没有可核验的广州大学官方专业录取数据，因此暂时不能据此判断“冲、稳、保”。\n\n## 参考信息与数据\n\n录取判断至少要对齐**报考年份、高考省份、科类/选科、招生专业（或专业组）以及最低分/最低位次**。缺少广州大学本科招生网来源的数据时，我不会引用示例数字或其他高校数据代替。\n\n## 报考/咨询建议\n\n优先补充广州大学近三年在你所在省份的专业录取表和当年招生专业目录；比较时以位次为主、分数为辅，并单独核对专业组内调剂范围。\n\n${buildAdmissionsFollowUp(userProfile)}`;
+    }
     return `## 核心结论\n\n抱歉，我目前的知识库中暂未收录关于“${query}”的具体信息。\n\n## 参考信息与数据\n\n当前没有足够的、可直接引用的资料，我不会用其他主题的信息代替回答。\n\n## 报考/咨询建议\n\n如果你愿意，请补充更具体的对象、时间或地区，我再帮你继续核对。`;
   }
+
+  const localAdmissionsMatch = buildLocalAdmissionsMatch(query, ragResults, userProfile);
+  if (localAdmissionsMatch) return localAdmissionsMatch;
+
+  const localClubReply = buildLocalClubReply(ragResults);
+  if (localClubReply) return localClubReply;
+
+  const localMajorReply = buildLocalMajorReply(ragResults);
+  if (localMajorReply) return localMajorReply;
 
   // The no-LLM path should still answer directly and avoid exposing retrieval mechanics.
   const topResult = ragResults[0]?.item;
@@ -678,7 +1217,7 @@ const buildLocalRagReply = (query, ragResults) => {
     }
   });
 
-  reply += `## 报考/咨询建议\n\n- 先用**省份 + 分数/位次 + 选科**核对是否满足专业要求，再比较不同专业的培养方向和就业出口。\n- 分数线只能作为参考，填报时建议按“冲、稳、保”分层，并预留专业调剂风险。\n- 学费、奖助和宿舍标准可能按年度调整，最终以当年招生章程和校方通知为准。\n\n## 继续帮你细化\n\n你可以告诉我所在省份、预估分数/位次、意向专业和预算，我会进一步给出匹配度、风险点和下一步清单。`;
+  reply += `## 报考/咨询建议\n\n- 先用**报考年份 + 省份 + 分数/位次 + 选科**核对是否满足专业要求，再比较不同专业的培养方向和就业出口。\n- 分数线只能作为参考，填报时建议按“冲、稳、保”分层，并预留专业调剂风险。\n- 学费、奖助和宿舍标准可能按年度调整，最终以当年招生章程和校方通知为准。\n\n${buildAdmissionsFollowUp(userProfile)}`;
   return reply;
 };
 
@@ -704,6 +1243,13 @@ const ADMISSIONS_SYSTEM_PROMPT = `
 - 相关图片附件可以使用 Markdown 图片语法 \`![说明](url)\`，但只能展示与当前问题直接相关的图片。
 - 保持产品现有 Markdown 结构：适合时使用“## 核心结论”“## 参考信息与数据”“## 报考/咨询建议”等标题；标题是为了清晰，不是为了填充内容。
 - 结尾最多提出 1~3 个真正有助于继续解决问题的补充问题，不要使用泛泛的客套话。
+- 需要个性化报考判断时，优先复用“当前咨询学生背景资料”和本轮对话中已经提供的信息，不要重复询问。关键信息包括报考年份、高考省份、分数或位次、选科、招生类别和意向专业；预算与填报偏好用于判断费用和调剂风险。只追问仍然缺失、且会实质影响判断的信息。
+- 不得把“匹配度”伪装成精确录取概率。资料充分时给出选科限制、位次匹配和“冲/稳/保”区间；资料不足或年份、省份口径不一致时，明确标注不确定性并给出核验渠道。
+- 本产品的报考匹配院校固定为**广州大学**。不得混用其他高校的数据，也不得把示例数据当成真实数据。广州大学官网、本科招生网和省教育考试院数据可作为正式依据；用户提供的广州大学录取表截图只能作为初步参考，必须明确标注来源并提醒正式填报前复核。
+- 比较历年录取数据时，必须对齐省份、年份、科类/选科和录取层级；优先比较最低位次。院校最低线、专业组最低线和专业最低线必须明确区分，不能互相替代。
+- 用户询问“XX专业怎么样、学什么、好不好”时，优先使用标题与专业名称精确匹配的“专业介绍与录取”知识项。回答至少包含培养内容/能力要求和该专业在广州大学 2025 年广东表中的最低分、最低位次；不同科类、普通文理、地方专项、教师专项、国际班等必须分行展示。不得用宽泛的学院宣传、其他专业或校园生活资料替代。
+- 专业介绍属于学科培养方向概览，不得编造广州大学具体课程、就业率、薪资、保研率或合作单位；这些信息没有官方资料时应明确说明需查当年培养方案或就业质量报告。
+- 用户询问“社团有哪些、百团大战、能加几个社团、学生组织”时，必须优先使用“百团大战·广大全部学生社团完整清单”，完整展示六类社团名录、试运行标记、每学年最多加入 2 个社团的限制和管理单位。不得用泛泛的社团宣传替代完整清单。
 `.trim();
 
 const ADMISSIONS_INTENT_GUARDRAILS = `
@@ -741,11 +1287,76 @@ if (fs.existsSync(distDir)) {
 app.get('/api/health', (_req, res) => {
   res.json({
     ok: true,
+    build: APP_BUILD,
     system: 'Gzadm Navigator Admissions AI + Local BGE RAG DB',
+    curatedMajorProfiles: loadCuratedMajorRag().length,
+    curatedStudentClubs: loadCuratedClubsDataset()?.categories?.reduce((sum, category) => sum + category.clubs.length, 0) || 0,
+    clubQueryProbe: isClubKnowledgeQuery('社团有哪些'),
     embeddingModel: embedder ? 'Local BGE-small-zh 512-dim' : 'Fallback Keyword Engine',
     database: usePostgres ? 'PostgreSQL pgvector' : 'JSON Persistence',
-    cache: useRedis ? 'Redis' : 'Memory Cache'
+    cache: useRedis ? 'Redis' : 'Memory Cache',
+    services: {
+      backend: { status: 'healthy', label: '后端服务', detail: `Build ${APP_BUILD}` },
+      vector: { status: embedder ? 'healthy' : 'degraded', label: '向量模型', detail: embedder ? 'BGE 512 维已加载' : '关键词降级模式' },
+      database: { status: 'healthy', label: '知识库', detail: usePostgres ? 'PostgreSQL + pgvector' : 'JSON 持久化' },
+      redis: { status: redisState.status, label: 'Redis/缓存', detail: redisState.message }
+    }
   });
+});
+
+app.get('/api/admin/status', (_req, res) => {
+  res.json({
+    ok: true,
+    checkedAt: new Date().toISOString(),
+    services: {
+      backend: { status: 'healthy', label: '后端服务', detail: `运行中 · ${APP_BUILD}` },
+      vector: { status: embedder ? 'healthy' : 'degraded', label: '向量库', detail: embedder ? 'BGE 512 维可用' : '正在初始化或已降级' },
+      database: { status: 'healthy', label: '知识库', detail: usePostgres ? 'PostgreSQL + pgvector' : 'JSON 本地持久化' },
+      redis: { status: redisState.status, label: 'Redis/缓存', detail: redisState.message }
+    }
+  });
+});
+
+app.get('/api/admin/stats', async (_req, res) => {
+  const items = [
+    ...loadCuratedAdmissionsRag(),
+    ...loadCuratedMajorRag(),
+    ...loadCuratedClubRag(),
+    ...loadCuratedCoreGuides(),
+    ...(await getRagStore()).map(normalizeRagItem)
+  ];
+  const today = new Date().toISOString().slice(0, 10);
+  const runtime = loadRuntimeStats();
+  const settings = loadRagSettings();
+  const feedback = readJsonFile(feedbackFilePath, []);
+  res.json({
+    ok: true,
+    stats: {
+      knowledgeItems: items.length,
+      tableItems: items.filter(item => item.type === 'table').length,
+      imageAttachments: items.reduce((sum, item) => sum + (item.imageAttachments?.length || 0), 0),
+      todayAdded: items.filter(item => String(item.updatedAt || '').slice(0, 10) === today).length,
+      totalQueries: runtime.totalQueries,
+      hitRate: runtime.totalQueries ? Number(((runtime.ragHits / runtime.totalQueries) * 100).toFixed(1)) : 0,
+      pendingDocuments: items.filter(item => item.reviewStatus === 'pending').length + Number(settings.pendingDocuments || 0),
+      feedbackAccurate: feedback.filter(item => item.rating === 'accurate').length,
+      feedbackIncorrect: feedback.filter(item => item.rating === 'incorrect').length
+    }
+  });
+});
+
+app.get('/api/admin/rag/settings', (_req, res) => res.json({ ok: true, settings: loadRagSettings() }));
+app.put('/api/admin/rag/settings', async (req, res) => {
+  const current = loadRagSettings();
+  const threshold = Number(req.body?.similarityThreshold ?? current.similarityThreshold);
+  const settings = {
+    ...current,
+    ...req.body,
+    similarityThreshold: Math.max(0, Math.min(1, Number.isFinite(threshold) ? threshold : current.similarityThreshold))
+  };
+  saveRagSettings(settings);
+  await invalidateRagCache();
+  res.json({ ok: true, settings });
 });
 
 const findAuthUser = async (username) => {
@@ -784,8 +1395,6 @@ app.post('/api/auth/register', async (req, res) => {
   }
 
   const passwordHash = hashPassword(password);
-  console.debug(`[AUTH DEBUG] register username=${username} passwordHash=${passwordHash}`);
-
   try {
     if (usePostgres) {
       const result = await pgPool.query(
@@ -832,19 +1441,16 @@ app.post('/api/auth/login', async (req, res) => {
   try {
     const user = await findAuthUser(username);
     if (!user) {
-      console.debug(`[AUTH DEBUG] login username=${username} accountHash=NOT_FOUND`);
       return res.status(404).json({ ok: false, code: 'ACCOUNT_NOT_FOUND', error: '账号不存在' });
     }
 
     const verification = verifyPassword(password, user.password);
-    console.debug(`[AUTH DEBUG] login username=${username} passwordHash=${verification.hash} storedHash=${user.password}`);
     if (!verification.valid) {
       return res.status(401).json({ ok: false, code: 'PASSWORD_INVALID', error: '密码错误' });
     }
 
     if (verification.legacy) {
       await migrateLegacyPassword(username, verification.hash);
-      console.debug(`[AUTH DEBUG] migrated legacy password username=${username} passwordHash=${verification.hash}`);
     }
     return res.json({ ok: true, authenticated: true, user: sanitizeAuthUser(user) });
   } catch (error) {
@@ -853,11 +1459,53 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
+app.put('/api/auth/password', async (req, res) => {
+  await databaseReady;
+  const username = normalizeUsername(req.body?.username);
+  const currentPassword = normalizePassword(req.body?.currentPassword);
+  const newPassword = normalizePassword(req.body?.newPassword);
+  if (!username || !currentPassword || !newPassword) {
+    return res.status(400).json({ ok: false, error: '账号、当前密码和新密码不能为空' });
+  }
+  if (newPassword.length < 6) return res.status(400).json({ ok: false, error: '新密码至少需要 6 位' });
+  const user = await findAuthUser(username);
+  if (!user || !verifyPassword(currentPassword, user.password).valid) {
+    return res.status(401).json({ ok: false, error: '当前密码不正确' });
+  }
+  const nextHash = hashPassword(newPassword);
+  if (usePostgres) {
+    await pgPool.query('UPDATE users SET password = $1 WHERE username = $2', [nextHash, username]);
+  } else {
+    const users = loadJsonUsers();
+    const index = users.findIndex(item => normalizeUsername(item.username) === username);
+    if (index < 0) return res.status(404).json({ ok: false, error: '账号不存在' });
+    users[index].password = nextHash;
+    saveJsonUsers(users);
+  }
+  res.json({ ok: true });
+});
+
+app.get('/api/admin/users', async (_req, res) => {
+  await databaseReady;
+  let users;
+  if (usePostgres) {
+    const result = await pgPool.query('SELECT username, role, profile, created_at FROM users ORDER BY created_at DESC');
+    users = result.rows.map(user => ({ ...sanitizeAuthUser(user), profile: user.profile || {} }));
+  } else {
+    const profiles = readJsonFile(path.join(dataDir, 'user_profiles.json'), {});
+    users = loadJsonUsers().map(user => ({ ...sanitizeAuthUser(user), profile: profiles[user.username] || {} }));
+  }
+  res.json({ ok: true, users });
+});
+
 // --- Configurable model registry and lightweight web-search tool ---
 const DEFAULT_MODELS = [
+  { id: 'local-bge-rag', name: '本地 BGE 知识库', provider: 'local', endpoint: 'local://bge-rag', supportsVision: false, temperature: 0, maxTokens: 4096, enabled: true },
   { id: 'deepseek-chat', name: 'DeepSeek Chat', provider: 'deepseek', endpoint: 'https://api.deepseek.com/chat/completions', apiKeyEnv: 'DEEPSEEK_API_KEY', supportsVision: false, temperature: 0.7, maxTokens: 4096 },
   { id: 'deepseek-reasoner', name: 'DeepSeek Reasoner', provider: 'deepseek', endpoint: 'https://api.deepseek.com/chat/completions', apiKeyEnv: 'DEEPSEEK_API_KEY', supportsVision: false, temperature: 0.4, maxTokens: 4096 },
-  { id: 'openai-gpt-4o-mini', name: 'GPT-4o mini (OpenAI-compatible)', provider: 'openai', endpoint: 'https://api.openai.com/v1/chat/completions', apiKeyEnv: 'OPENAI_API_KEY', supportsVision: true, temperature: 0.7, maxTokens: 4096 }
+  { id: 'openai-gpt-4o-mini', name: 'GPT-4o mini', provider: 'openai', endpoint: 'https://api.openai.com/v1/chat/completions', apiKeyEnv: 'OPENAI_API_KEY', supportsVision: true, temperature: 0.7, maxTokens: 4096 },
+  { id: 'codex', name: 'Codex（OpenAI 兼容）', provider: 'openai', endpoint: 'https://api.openai.com/v1/chat/completions', apiKeyEnv: 'OPENAI_API_KEY', model: 'gpt-5-codex', supportsVision: true, temperature: 0.2, maxTokens: 8192, enabled: false },
+  { id: 'claude', name: 'Claude（兼容网关）', provider: 'anthropic-compatible', endpoint: 'https://api.anthropic.com/v1/chat/completions', apiKeyEnv: 'ANTHROPIC_API_KEY', model: 'claude-sonnet-4-5', supportsVision: true, temperature: 0.5, maxTokens: 8192, enabled: false }
 ];
 const modelConfigFilePath = path.join(dataDir, 'model_config.json');
 
@@ -884,22 +1532,42 @@ const publicModel = (model) => ({
   maxTokens: Number(model.maxTokens ?? 4096), enabled: model.enabled !== false
 });
 
+const adminModel = (model) => ({
+  ...model,
+  apiKey: model.apiKey ? '********' : '',
+  apiKeyConfigured: Boolean(model.apiKey || process.env[model.apiKeyEnv || ''])
+});
+
 app.get('/api/models', (_req, res) => res.json({ ok: true, models: loadModelConfig().filter(m => m.enabled !== false).map(publicModel), defaultModel: getModelConfig().id }));
-app.get('/api/admin/models', (_req, res) => res.json({ ok: true, models: loadModelConfig() }));
+app.get('/api/admin/models', (_req, res) => res.json({ ok: true, models: loadModelConfig().map(adminModel) }));
 app.put('/api/admin/models', (req, res) => {
   const models = req.body?.models;
   if (!Array.isArray(models) || !models.length) return res.status(400).json({ ok: false, error: 'A non-empty models array is required' });
+  const existingById = new Map(loadModelConfig().map(model => [model.id, model]));
   const sanitized = models.map(model => ({
     ...model,
     id: String(model.id || '').trim(),
     endpoint: String(model.endpoint || '').trim(),
-    apiKey: undefined
+    apiKey: model.apiKey === '********' ? existingById.get(model.id)?.apiKey : String(model.apiKey || '').trim() || undefined,
+    temperature: Math.max(0, Math.min(2, Number(model.temperature ?? 0.7))),
+    maxTokens: Math.max(128, Math.min(131072, Number(model.maxTokens ?? 4096)))
   })).filter(model => model.id && model.endpoint);
   if (!sanitized.length) return res.status(400).json({ ok: false, error: 'Every model needs an id and endpoint' });
   try {
     fs.writeFileSync(modelConfigFilePath, JSON.stringify(sanitized, null, 2), 'utf8');
-    res.json({ ok: true, models: sanitized });
+    res.json({ ok: true, models: sanitized.map(adminModel) });
   } catch { res.status(500).json({ ok: false, error: 'Failed to persist model configuration' }); }
+});
+
+const appendModelLog = (entry) => {
+  const logs = readJsonFile(modelLogsFilePath, []);
+  logs.unshift({ id: crypto.randomUUID(), timestamp: new Date().toISOString(), ...entry });
+  writeJsonFile(modelLogsFilePath, logs.slice(0, 2000));
+};
+
+app.get('/api/admin/model-logs', (req, res) => {
+  const limit = Math.max(1, Math.min(500, Number(req.query.limit) || 100));
+  res.json({ ok: true, logs: readJsonFile(modelLogsFilePath, []).slice(0, limit) });
 });
 
 const webSearch = async (query, limit = 5) => {
@@ -1178,13 +1846,15 @@ app.post('/api/admin/rag/batch', async (req, res) => {
 // --- RAG Knowledge Base Management APIs ---
 app.get('/api/admin/rag', async (_req, res) => {
   res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
-  const cacheKey = 'rag:knowledge:all';
+  const cacheKey = 'rag:knowledge:all:v3';
   const cached = await getCache(cacheKey);
   if (cached) {
     return res.json({ ok: true, data: cached, source: 'cache' });
   }
 
-  const ragStore = await getRagStore();
+  const curatedItems = [...loadCuratedAdmissionsRag(), ...loadCuratedMajorRag(), ...loadCuratedClubRag(), ...loadCuratedCoreGuides()]
+    .map(item => ({ ...item, readOnly: true }));
+  const ragStore = [...curatedItems, ...(await getRagStore()).map(normalizeRagItem)];
   await setCache(cacheKey, ragStore, 600);
   res.json({ ok: true, data: ragStore, source: 'db' });
 });
@@ -1284,6 +1954,51 @@ app.delete('/api/admin/rag/:id', async (req, res) => {
 
   await invalidateRagCache();
   res.json({ ok: true });
+});
+
+app.post('/api/admin/rag/bulk-delete', async (req, res) => {
+  const ids = Array.from(new Set((Array.isArray(req.body?.ids) ? req.body.ids : []).map(String)))
+    .filter(id => id && id !== CLUB_DIRECTORY_ID && !id.startsWith('gzhu-major-') && id !== loadCuratedAdmissionsDataset()?.id);
+  if (!ids.length) return res.status(400).json({ ok: false, error: '没有可删除的自定义知识条目' });
+  if (usePostgres) await pgPool.query('DELETE FROM rag_knowledge WHERE id = ANY($1)', [ids]);
+  const jsonStore = loadJsonRag();
+  saveJsonRag(jsonStore.filter(item => !ids.includes(item.id)));
+  await invalidateRagCache();
+  res.json({ ok: true, deleted: ids.length });
+});
+
+app.post('/api/admin/rag/bulk-tags', async (req, res) => {
+  const ids = Array.from(new Set((Array.isArray(req.body?.ids) ? req.body.ids : []).map(String)));
+  const tags = normalizeTags(req.body?.tags);
+  const mode = req.body?.mode === 'replace' ? 'replace' : 'append';
+  if (!ids.length || !tags.length) return res.status(400).json({ ok: false, error: '请选择条目并填写标签' });
+  const jsonStore = loadJsonRag();
+  let updated = 0;
+  for (let index = 0; index < jsonStore.length; index += 1) {
+    if (!ids.includes(jsonStore[index].id)) continue;
+    const nextTags = mode === 'replace' ? tags : normalizeTags([...(jsonStore[index].tags || []), ...tags]);
+    jsonStore[index] = normalizeRagItem({ ...jsonStore[index], tags: nextTags, updatedAt: new Date().toISOString() });
+    updated += 1;
+    if (usePostgres) {
+      await pgPool.query('UPDATE rag_knowledge SET tags = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [JSON.stringify(nextTags), jsonStore[index].id]);
+    }
+  }
+  saveJsonRag(jsonStore);
+  await invalidateRagCache();
+  res.json({ ok: true, updated });
+});
+
+app.post('/api/admin/rag/bulk-export', async (req, res) => {
+  const ids = Array.from(new Set((Array.isArray(req.body?.ids) ? req.body.ids : []).map(String)));
+  const allItems = [
+    ...loadCuratedAdmissionsRag(),
+    ...loadCuratedMajorRag(),
+    ...loadCuratedClubRag(),
+    ...loadCuratedCoreGuides(),
+    ...(await getRagStore()).map(normalizeRagItem)
+  ];
+  const items = ids.length ? allItems.filter(item => ids.includes(item.id)) : allItems;
+  res.json({ ok: true, exportedAt: new Date().toISOString(), count: items.length, items });
 });
 
 app.post('/api/admin/rag/search', async (req, res) => {
@@ -1416,7 +2131,9 @@ const normalizeMessage = (message = {}) => ({
   attachments: Array.isArray(message.attachments) ? message.attachments.map(normalizeAttachment).filter(a => a.url) : [],
   createdAt: message.createdAt || message.timestamp || new Date().toISOString(),
   source: message.source || undefined,
-  model: message.model || undefined
+  model: message.model || undefined,
+  citations: Array.isArray(message.citations) ? message.citations : [],
+  feedback: message.feedback || undefined
 });
 
 const normalizeSession = (session = {}) => {
@@ -1571,6 +2288,19 @@ app.delete('/api/user/sessions/:sessionId', async (req, res) => {
     saveSessionPreferences(preferences);
   }
 
+  res.json({ ok: true });
+});
+
+app.delete('/api/user/sessions', async (req, res) => {
+  const username = req.query.username || req.body?.username;
+  if (!username) return res.status(400).json({ ok: false, error: 'Username is required' });
+  if (usePostgres) await pgPool.query('DELETE FROM chat_sessions WHERE username = $1', [username]);
+  const allJson = loadJsonSessions();
+  delete allJson[username];
+  saveJsonSessions(allJson);
+  const preferences = loadSessionPreferences();
+  delete preferences[username];
+  saveSessionPreferences(preferences);
   res.json({ ok: true });
 });
 
@@ -1738,7 +2468,7 @@ app.post('/api/user/profile', async (req, res) => {
   if (isVip) {
     saveUserPersonalMemory(
       username,
-      `学生个人基础背景资料：姓名【${updatedProfile.name || username}】，省份【${updatedProfile.province}】，高考成绩【${updatedProfile.score}分】，全省排名【第${updatedProfile.rank}名】，选科【${updatedProfile.subjects}】，特殊情况说明【${updatedProfile.specialConditions || '无'}】`,
+      `学生个人基础背景资料：姓名【${updatedProfile.name || username}】，报考年份【${updatedProfile.admissionYear || '未填'}】，省份【${updatedProfile.province}】，高考成绩【${updatedProfile.score}分】，全省排名【第${updatedProfile.rank}名】，选科【${updatedProfile.subjects}】，招生类别【${updatedProfile.admissionCategory || '未填'}】，意向专业【${updatedProfile.targetMajors || '未填'}】，年度预算【${updatedProfile.annualBudget || '未填'}】，填报偏好【${updatedProfile.preferences || '未填'}】，特殊情况说明【${updatedProfile.specialConditions || '无'}】`,
       '个人基础背景档案',
       'VIP基本资料'
     ).catch(() => {});
@@ -1765,16 +2495,76 @@ app.get('/api/user/personal-rag', async (req, res) => {
   res.json({ ok: true, items });
 });
 
+const buildAnswerCitations = (ragMatches = [], webResults = []) => [
+  ...ragMatches.map(({ item, score, vectorSimilarity }) => ({
+    id: item.id,
+    title: item.title,
+    category: item.category,
+    sourceType: 'knowledge-base',
+    label: '校内知识库',
+    score: Number(score || 0),
+    vectorSimilarity: typeof vectorSimilarity === 'number' ? vectorSimilarity : null
+  })),
+  ...webResults.map((item, index) => ({
+    id: `web-${index + 1}`,
+    title: item.title || item.url,
+    url: item.url,
+    sourceType: 'web',
+    label: '联网实时资讯'
+  }))
+];
+
+const appendCitationFooter = (reply, citations) => {
+  if (!citations.length) return reply;
+  const lines = citations.map((citation, index) => citation.url
+    ? `${index + 1}. 【${citation.label}】[${citation.title}](${citation.url})`
+    : `${index + 1}. 【${citation.label}】${citation.title}（${citation.category || '未分类'}）`);
+  return `${reply}\n\n---\n\n### 参考来源\n\n${lines.join('\n')}`;
+};
+
+app.post('/api/feedback', (req, res) => {
+  const rating = req.body?.rating;
+  if (!['accurate', 'incorrect'].includes(rating)) {
+    return res.status(400).json({ ok: false, error: 'rating must be accurate or incorrect' });
+  }
+  const feedback = readJsonFile(feedbackFilePath, []);
+  const item = {
+    id: crypto.randomUUID(),
+    username: String(req.body?.username || ''),
+    sessionId: String(req.body?.sessionId || ''),
+    messageId: String(req.body?.messageId || ''),
+    question: String(req.body?.question || '').slice(0, 2000),
+    answer: String(req.body?.answer || '').slice(0, 10000),
+    rating,
+    reason: String(req.body?.reason || '').slice(0, 2000),
+    citations: Array.isArray(req.body?.citations) ? req.body.citations : [],
+    createdAt: new Date().toISOString()
+  };
+  feedback.unshift(item);
+  writeJsonFile(feedbackFilePath, feedback.slice(0, 5000));
+  res.status(201).json({ ok: true, feedback: item });
+});
+
+app.get('/api/admin/feedback', (req, res) => {
+  const rating = String(req.query.rating || '');
+  const items = readJsonFile(feedbackFilePath, []);
+  res.json({ ok: true, feedback: rating ? items.filter(item => item.rating === rating) : items });
+});
+
 // --- Chat Endpoint with RAG Integration ---
 app.post('/api/aura/chat', async (req, res) => {
+  const requestStartedAt = Date.now();
   const modelConfig = getModelConfig(req.body?.model);
-  const apiKey = modelConfig.apiKey || process.env[modelConfig.apiKeyEnv || 'DEEPSEEK_API_KEY'];
+  const apiKey = modelConfig.provider === 'local'
+    ? ''
+    : (modelConfig.apiKey || process.env[modelConfig.apiKeyEnv || 'DEEPSEEK_API_KEY']);
   const username = req.body?.username || '';
   const incomingMessages = Array.isArray(req.body?.messages) ? req.body.messages : [];
   const contentToText = (content) => Array.isArray(content)
     ? content.map(part => typeof part === 'string' ? part : (part?.text || '')).join(' ')
     : String(content || '');
   const lastUserMsg = contentToText([...incomingMessages].reverse().find(m => m.role === 'user')?.content);
+  const agentEnabled = req.body?.agent !== false;
 
   // Retrieve user background profile
   let userProfile = req.body?.userProfile || null;
@@ -1783,7 +2573,8 @@ app.post('/api/aura/chat', async (req, res) => {
   }
 
   // 1. Check Low Score Rule (< 450 -> Service Busy Lock)
-  if (userProfile && typeof userProfile.score === 'number' && userProfile.score > 0 && userProfile.score < 450) {
+  if (userProfile && !isClubKnowledgeQuery(lastUserMsg)
+    && typeof userProfile.score === 'number' && userProfile.score > 0 && userProfile.score < 450) {
     return res.json({
       ok: true,
       isBusy: true,
@@ -1821,25 +2612,77 @@ app.post('/api/aura/chat', async (req, res) => {
   // 3. Perform Campus RAG Knowledge Search
   // Keep several related records so answers can compare data instead of
   // repeating only the single highest-scoring knowledge item.
-  const ragMatches = await searchRagEngine(lastUserMsg, 5);
+  const ragMatches = await searchRagEngine(lastUserMsg, 8);
+  updateRuntimeStats(current => ({
+    ...current,
+    totalQueries: Number(current.totalQueries || 0) + 1,
+    ragHits: Number(current.ragHits || 0) + (ragMatches.length ? 1 : 0),
+    lastQueryAt: new Date().toISOString()
+  }));
+
+  // The full club directory is a controlled knowledge-base answer. Returning
+  // it directly prevents an external model from dropping categories, rules,
+  // or club names and guarantees linked club questions show the same source.
+  if (isClubKnowledgeQuery(lastUserMsg)) {
+    const citations = buildAnswerCitations(ragMatches, []);
+    return res.json({
+      ok: true,
+      reply: appendCitationFooter(buildLocalRagReply(lastUserMsg, ragMatches, userProfile), citations),
+      source: 'curated-club-rag',
+      model: modelConfig.id,
+      build: APP_BUILD,
+      citations,
+      agent: {
+        enabled: agentEnabled,
+        trace: [
+          { tool: 'profile', status: userProfile ? 'used' : 'skipped' },
+          { tool: 'campus-rag', status: ragMatches.length ? 'used' : 'empty', count: ragMatches.length }
+        ],
+        webResults: []
+      }
+    });
+  }
+
   const ragContext = formatRagContext(ragMatches);
-  const agentEnabled = req.body?.agent !== false;
   const webSearchEnabled = req.body?.webSearch === true;
-  const webResults = agentEnabled && webSearchEnabled ? await webSearch(lastUserMsg, 5) : [];
+  const ragSettings = loadRagSettings();
+  const currentIntent = classifyRagIntent(lastUserMsg);
+  const needsOfficialAdmissionsData = currentIntent.topic === RAG_TOPICS.ADMISSIONS;
+  const webSearchQuery = needsOfficialAdmissionsData
+    ? `site:gzhu.edu.cn 广州大学 ${lastUserMsg}`
+    : lastUserMsg;
+  const shouldUseWebSearch = agentEnabled && (webSearchEnabled || (ragSettings.autoWebSearch && !ragMatches.length));
+  const rawWebResults = shouldUseWebSearch ? await webSearch(webSearchQuery, 8) : [];
+  const webResults = needsOfficialAdmissionsData
+    ? rawWebResults.filter(item => isOfficialGzhuUrl(item.url)).slice(0, 5)
+    : rawWebResults.slice(0, 5);
   const webContext = webResults.length ? `【联网搜索工具返回（信息可能变化，请标注来源并提醒用户核验）】：\n${webResults.map((item, index) => `${index + 1}. ${item.title}\n${item.snippet}\n来源：${item.url}`).join('\n\n')}` : '';
+  const citations = buildAnswerCitations(ragMatches, webResults);
   const agentTrace = [
     { tool: 'profile', status: userProfile ? 'used' : 'skipped' },
     { tool: 'personal-memory', status: personalRagContext ? 'used' : 'skipped' },
     { tool: 'campus-rag', status: ragMatches.length ? 'used' : 'empty', count: ragMatches.length },
-    { tool: 'web-search', status: webSearchEnabled ? (webResults.length ? 'used' : 'empty') : 'disabled', count: webResults.length }
+    { tool: 'web-search', status: shouldUseWebSearch ? (webResults.length ? 'used' : 'empty') : 'disabled', count: webResults.length },
+    { tool: 'answer-validator', status: citations.length ? 'grounded' : 'no-evidence' }
   ];
   const buildFallbackReply = () => {
-    let reply = buildLocalRagReply(lastUserMsg, ragMatches);
+    let reply = buildLocalRagReply(lastUserMsg, ragMatches, userProfile);
     if (webResults.length) {
       reply += `\n\n## 联网检索参考\n\n${webResults.map(item => `- [${item.title || item.url}](${item.url})${item.snippet ? `：${item.snippet}` : ''}`).join('\n')}`;
     }
-    return reply;
+    return appendCitationFooter(reply, citations);
   };
+
+  if (ragSettings.requireGroundedAnswer && !citations.length) {
+    return res.json({
+      ok: true,
+      reply: buildFallbackReply(),
+      source: 'grounded-no-evidence',
+      model: modelConfig.id,
+      citations: [],
+      agent: { enabled: agentEnabled, trace: agentTrace, webResults: [] }
+    });
+  }
 
   let systemPromptWithProfile = `${ADMISSIONS_SYSTEM_PROMPT}\n\n${ADMISSIONS_INTENT_GUARDRAILS}`;
   if (userProfile) {
@@ -1847,10 +2690,15 @@ app.post('/api/aura/chat', async (req, res) => {
 - 姓名：${userProfile.name || username}
 - 性别：${userProfile.gender || '未填'}
 - 手机号：${userProfile.phone || '未填'}
+- 报考年份：${userProfile.admissionYear || '未填'}
 - 高考省份：${userProfile.province || '未填'}
 - 高考分数：${userProfile.score || '未填'} 分
 - 全省排名：${userProfile.rank ? `第 ${userProfile.rank} 名` : '未填'}
 - 选科情况：${userProfile.subjects || '未填'}
+- 招生类别：${userProfile.admissionCategory || '未填'}
+- 意向专业：${userProfile.targetMajors || '未填'}
+- 年度预算：${userProfile.annualBudget || '未填'}
+- 填报偏好：${userProfile.preferences || '未填'}
 - 特殊情况说明：${userProfile.specialConditions || '无'}
 ${isVip ? '✨ 该学生为 VIP 优先保障咨询用户 (高考成绩 > 580分)，系统已启用专属个人 RAG 记忆检索！请针对其高考位次及个性化喜好提供定制化报考方案！' : ''}`;
   }
@@ -1875,17 +2723,20 @@ ${isVip ? '✨ 该学生为 VIP 优先保障咨询用户 (高考成绩 > 580分)
 
   // 2. If no API key, serve local response using RAG context
   if (!apiKey) {
+    appendModelLog({ modelId: modelConfig.id, provider: modelConfig.provider, status: 'local', durationMs: Date.now() - requestStartedAt, query: lastUserMsg.slice(0, 300) });
     return res.json({
       ok: true,
       reply: buildFallbackReply(),
       source: ragMatches.length ? 'local-bge-rag-db' : 'local-fallback',
       model: modelConfig.id,
+      citations,
       agent: { enabled: agentEnabled, trace: agentTrace, webResults }
     });
   }
 
   // 3. OpenAI-compatible model call with Agent/RAG context
   try {
+    updateRuntimeStats(current => ({ ...current, modelCalls: Number(current.modelCalls || 0) + 1 }));
     const modelResponse = await fetch(modelConfig.endpoint, {
       method: 'POST',
       headers: {
@@ -1902,10 +2753,14 @@ ${isVip ? '✨ 该学生为 VIP 优先保障咨询用户 (高考成绩 > 580分)
     });
 
     if (!modelResponse.ok) {
+      const durationMs = Date.now() - requestStartedAt;
+      appendModelLog({ modelId: modelConfig.id, provider: modelConfig.provider, status: 'failed', durationMs, error: `HTTP ${modelResponse.status}`, query: lastUserMsg.slice(0, 300) });
+      updateRuntimeStats(current => ({ ...current, modelFailures: Number(current.modelFailures || 0) + 1 }));
       return res.json({
         ok: true,
         reply: buildFallbackReply(),
         source: 'rag-fallback', model: modelConfig.id,
+        citations,
         agent: { enabled: agentEnabled, trace: agentTrace, webResults }
       });
     }
@@ -1922,13 +2777,27 @@ ${isVip ? '✨ 该学生为 VIP 优先保障咨询用户 (高考成绩 > 580分)
       });
     }
 
+    reply = appendCitationFooter(reply, citations);
+
     const source = modelConfig.id.startsWith('deepseek') ? 'deepseek-bge-rag-api' : `${modelConfig.provider || 'model'}-agent-rag-api`;
-    res.json({ ok: true, reply, source, model: modelConfig.id, agent: { enabled: agentEnabled, trace: agentTrace, webResults } });
+    appendModelLog({
+      modelId: modelConfig.id,
+      provider: modelConfig.provider,
+      status: 'success',
+      durationMs: Date.now() - requestStartedAt,
+      query: lastUserMsg.slice(0, 300),
+      promptTokens: payload?.usage?.prompt_tokens ?? null,
+      completionTokens: payload?.usage?.completion_tokens ?? null
+    });
+    res.json({ ok: true, reply, source, model: modelConfig.id, citations, agent: { enabled: agentEnabled, trace: agentTrace, webResults } });
   } catch (error) {
+    appendModelLog({ modelId: modelConfig.id, provider: modelConfig.provider, status: 'failed', durationMs: Date.now() - requestStartedAt, error: error.message, query: lastUserMsg.slice(0, 300) });
+    updateRuntimeStats(current => ({ ...current, modelFailures: Number(current.modelFailures || 0) + 1 }));
     res.json({
       ok: true,
       reply: buildFallbackReply(),
       source: 'rag-fallback', model: modelConfig.id,
+      citations,
       agent: { enabled: agentEnabled, trace: agentTrace, webResults }
     });
   }

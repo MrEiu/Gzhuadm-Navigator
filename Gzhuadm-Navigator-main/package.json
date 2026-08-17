@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev:client": "vite --host --port 4173",
-    "dev:server": "node server.mjs",
+    "dev:server": "node --watch server.mjs",
     "dev": "concurrently -k \"npm run dev:server\" \"npm run dev:client\"",
     "build": "vite build",
     "preview": "vite preview --host",

@@ -8,7 +8,7 @@ import {
   ArrowRight, FileText, FileUp, Scissors, Layers, Eye,
   MessageSquare, History, PanelLeftOpen, PanelLeftClose, Clock, ChevronRight,
   MapPin, Compass, Map, Navigation, Tag, Info, ExternalLink, Bookmark,
-  Paperclip, Globe2
+  Paperclip, Globe2, Target
 } from 'lucide-react';
 
 const API_BASE = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') ? `http://${window.location.hostname}:3001` : '';
@@ -2422,6 +2422,11 @@ export default function App() {
                                   {item.type === 'table' ? '表格型' : item.type === 'image' ? '图片附件型' : '文本型'}
                                 </span>
                                 <span className="text-[11px] font-bold text-gray-400">[{item.category}]</span>
+                                {item.readOnly && (
+                                  <span className="text-[10px] px-2 py-0.5 rounded-md font-bold bg-emerald-50 text-emerald-700 border border-emerald-100">
+                                    系统数据
+                                  </span>
+                                )}
                                 <h4 className="font-bold text-[#4a4365] text-[14px]">{item.title}</h4>
                               </div>
 
@@ -2454,25 +2459,35 @@ export default function App() {
                                   </span>
                                 ))}
                               </div>
+
+                              {item.linkedKnowledgeIds?.includes('gzhu-complete-student-club-directory') && (
+                                <div className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-lg px-2 py-1 w-fit">
+                                  已关联：百团大战·广大全部学生社团完整清单
+                                </div>
+                              )}
                             </div>
 
-                            <div className="flex items-center gap-1">
-                              <button
-                                onClick={() => {
-                                  setEditItem({ ...item });
-                                  setIsEditing(true);
-                                }}
-                                className="p-2 rounded-xl text-[#8a84a4] hover:text-[#4a4365] hover:bg-gray-100 transition-all"
-                              >
-                                <Edit3 size={16} />
-                              </button>
-                              <button
-                                onClick={() => handleDeleteRagItem(item.id)}
-                                className="p-2 rounded-xl text-[#8a84a4] hover:text-red-500 hover:bg-red-50 transition-all"
-                              >
-                                <Trash2 size={16} />
-                              </button>
-                            </div>
+                            {!item.readOnly && (
+                              <div className="flex items-center gap-1">
+                                <button
+                                  onClick={() => {
+                                    setEditItem({ ...item });
+                                    setIsEditing(true);
+                                  }}
+                                  className="p-2 rounded-xl text-[#8a84a4] hover:text-[#4a4365] hover:bg-gray-100 transition-all"
+                                  title="编辑知识条目"
+                                >
+                                  <Edit3 size={16} />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteRagItem(item.id)}
+                                  className="p-2 rounded-xl text-[#8a84a4] hover:text-red-500 hover:bg-red-50 transition-all"
+                                  title="删除知识条目"
+                                >
+                                  <Trash2 size={16} />
+                                </button>
+                              </div>
+                            )}
                           </div>
                         ))}
                       </div>
@@ -3396,10 +3411,15 @@ const UserProfileModal = ({ profile, isOpen, onClose, onSave }: UserProfileModal
     name: profile?.name || '',
     gender: profile?.gender || '男',
     phone: profile?.phone || '',
+    admissionYear: profile?.admissionYear || '',
     province: profile?.province || '浙江',
     score: profile?.score || '',
     rank: profile?.rank || '',
     subjects: profile?.subjects || '物化生',
+    admissionCategory: profile?.admissionCategory || '普通文理',
+    targetMajors: profile?.targetMajors || '',
+    annualBudget: profile?.annualBudget || '',
+    preferences: profile?.preferences || '',
     specialConditions: profile?.specialConditions || ''
   });
 
@@ -3409,10 +3429,15 @@ const UserProfileModal = ({ profile, isOpen, onClose, onSave }: UserProfileModal
         name: profile.name || '',
         gender: profile.gender || '男',
         phone: profile.phone || '',
+        admissionYear: profile.admissionYear || '',
         province: profile.province || '浙江',
         score: profile.score || '',
         rank: profile.rank || '',
         subjects: profile.subjects || '物化生',
+        admissionCategory: profile.admissionCategory || '普通文理',
+        targetMajors: profile.targetMajors || '',
+        annualBudget: profile.annualBudget || '',
+        preferences: profile.preferences || '',
         specialConditions: profile.specialConditions || ''
       });
     }
@@ -3455,7 +3480,7 @@ const UserProfileModal = ({ profile, isOpen, onClose, onSave }: UserProfileModal
             <div className="text-[12px] font-black text-[#a494e8] uppercase tracking-wider flex items-center gap-1.5">
               <User size={14} /> 第一部分：基本身份信息
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="text-[12px] font-bold text-[#4a4365] block mb-1">姓名 <span className="text-red-500">*</span></label>
                 <input
@@ -3499,7 +3524,20 @@ const UserProfileModal = ({ profile, isOpen, onClose, onSave }: UserProfileModal
               <FileText size={14} /> 第二部分：高考成绩与选科
             </div>
 
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+              <div>
+                <label className="text-[12px] font-bold text-[#4a4365] block mb-1">报考年份</label>
+                <input
+                  type="number"
+                  min={2024}
+                  max={2035}
+                  value={formData.admissionYear}
+                  onChange={(e) => setFormData({ ...formData, admissionYear: e.target.value })}
+                  placeholder="如: 2027"
+                  className="w-full bg-[#f8f6fc] border border-gray-100 rounded-2xl px-3 py-2.5 text-[13px] outline-none focus:ring-2 focus:ring-[#a494e8]"
+                />
+              </div>
+
               <div>
                 <label className="text-[12px] font-bold text-[#4a4365] block mb-1">高考省份 <span className="text-red-500">*</span></label>
                 <select
@@ -3507,7 +3545,7 @@ const UserProfileModal = ({ profile, isOpen, onClose, onSave }: UserProfileModal
                   onChange={(e) => setFormData({ ...formData, province: e.target.value })}
                   className="w-full bg-[#f8f6fc] border border-gray-100 rounded-2xl px-3 py-2.5 text-[13px] outline-none focus:ring-2 focus:ring-[#a494e8]"
                 >
-                  {['浙江', '江苏', '广东', '四川', '山东', '河南', '湖北', '湖南', '福建', '安徽', '北京', '上海', '重庆', '陕西', '江西', '河北'].map(p => (
+                  {['北京', '天津', '河北', '山西', '内蒙古', '辽宁', '吉林', '黑龙江', '上海', '江苏', '浙江', '安徽', '福建', '江西', '山东', '河南', '湖北', '湖南', '广东', '广西', '海南', '重庆', '四川', '贵州', '云南', '西藏', '陕西', '甘肃', '青海', '宁夏', '新疆'].map(p => (
                     <option key={p} value={p}>{p}</option>
                   ))}
                 </select>
@@ -3539,22 +3577,75 @@ const UserProfileModal = ({ profile, isOpen, onClose, onSave }: UserProfileModal
               </div>
             </div>
 
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="text-[12px] font-bold text-[#4a4365] block mb-1">选科情况</label>
+                <input
+                  type="text"
+                  value={formData.subjects}
+                  onChange={(e) => setFormData({ ...formData, subjects: e.target.value })}
+                  placeholder="如：物理/化学/生物 或 史地政"
+                  className="w-full bg-[#f8f6fc] border border-gray-100 rounded-2xl px-4 py-2.5 text-[13px] outline-none focus:ring-2 focus:ring-[#a494e8]"
+                />
+              </div>
+              <div>
+                <label className="text-[12px] font-bold text-[#4a4365] block mb-1">招生类别</label>
+                <select
+                  value={formData.admissionCategory}
+                  onChange={(e) => setFormData({ ...formData, admissionCategory: e.target.value })}
+                  className="w-full bg-[#f8f6fc] border border-gray-100 rounded-2xl px-4 py-2.5 text-[13px] outline-none focus:ring-2 focus:ring-[#a494e8]"
+                >
+                  {['普通文理', '地方专项', '教师专项', '国际班', '中外合作办学', '体育统考', '艺术统考', '高水平运动队'].map(category => (
+                    <option key={category} value={category}>{category}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* Section 3: Application Goals */}
+          <div className="space-y-3 pt-2">
+            <div className="text-[12px] font-black text-[#a494e8] uppercase tracking-wider flex items-center gap-1.5">
+              <Target size={14} /> 第三部分：报考目标与预算
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="text-[12px] font-bold text-[#4a4365] block mb-1">广州大学意向专业</label>
+                <input
+                  type="text"
+                  value={formData.targetMajors}
+                  onChange={(e) => setFormData({ ...formData, targetMajors: e.target.value })}
+                  placeholder="如：计算机科学与技术、法学"
+                  className="w-full bg-[#f8f6fc] border border-gray-100 rounded-2xl px-4 py-2.5 text-[13px] outline-none focus:ring-2 focus:ring-[#a494e8]"
+                />
+              </div>
+              <div>
+                <label className="text-[12px] font-bold text-[#4a4365] block mb-1">年度预算</label>
+                <input
+                  type="text"
+                  value={formData.annualBudget}
+                  onChange={(e) => setFormData({ ...formData, annualBudget: e.target.value })}
+                  placeholder="如：2万元/年（含生活费）"
+                  className="w-full bg-[#f8f6fc] border border-gray-100 rounded-2xl px-4 py-2.5 text-[13px] outline-none focus:ring-2 focus:ring-[#a494e8]"
+                />
+              </div>
+            </div>
             <div>
-              <label className="text-[12px] font-bold text-[#4a4365] block mb-1">选科情况</label>
-              <input
-                type="text"
-                value={formData.subjects}
-                onChange={(e) => setFormData({ ...formData, subjects: e.target.value })}
-                placeholder="如：物理/化学/生物 或 史地政、物化地等"
-                className="w-full bg-[#f8f6fc] border border-gray-100 rounded-2xl px-4 py-2.5 text-[13px] outline-none focus:ring-2 focus:ring-[#a494e8]"
+              <label className="text-[12px] font-bold text-[#4a4365] block mb-1">填报偏好</label>
+              <textarea
+                rows={2}
+                value={formData.preferences}
+                onChange={(e) => setFormData({ ...formData, preferences: e.target.value })}
+                placeholder="如：专业优先，可接受调剂；不考虑中外合作办学"
+                className="w-full bg-[#f8f6fc] border border-gray-100 rounded-2xl p-3 text-[12px] outline-none focus:ring-2 focus:ring-[#a494e8]"
               />
             </div>
           </div>
 
-          {/* Section 3: Special Conditions */}
+          {/* Section 4: Special Conditions */}
           <div className="space-y-2 pt-2">
             <div className="text-[12px] font-black text-[#a494e8] uppercase tracking-wider flex items-center gap-1.5">
-              <Sparkles size={14} /> 第三部分：特殊情况与考量
+              <Sparkles size={14} /> 第四部分：特殊情况与考量
             </div>
             <div>
               <label className="text-[12px] font-bold text-[#4a4365] block mb-1">特殊情况 / 加分 / 限制说明</label>
