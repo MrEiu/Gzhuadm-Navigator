@@ -1,3 +1,66 @@
+/**
+ * ====================================================================================
+ * GZADM NAVIGATOR - ADMISSION QA & MANAGEMENT PLATFORM (aurasense.tsx)
+ * ====================================================================================
+ *
+ * @file        aurasense.tsx
+ * @description Master Frontend Component incorporating the Student Consultation Portal,
+ *              Interactive Campus Map Guide, RAG Knowledge Base Management, AI Diagnostic
+ *              Playground, and Multi-Model / Search Engine Configuration Console.
+ *
+ * ------------------------------------------------------------------------------------
+ * CODE ARCHITECTURE & MODULE MAP (LINE BY LINE):
+ * ------------------------------------------------------------------------------------
+ *
+ * 1. IMPORTS & SYSTEM CONFIGURATION [Lines 1 - 30]
+ *    - React core hooks, Markdown parsers, Lucide icons.
+ *    - API base URL auto-detection & UI Theme Tokens (THEME, ROLE).
+ *
+ * 2. INITIAL DATA & CAMPUS DATASET [Lines 31 - 149]
+ *    - INITIAL_MESSAGES: Default greeting message from Dr. Elena.
+ *    - DEFAULT_CAMPUS_LOCATIONS: Master database of campus landmarks, 3D coordinates,
+ *      opening hours, high-res images, and searchable tag keywords.
+ *
+ * 3. INTERACTIVE CAMPUS MAP GUIDE MODAL [Lines 150 - 524]
+ *    - MapGuideModal: Renders interactive 3D pin locator map and grid view for exploring
+ *      campus facilities with direct one-click AI query prompts.
+ *
+ * 4. MARKDOWN & CHAT MESSAGE RENDERERS [Lines 525 - 635]
+ *    - sanitizeMarkdownContent: Prevents syntax breakage for unclosed markdown tables/images.
+ *    - AuraMarkdownMessage: Optimized ReactMarkdown renderer with custom table & image styling.
+ *    - ChatMessageItem: Memoized chat bubble component for user and AI responses.
+ *
+ * 5. MAIN APPLICATION CONTROLLER (App Component) [Lines 636 - 3290]
+ *    - State Declarations [Lines 636 - 720]:
+ *      Authentication, Profiles, RAG Manager, Dashboard, Playground, Settings, Analytics.
+ *    - Admin & RAG API Handlers [Lines 725 - 1150]:
+ *      fetchDashboardStats, fetchRagKnowledge, handleSaveSettings, handleRunRagTest,
+ *      handleRunWebSearchTest, performIncrementalAnalysis, etc.
+ *    - User Chat & Streaming Logic [Lines 1151 - 1580]:
+ *      handleSend, streaming AI response parsing, session history persistence.
+ *    - SCENE 1: Authentication UI [Lines 1581 - 1730]:
+ *      Glassmorphism login & registration card.
+ *    - SCENE 2 / VIEW A: Student Consultation UI [Lines 1731 - 1935]:
+ *      Sidebar session history, chat window, location quick-asks, and input bar.
+ *    - SCENE 2 / VIEW B: Admin Management Console [Lines 1936 - 3250]:
+ *      - Sidebar Navigation Console [Lines 1938 - 2040]
+ *      - Tab 1: Dashboard Analytics [Lines 2041 - 2135]
+ *      - Tab 2: RAG Knowledge Base Manager & Slice Editor [Lines 2136 - 2510]
+ *      - Tab 3: Registered User Management & Score Tier Control [Lines 2511 - 2710]
+ *      - Tab 4: Question & Word Frequency Analytics Engine [Lines 2711 - 2865]
+ *      - Tab 5: RAG & Web Search Diagnostic Playground [Lines 2866 - 3020]
+ *      - Tab 6: Multi-Model Gateway & Search Engine Settings [Lines 3021 - 3245]
+ *    - Modal Mounts & Layout Container End [Lines 3246 - 3290]
+ *
+ * 6. AUXILIARY MODALS & SUBSYSTEMS [Lines 3291 - 4071]
+ *    - RagItemModal [Lines 3291 - 3380]: Edit/Create individual knowledge slices.
+ *    - DocumentChunkImportModal [Lines 3381 - 3730]: Document batch chunker & table parser.
+ *    - UserProfileModal [Lines 3731 - 3824]: Student profile & Gaokao score entry form.
+ *    - PersonalRagModal [Lines 3825 - 4071]: VIP student personal RAG memory inspector.
+ *
+ * ====================================================================================
+ */
+
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
