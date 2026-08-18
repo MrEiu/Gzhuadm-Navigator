@@ -664,6 +664,16 @@ export default function App() {
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isPersonalRagOpen, setIsPersonalRagOpen] = useState(false);
 
+  // --- RAG Knowledge Base States ---
+  const [ragItems, setRagItems] = useState<any[]>([]);
+  const [ragSearchQuery, setRagSearchQuery] = useState('');
+  const [ragCategoryFilter, setRagCategoryFilter] = useState('ALL');
+  const [chunkPreviewMode, setChunkPreviewMode] = useState<'list' | 'table'>('list');
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isDocumentChunkModalOpen, setIsDocumentChunkModalOpen] = useState(false);
+  const [isTableParserModalOpen, setIsTableParserModalOpen] = useState(false);
+  const [editingItem, setEditingItem] = useState<any | null>(null);
+
   // --- Admin Management States ---
   const [adminTab, setAdminTab] = useState<'dashboard' | 'rag' | 'users' | 'analytics' | 'playground' | 'settings'>('dashboard');
   const [interceptionEnabled, setInterceptionEnabled] = useState(true);
@@ -910,9 +920,162 @@ export default function App() {
     } catch (e) {}
   };
 
+  const filteredRagItems = useMemo(() => {
+    return ragItems.filter(item => {
+      const matchCat = ragCategoryFilter === 'ALL' || item.category === ragCategoryFilter;
+      const q = ragSearchQuery.toLowerCase();
+      const matchQ = !q || item.title?.toLowerCase().includes(q) || item.content?.toLowerCase().includes(q) || (item.tags || []).some((t: string) => t.toLowerCase().includes(q));
+      return matchCat && matchQ;
+    });
+  }, [ragItems, ragCategoryFilter, ragSearchQuery]);
+
+  const fetchRagKnowledge = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/rag/items`);
+      const data = await res.json();
+      if (data.ok && Array.isArray(data.items)) {
+        setRagItems(data.items);
+      }
+    } catch (e) {
+      console.error('Failed to fetch RAG items', e);
+    }
+  };
+
+  const handleDeleteKnowledge = async (id: string) => {
+    if (!confirm('确定要删除此条知识库切片吗？')) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/rag/items/${id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (data.ok) fetchRagKnowledge();
+    } catch (e) {
+      console.error('Failed to delete RAG item', e);
+    }
+  };
+
+  const fetchDashboardStats = async () => {
+    setIsLoadingDashboard(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/dashboard-stats`);
+      const data = await res.json();
+      if (data.ok) {
+        setDashboardStats(data.stats);
+      }
+    } catch (e) {
+      console.error('Failed to fetch dashboard stats', e);
+    } finally {
+      setIsLoadingDashboard(false);
+    }
+  };
+
+  const fetchSettingsConfig = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/config`);
+      const data = await res.json();
+      if (data.ok && data.config) {
+        setSettingsConfig((prev: any) => ({
+          ...prev,
+          baseUrl: data.config.aiBaseUrl || prev.baseUrl,
+          defaultModel: data.config.defaultModel || prev.defaultModel,
+          fastModel: data.config.fastModel || prev.fastModel,
+          searchProvider: data.config.searchProvider || prev.searchProvider
+        }));
+      }
+    } catch (e) {
+      console.error('Failed to fetch settings config', e);
+    }
+  };
+
+  const handleFetchModelsList = async () => {
+    setIsLoadingModels(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/models`);
+      const data = await res.json();
+      if (data.ok && Array.isArray(data.models) && data.models.length > 0) {
+        setAvailableModels(data.models);
+      } else if (data.models) {
+        setAvailableModels(data.models);
+      }
+    } catch (e) {
+      console.error('Failed to fetch models list', e);
+    } finally {
+      setIsLoadingModels(false);
+    }
+  };
+
+  const handleSaveSettings = async () => {
+    setIsSavingSettings(true);
+    setSettingsSaveMsg(null);
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/config`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(settingsConfig)
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setSettingsSaveMsg(data.message || '配置已成功保存并立即生效！');
+        fetchDashboardStats();
+      } else {
+        setSettingsSaveMsg(`保存失败: ${data.error}`);
+      }
+    } catch (e: any) {
+      setSettingsSaveMsg(`网络错误: ${e.message}`);
+    } finally {
+      setIsSavingSettings(false);
+      setTimeout(() => setSettingsSaveMsg(null), 4000);
+    }
+  };
+
+  const handleRunRagTest = async () => {
+    if (!ragTestQuery.trim()) return;
+    setIsRagTesting(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/rag/search`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: ragTestQuery.trim() })
+      });
+      const data = await res.json();
+      setRagTestResults(data.matches || []);
+    } catch (e) {
+      console.error('RAG test failed', e);
+    } finally {
+      setIsRagTesting(false);
+    }
+  };
+
+  const handleRunWebSearchTest = async () => {
+    if (!webTestQuery.trim()) return;
+    setIsWebTesting(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/web-search`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: webTestQuery.trim(), provider: webTestProvider })
+      });
+      const data = await res.json();
+      setWebTestResults(data);
+    } catch (e) {
+      console.error('Web search test failed', e);
+    } finally {
+      setIsWebTesting(false);
+    }
+  };
+
+  const handleOpenUserPersonalRag = (targetUsername: string) => {
+    setAdminTargetUser(targetUsername);
+    setIsPersonalRagOpen(true);
+  };
+
   useEffect(() => {
     if (currentUser?.role === 'admin') {
+      if (adminTab === 'dashboard') fetchDashboardStats();
+      if (adminTab === 'rag') fetchRagKnowledge();
       if (adminTab === 'users') fetchRegisteredUsers();
+      if (adminTab === 'settings') {
+        fetchSettingsConfig();
+        handleFetchModelsList();
+      }
       if (adminTab === 'analytics') {
         (async () => {
           const dbState = await fetchWordAnalyticsDb() || {
@@ -954,10 +1117,7 @@ export default function App() {
     }
   };
 
-  const handleOpenUserPersonalRag = (targetUsername: string) => {
-    setAdminTargetUser(targetUsername);
-    setIsPersonalRagOpen(true);
-  };
+  
 
   useEffect(() => {
     if (!currentUser || currentUser.role !== 'user') return;
@@ -1090,8 +1250,7 @@ export default function App() {
     initUserSessions();
   }, [currentUser]);
 
-  // --- RAG Admin State ---
-  const [ragItems, setRagItems] = useState([]);
+  // --- RAG Admin Modals State ---
   const [searchQuery, setSearchQuery] = useState('');
   const [testQuery, setTestQuery] = useState('');
   const [testResults, setTestResults] = useState(null);
@@ -1102,7 +1261,7 @@ export default function App() {
   
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [importedChunks, setImportedChunks] = useState([]);
-  const [chunkPreviewMode, setChunkPreviewMode] = useState('list'); // 'list' | 'edit'
+  const [chunkPreviewModeLegacy, setChunkPreviewModeLegacy] = useState('list'); // 'list' | 'edit'
   const [selectedChunkIndex, setSelectedChunkIndex] = useState(null);
 
   const scrollRef = useRef(null);
@@ -1411,7 +1570,7 @@ export default function App() {
     }
   };
 
-  const filteredRagItems = ragItems.filter(item => {
+  const oldFilteredRagItems = ragItems.filter(item => {
     if (!searchQuery.trim()) return true;
     const q = searchQuery.toLowerCase();
     return item.title.toLowerCase().includes(q) || item.category.toLowerCase().includes(q) || (item.tags || []).some(t => t.toLowerCase().includes(q));
