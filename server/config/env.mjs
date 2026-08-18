@@ -49,7 +49,7 @@ export const getAiConfig = () => {
     const aiApiKey = process.env.AI_API_KEY || process.env.DEEPSEEK_API_KEY || process.env.OPENAI_API_KEY;
     const defaultModel = process.env.DEFAULT_MODEL || process.env.DEEPSEEK_MODEL || process.env.OPENAI_MODEL || 'deepseek-chat';
     const fastModel = process.env.FAST_MODEL || defaultModel;
-    const searchProvider = process.env.SEARCH_PROVIDER || (process.env.TAVILY_API_KEY ? 'tavily' : (process.env.BOCHA_API_KEY ? 'bocha' : 'duckduckgo'));
+    const searchProvider = process.env.SEARCH_PROVIDER || (process.env.TAVILY_API_KEY ? 'tavily' : (process.env.BOCHA_API_KEY ? 'bocha' : 'multi'));
     const tavilyApiKey = process.env.TAVILY_API_KEY;
     const bochaApiKey = process.env.BOCHA_API_KEY;
 

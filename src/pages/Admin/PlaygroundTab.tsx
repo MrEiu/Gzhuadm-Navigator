@@ -279,7 +279,7 @@ export const PlaygroundTab: React.FC = () => {
                                     </div>
                                     <div>
                                         <h4 className="font-black text-[#4a4365] text-[15px]">全网多源搜索引擎实时测试</h4>
-                                        <div className="text-[10.5px] text-[#8a84a4]">支持 DuckDuckGo / Tavily AI / 博查多源容灾</div>
+                                        <div className="text-[10.5px] text-[#8a84a4]">支持 必应全网直连 / Tavily AI / 博查 AI / DDG / 招生快照多级容灾</div>
                                     </div>
                                 </div>
 
@@ -351,13 +351,42 @@ export const PlaygroundTab: React.FC = () => {
                                                     {item.title} <ExternalLink size={12} className="shrink-0 text-gray-400" />
                                                 </a>
                                                 <span className="text-[10px] font-bold bg-amber-100 text-amber-800 px-2 py-0.5 rounded-md shrink-0">
-                                                    全网抓取
+                                                    {(item as any).source === 'tavily' ? 'Tavily AI' : ((item as any).source === 'bocha' ? '博查 AI' : ((item as any).source === 'bing' ? '必应全网' : ((item as any).source === 'duckduckgo' ? 'DuckDuckGo' : '大湾区招生快照')))}
                                                 </span>
                                             </div>
 
                                             <p className="text-[12px] text-[#6d648b] leading-relaxed line-clamp-3">
                                                 {item.snippet}
                                             </p>
+
+                                            {item.images && item.images.length > 0 && (
+                                                <div className="flex items-center gap-2 pt-1 overflow-x-auto hide-scrollbar">
+                                                    {item.images.slice(0, 3).map((img: any, imgIdx: number) => {
+                                                        const imgUrl = typeof img === 'string' ? img : img.url;
+                                                        const imgTitle = typeof img === 'string' ? item.title : (img.title || item.title);
+                                                        return (
+                                                            <a
+                                                                key={imgIdx}
+                                                                href={imgUrl}
+                                                                target="_blank"
+                                                                rel="noreferrer"
+                                                                className="group relative rounded-xl overflow-hidden border border-amber-200/60 shadow-2xs hover:scale-105 transition-all shrink-0 bg-white"
+                                                                title={imgTitle}
+                                                            >
+                                                                <img
+                                                                    src={imgUrl}
+                                                                    alt={imgTitle}
+                                                                    className="w-24 h-16 object-cover bg-amber-50"
+                                                                    onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
+                                                                />
+                                                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[10px] font-bold">
+                                                                    查看配图
+                                                                </div>
+                                                            </a>
+                                                        );
+                                                    })}
+                                                </div>
+                                            )}
 
                                             <div className="text-[10px] text-gray-400 font-mono truncate">
                                                 {item.url}
@@ -366,7 +395,9 @@ export const PlaygroundTab: React.FC = () => {
                                     ))
                                 ) : (
                                     <div className="py-10 text-center text-gray-400 text-[12px]">
-                                        点击上方全网检索按钮查看实时联网结果
+                                        {webElapsedMs !== null
+                                            ? '⚠️ 暂未获取到外部搜索结果（建议在「系统配置」中配置 Tavily 或博查 API Key）'
+                                            : '点击上方全网检索按钮查看实时联网结果'}
                                     </div>
                                 )}
                             </div>

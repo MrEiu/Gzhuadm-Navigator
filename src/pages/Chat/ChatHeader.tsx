@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrainCircuit, History, Plus, User as UserIcon, LogOut } from 'lucide-react';
+import { BrainCircuit, History, Plus, User as UserIcon, LogOut, Sliders } from 'lucide-react';
 import { User, UserProfile } from '../../types';
 
 interface ChatHeaderProps {
@@ -10,6 +10,7 @@ interface ChatHeaderProps {
     onCreateSession: () => void;
     onOpenProfileModal: () => void;
     onLogout: () => void;
+    onSwitchPortal?: () => void;
 }
 
 export const ChatHeader: React.FC<ChatHeaderProps> = ({
@@ -19,7 +20,8 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
     onToggleSidebar,
     onCreateSession,
     onOpenProfileModal,
-    onLogout
+    onLogout,
+    onSwitchPortal
 }) => {
     return (
         <header className="pt-8 pb-3 px-4 sm:px-8 flex items-center justify-between z-10 bg-white/40 backdrop-blur-md border-b border-white/60 shrink-0">
@@ -70,6 +72,17 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                         <span className="text-[10px] bg-red-50 text-red-500 px-1.5 py-0.5 rounded-md font-bold animate-pulse">未填资料</span>
                     )}
                 </button>
+
+                {onSwitchPortal && (
+                    <button
+                        onClick={onSwitchPortal}
+                        className="flex items-center gap-1.5 bg-gradient-to-r from-[#4a4365] to-[#5c547d] text-white px-2.5 sm:px-3 py-1.5 rounded-2xl text-[12px] font-bold shadow-[0_4px_12px_rgba(74,67,101,0.25)] hover:opacity-95 active:scale-95 transition-all cursor-pointer border border-purple-300/40"
+                        title="切换至后台管理控制台"
+                    >
+                        <Sliders size={13} className="text-purple-200" />
+                        <span className="hidden sm:inline">管理控制台</span>
+                    </button>
+                )}
 
                 <button
                     onClick={onLogout}

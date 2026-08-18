@@ -627,20 +627,26 @@ async function runInit() {
     console.log(`${c.bold}【步骤 4/4】请选择联网搜索引擎 (用于高考录取政策实时查询)：${c.reset}`);
     console.log(`  👉 当前搜索引擎: ${c.green}${c.bold}${searchProvider.toUpperCase()}${c.reset}\n`);
 
-    console.log(`  ${c.cyan}[1]${c.reset} ${c.bold}Tavily${c.reset}          ${c.dim}(推荐 · AI 优化结构化搜索 · 需填 API Key)${c.reset}`);
-    console.log(`  ${c.cyan}[2]${c.reset} ${c.bold}博查 AI (Bocha)${c.reset}  ${c.dim}(国内高校与招生深度搜索 · 需填 API Key)${c.reset}`);
-    console.log(`  ${c.cyan}[3]${c.reset} ${c.bold}DuckDuckGo${c.reset}       ${c.green}(免 Key · 开箱即用 · 自动兜底)${c.reset}`);
-    console.log(`  ${c.cyan}[4]${c.reset} ${c.dim}暂不启用联网搜索${c.reset}`);
+    console.log(`  ${c.cyan}[1]${c.reset} ${c.bold}多源智能容灾检索${c.reset}  ${c.green}(推荐 · 必应全网直连 + DDG + 招生快照三级容灾 · 免 Key 开箱即用)${c.reset}`);
+    console.log(`  ${c.cyan}[2]${c.reset} ${c.bold}必应全网 (Bing CN)${c.reset}  ${c.dim}(免 Key · 国内毫秒级网页直连抓取)${c.reset}`);
+    console.log(`  ${c.cyan}[3]${c.reset} ${c.bold}Tavily AI${c.reset}          ${c.dim}(AI 优化结构化搜索 · 需填 API Key)${c.reset}`);
+    console.log(`  ${c.cyan}[4]${c.reset} ${c.bold}博查 AI (Bocha)${c.reset}      ${c.dim}(国内高校与招生深度搜索 · 需填 API Key)${c.reset}`);
+    console.log(`  ${c.cyan}[5]${c.reset} ${c.dim}暂不启用联网搜索${c.reset}`);
     console.log('');
 
-    let defSearchIndex = 3;
-    if (searchProvider === 'tavily') defSearchIndex = 1;
-    else if (searchProvider === 'bocha') defSearchIndex = 2;
-    else if (searchProvider === 'none') defSearchIndex = 4;
+    let defSearchIndex = 1;
+    if (searchProvider === 'bing') defSearchIndex = 2;
+    else if (searchProvider === 'tavily') defSearchIndex = 3;
+    else if (searchProvider === 'bocha') defSearchIndex = 4;
+    else if (searchProvider === 'none') defSearchIndex = 5;
 
-    const searchAns = await rl.question(`${c.green}? 请输入选项编号 [1-4] (回车保持当前: [${defSearchIndex}]): ${c.reset}`);
+    const searchAns = await rl.question(`${c.green}? 请输入选项编号 [1-5] (回车保持当前: [${defSearchIndex}]): ${c.reset}`);
     const trimmedSearch = searchAns.trim();
     if (trimmedSearch === '1') {
+      searchProvider = 'multi';
+    } else if (trimmedSearch === '2') {
+      searchProvider = 'bing';
+    } else if (trimmedSearch === '3') {
       searchProvider = 'tavily';
       const defTavText = tavilyApiKey ? ` (当前: ${tavilyApiKey.slice(0, 6)}••••, 回车保留)` : '';
       while (!tavilyApiKey) {
@@ -648,7 +654,7 @@ async function runInit() {
         tavilyApiKey = inputKey.trim() || tavilyApiKey;
         if (!tavilyApiKey) console.log(`${c.red}⚠️ Key 不能为空${c.reset}`);
       }
-    } else if (trimmedSearch === '2') {
+    } else if (trimmedSearch === '4') {
       searchProvider = 'bocha';
       const defBocText = bochaApiKey ? ` (当前: ${bochaApiKey.slice(0, 6)}••••, 回车保留)` : '';
       while (!bochaApiKey) {
@@ -656,9 +662,7 @@ async function runInit() {
         bochaApiKey = inputKey.trim() || bochaApiKey;
         if (!bochaApiKey) console.log(`${c.red}⚠️ Key 不能为空${c.reset}`);
       }
-    } else if (trimmedSearch === '3') {
-      searchProvider = 'duckduckgo';
-    } else if (trimmedSearch === '4') {
+    } else if (trimmedSearch === '5') {
       searchProvider = 'none';
     }
 

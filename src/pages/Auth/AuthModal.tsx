@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { BrainCircuit, User as UserIcon, Lock, Globe, ShieldCheck, ArrowRight } from 'lucide-react';
+import {
+    BrainCircuit, User as UserIcon, Lock, Globe, ShieldCheck,
+    ArrowRight, GraduationCap, Sliders, ChevronLeft
+} from 'lucide-react';
 import { User, SettingsConfig } from '../../types';
 import { THEME } from '../../constants/theme';
 import { API_BASE } from '../../api/config';
 
 interface AuthModalProps {
-    onLoginSuccess: (user: User) => void;
+    onLoginSuccess: (user: User, portal?: 'chat' | 'admin') => void;
     settingsConfig?: SettingsConfig;
 }
 
@@ -15,6 +18,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onLoginSuccess, settingsCo
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [authError, setAuthError] = useState('');
+
+    // State for Admin portal selection
+    const [pendingAdminUser, setPendingAdminUser] = useState<User | null>(null);
 
     const [regTargetType, setRegTargetType] = useState<'phone' | 'email'>('phone');
     const [regTarget, setRegTarget] = useState('');
@@ -74,7 +80,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onLoginSuccess, settingsCo
         }
     };
 
-    const handleLogin = (e: React.FormEvent) => {
+    const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
         setAuthError('');
         const u = username.trim();
@@ -85,31 +91,60 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onLoginSuccess, settingsCo
             return;
         }
 
-        if (u === 'admin' && p === 'admin123') {
-            const adminUser: User = { username: 'admin', role: 'admin' };
-            localStorage.setItem('aurasense_logged_user', JSON.stringify(adminUser));
-            onLoginSuccess(adminUser);
-            return;
-        }
-
         try {
-            const usersRaw = localStorage.getItem('aurasense_registered_users');
-            const users = usersRaw ? JSON.parse(usersRaw) : [];
-            const matched = users.find((user: any) => user.username === u && user.password === p);
-
-            if (matched) {
-                const regularUser: User = { username: matched.username, role: 'user' };
-                localStorage.setItem('aurasense_logged_user', JSON.stringify(regularUser));
-                onLoginSuccess(regularUser);
+            const res = await fetch(`${API_BASE}/api/auth/login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: u, password: p })
+            });
+            const data = await res.json();
+            if (data.ok && data.user) {
+                localStorage.setItem('aurasense_logged_user', JSON.stringify(data.user));
+                if (data.user.role === 'admin') {
+                    setPendingAdminUser(data.user);
+                } else {
+                    onLoginSuccess(data.user);
+                }
+                return;
             } else {
-                setAuthError('账号或密码不正确（管理员账号 admin / admin123）');
+                // Fallback check local users
+                const usersRaw = localStorage.getItem('aurasense_registered_users');
+                const users = usersRaw ? JSON.parse(usersRaw) : [];
+                const matched = users.find((user: any) => user.username === u && user.password === p);
+                if (matched) {
+                    const regularUser: User = { username: matched.username, role: 'user' };
+                    localStorage.setItem('aurasense_logged_user', JSON.stringify(regularUser));
+                    onLoginSuccess(regularUser);
+                    return;
+                }
+                setAuthError(data.error || '账号或密码不正确（管理员账号 admin / admin123）');
             }
         } catch {
-            setAuthError('登录校验异常，请重试');
+            if (u === 'admin' && p === 'admin123') {
+                const adminUser: User = { username: 'admin', role: 'admin' };
+                localStorage.setItem('aurasense_logged_user', JSON.stringify(adminUser));
+                setPendingAdminUser(adminUser);
+                return;
+            }
+            try {
+                const usersRaw = localStorage.getItem('aurasense_registered_users');
+                const users = usersRaw ? JSON.parse(usersRaw) : [];
+                const matched = users.find((user: any) => user.username === u && user.password === p);
+
+                if (matched) {
+                    const regularUser: User = { username: matched.username, role: 'user' };
+                    localStorage.setItem('aurasense_logged_user', JSON.stringify(regularUser));
+                    onLoginSuccess(regularUser);
+                } else {
+                    setAuthError('账号或密码不正确（管理员账号 admin / admin123）');
+                }
+            } catch {
+                setAuthError('登录校验异常，请检查网络后重试');
+            }
         }
     };
 
-    const handleRegister = (e: React.FormEvent) => {
+    const handleRegister = async (e: React.FormEvent) => {
         e.preventDefault();
         setAuthError('');
         const u = username.trim();
@@ -132,23 +167,46 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onLoginSuccess, settingsCo
         }
 
         try {
-            const usersRaw = localStorage.getItem('aurasense_registered_users');
-            const users = usersRaw ? JSON.parse(usersRaw) : [];
+            const res = await fetch(`${API_BASE}/api/auth/register`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: u, password: p })
+            });
+            const data = await res.json();
+            if (data.ok && data.user) {
+                const usersRaw = localStorage.getItem('aurasense_registered_users');
+                const users = usersRaw ? JSON.parse(usersRaw) : [];
+                if (!users.some((user: any) => user.username === u)) {
+                    users.push({ username: u, password: p, role: 'user', registeredAt: new Date().toISOString() });
+                    localStorage.setItem('aurasense_registered_users', JSON.stringify(users));
+                }
 
-            if (users.some((user: any) => user.username === u)) {
-                setAuthError('该账号名已被注册，请更换账号名');
-                return;
+                localStorage.setItem('aurasense_logged_user', JSON.stringify(data.user));
+                onLoginSuccess(data.user);
+            } else {
+                setAuthError(data.error || '注册保存失败，请重试');
             }
-
-            const newUser = { username: u, password: p, role: 'user', registeredAt: new Date().toISOString() };
-            users.push(newUser);
-            localStorage.setItem('aurasense_registered_users', JSON.stringify(users));
-
-            const userState: User = { username: u, role: 'user' };
-            localStorage.setItem('aurasense_logged_user', JSON.stringify(userState));
-            onLoginSuccess(userState);
         } catch {
-            setAuthError('注册保存失败，请重试');
+            // Local fallback
+            try {
+                const usersRaw = localStorage.getItem('aurasense_registered_users');
+                const users = usersRaw ? JSON.parse(usersRaw) : [];
+
+                if (users.some((user: any) => user.username === u)) {
+                    setAuthError('该账号名已被注册，请更换账号名');
+                    return;
+                }
+
+                const newUser = { username: u, password: p, role: 'user', registeredAt: new Date().toISOString() };
+                users.push(newUser);
+                localStorage.setItem('aurasense_registered_users', JSON.stringify(users));
+
+                const userState: User = { username: u, role: 'user' };
+                localStorage.setItem('aurasense_logged_user', JSON.stringify(userState));
+                onLoginSuccess(userState);
+            } catch {
+                setAuthError('注册保存失败，请重试');
+            }
         }
     };
 
@@ -187,6 +245,73 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onLoginSuccess, settingsCo
             setAuthError(`注册失败: ${e.message}`);
         }
     };
+
+    if (pendingAdminUser) {
+        return (
+            <div className={`w-full max-w-[440px] ${THEME.glass} sm:rounded-[40px] p-7 sm:p-8 shadow-[0_45px_100px_rgba(186,175,215,0.4)] border-[6px] border-[#fdfcff] animate-in zoom-in-95 duration-400`}>
+                <div className="flex flex-col items-center text-center mb-6">
+                    <div className="w-14 h-14 rounded-[22px] bg-gradient-to-br from-[#b3a4ed] to-[#f296b2] flex items-center justify-center shadow-[0_10px_25px_rgba(179,164,237,0.4)] border-2 border-white mb-3">
+                        <ShieldCheck className="text-white" size={28} />
+                    </div>
+                    <h1 className="font-black text-[#4a4365] text-[20px] tracking-tight">超级管理员认证成功</h1>
+                    <p className="text-[12px] text-[#8a84a4] font-bold mt-1">
+                        欢迎您，<span className="text-[#4a4365] font-black">{pendingAdminUser.username}</span>！请选择本次进入的工作台
+                    </p>
+                </div>
+
+                <div className="space-y-3">
+                    <button
+                        onClick={() => {
+                            onLoginSuccess(pendingAdminUser, 'chat');
+                        }}
+                        className="w-full p-4 rounded-[22px] bg-white/90 hover:bg-white border-2 border-purple-100 hover:border-[#b3a4ed] text-left transition-all hover:scale-[1.015] shadow-xs group cursor-pointer"
+                    >
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3.5">
+                                <div className="w-11 h-11 rounded-2xl bg-purple-50 text-[#a494e8] flex items-center justify-center group-hover:bg-gradient-to-br group-hover:from-[#b3a4ed] group-hover:to-[#c7b8f9] group-hover:text-white transition-all shadow-2xs">
+                                    <GraduationCap size={22} />
+                                </div>
+                                <div>
+                                    <div className="font-black text-[#4a4365] text-[14px]">招生咨询工作台（用户前台）</div>
+                                    <div className="text-[11px] text-[#8a84a4] mt-0.5">以学生/家长视角体验智能问答、RAG 检索与志愿填报</div>
+                                </div>
+                            </div>
+                            <ArrowRight size={16} className="text-[#a494e8] group-hover:translate-x-1 transition-transform" />
+                        </div>
+                    </button>
+
+                    <button
+                        onClick={() => {
+                            onLoginSuccess(pendingAdminUser, 'admin');
+                        }}
+                        className="w-full p-4 rounded-[22px] bg-gradient-to-r from-[#4a4365] to-[#5c547d] text-white hover:opacity-95 text-left transition-all hover:scale-[1.015] shadow-[0_8px_20px_rgba(74,67,101,0.25)] group cursor-pointer"
+                    >
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3.5">
+                                <div className="w-11 h-11 rounded-2xl bg-white/15 text-white flex items-center justify-center group-hover:bg-white/25 transition-all shadow-2xs">
+                                    <Sliders size={20} />
+                                </div>
+                                <div>
+                                    <div className="font-black text-white text-[14px]">后台管理控制台（管理中心）</div>
+                                    <div className="text-[11px] text-purple-200 mt-0.5">全局数据大盘、RAG 知识库管理、考生档案与系统配置</div>
+                                </div>
+                            </div>
+                            <ArrowRight size={16} className="text-purple-300 group-hover:translate-x-1 transition-transform" />
+                        </div>
+                    </button>
+                </div>
+
+                <div className="mt-5 pt-4 border-t border-purple-50 text-center">
+                    <button
+                        onClick={() => setPendingAdminUser(null)}
+                        className="text-[11.5px] font-bold text-[#8a84a4] hover:text-[#4a4365] transition-colors inline-flex items-center gap-1 cursor-pointer"
+                    >
+                        <ChevronLeft size={14} /> 切换其他账号登录
+                    </button>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className={`w-full max-w-[400px] ${THEME.glass} sm:rounded-[40px] p-8 shadow-[0_45px_100px_rgba(186,175,215,0.4)] border-[6px] border-[#fdfcff] animate-in zoom-in-95 duration-500`}>

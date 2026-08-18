@@ -110,7 +110,7 @@ export interface SettingsConfig {
     apiKey: string;
     defaultModel: string;
     fastModel: string;
-    searchProvider: 'duckduckgo' | 'tavily' | 'bocha';
+    searchProvider: 'multi' | 'bing' | 'tavily' | 'bocha' | 'duckduckgo' | 'none';
     tavilyApiKey?: string;
     bochaApiKey?: string;
     advancedAuthEnabled?: boolean;
@@ -197,6 +197,8 @@ export interface WebSearchResultItem {
     title: string;
     url: string;
     snippet: string;
+    source?: string;
     score?: number;
+    images?: { url: string; title?: string }[];
 }
 

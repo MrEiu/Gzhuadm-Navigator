@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import {
     BarChart3, BookOpen, Users, MessageSquare,
     Cpu, Sliders, Shield, LogOut, RefreshCw,
-    BrainCircuit, Sparkles, Globe, ChevronRight
+    BrainCircuit, Sparkles, Globe, ChevronRight,
+    GraduationCap
 } from 'lucide-react';
 import { User, DashboardStats } from '../../types';
 import { THEME } from '../../constants/theme';
@@ -18,9 +19,10 @@ import { SettingsTab } from './SettingsTab';
 interface AdminLayoutProps {
     currentUser: User;
     onLogout: () => void;
+    onSwitchPortal?: () => void;
 }
 
-export const AdminLayout: React.FC<AdminLayoutProps> = ({ currentUser, onLogout }) => {
+export const AdminLayout: React.FC<AdminLayoutProps> = ({ currentUser, onLogout, onSwitchPortal }) => {
     const [activeTab, setActiveTab] = useState<'dashboard' | 'rag' | 'users' | 'analytics' | 'playground' | 'settings'>('dashboard');
     const [stats, setStats] = useState<DashboardStats | null>(null);
     const [loadingStats, setLoadingStats] = useState(false);
@@ -156,9 +158,25 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ currentUser, onLogout 
                     </nav>
                 </div>
 
-                {/* Sidebar Bottom: Admin info & Logout */}
-                <div className="pt-4 border-t border-purple-100/60 space-y-2 mt-4 md:mt-0">
-                    <div className="flex items-center justify-between px-2 text-[12px]">
+                {/* Sidebar Bottom: Switch to Chat Portal & Admin info & Logout */}
+                <div className="pt-3 border-t border-purple-100/60 space-y-2 mt-4 md:mt-0">
+                    {onSwitchPortal && (
+                        <button
+                            onClick={onSwitchPortal}
+                            className="w-full flex items-center justify-between p-2.5 rounded-2xl bg-gradient-to-r from-purple-50 to-indigo-50/70 hover:from-purple-100 hover:to-indigo-100 text-[#4a4365] transition-all border border-purple-200/60 font-bold text-[12px] cursor-pointer group shadow-2xs"
+                            title="以考生/家长视角进入咨询前台"
+                        >
+                            <div className="flex items-center gap-2">
+                                <div className="w-7 h-7 rounded-xl bg-purple-200/70 text-purple-700 flex items-center justify-center group-hover:bg-purple-600 group-hover:text-white transition-colors">
+                                    <GraduationCap size={15} />
+                                </div>
+                                <span className="font-black text-[12px]">进入考生咨询前台</span>
+                            </div>
+                            <ChevronRight size={14} className="text-[#a494e8] group-hover:translate-x-0.5 transition-transform" />
+                        </button>
+                    )}
+
+                    <div className="flex items-center justify-between px-2 text-[12px] pt-1">
                         <div className="flex items-center gap-2">
                             <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
                             <span className="font-bold text-[#4a4365]">管理员 @{currentUser.username}</span>

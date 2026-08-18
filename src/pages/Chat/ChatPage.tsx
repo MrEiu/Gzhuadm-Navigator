@@ -15,9 +15,10 @@ import { UserProfileModal } from '../UserProfile/UserProfileModal';
 interface ChatPageProps {
     currentUser: User;
     onLogout: () => void;
+    onSwitchPortal?: () => void;
 }
 
-export const ChatPage: React.FC<ChatPageProps> = ({ currentUser, onLogout }) => {
+export const ChatPage: React.FC<ChatPageProps> = ({ currentUser, onLogout, onSwitchPortal }) => {
     // --- User Profile State ---
     const [userProfile, setUserProfile] = useState<UserProfile | null>(() => {
         try {
@@ -284,6 +285,7 @@ export const ChatPage: React.FC<ChatPageProps> = ({ currentUser, onLogout }) => 
                 onCreateSession={handleCreateNewSession}
                 onOpenProfileModal={() => setIsProfileModalOpen(true)}
                 onLogout={onLogout}
+                onSwitchPortal={onSwitchPortal}
             />
 
             <div className="flex-1 flex overflow-hidden relative">

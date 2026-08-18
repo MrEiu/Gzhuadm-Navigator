@@ -39,7 +39,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigSaved }) => {
     const [systemPrompt, setSystemPrompt] = useState(DEFAULT_SYSTEM_PROMPT);
 
     // Search Engine
-    const [searchProvider, setSearchProvider] = useState<'duckduckgo' | 'tavily' | 'bocha'>('duckduckgo');
+    const [searchProvider, setSearchProvider] = useState<'multi' | 'bing' | 'tavily' | 'bocha' | 'duckduckgo' | 'none'>('multi');
     const [tavilyApiKey, setTavilyApiKey] = useState('');
     const [bochaApiKey, setBochaApiKey] = useState('');
 
@@ -68,7 +68,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigSaved }) => {
                 setApiKey(c.apiKey || '');
                 setDefaultModel(c.defaultModel || 'deepseek-chat');
                 setFastModel(c.fastModel || 'deepseek-chat');
-                setSearchProvider(c.searchProvider === 'tavily' || c.searchProvider === 'bocha' ? c.searchProvider : 'duckduckgo');
+                setSearchProvider(c.searchProvider || 'multi');
                 setTavilyApiKey(c.tavilyApiKey || '');
                 setBochaApiKey(c.bochaApiKey || '');
                 if (c.systemPrompt) {
@@ -494,22 +494,38 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigSaved }) => {
                     <Globe size={16} className="text-amber-500" /> 联网搜索引擎选配
                 </h4>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <label className={`p-4 rounded-2xl border transition-all cursor-pointer flex items-start gap-3 ${searchProvider === 'duckduckgo' ? 'bg-amber-50/80 border-amber-300' : 'bg-[#fbf9fe] border-purple-50'}`}>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                    <label className={`p-4 rounded-2xl border transition-all cursor-pointer flex items-start gap-3 ${(searchProvider === 'multi' || searchProvider === 'duckduckgo') ? 'bg-amber-50/80 border-amber-300 shadow-xs' : 'bg-[#fbf9fe] border-purple-50'}`}>
                         <input
                             type="radio"
                             name="searchProvider"
-                            checked={searchProvider === 'duckduckgo'}
-                            onChange={() => setSearchProvider('duckduckgo')}
+                            checked={searchProvider === 'multi' || searchProvider === 'duckduckgo'}
+                            onChange={() => setSearchProvider('multi')}
                             className="mt-1 accent-amber-500 cursor-pointer"
                         />
                         <div>
-                            <div className="font-bold text-[#4a4365] text-[13px]">DuckDuckGo</div>
-                            <div className="text-[11px] text-[#8a84a4]">免 Key 默认开箱即用，高稳定性</div>
+                            <div className="font-bold text-[#4a4365] text-[13px] flex items-center gap-1.5">
+                                多源智能容灾 <span className="text-[10px] bg-amber-200/80 text-amber-900 px-1.5 py-0.5 rounded font-black">推荐</span>
+                            </div>
+                            <div className="text-[11px] text-[#8a84a4]">免 Key 必应直连 + DDG + 招生快照三级容灾</div>
                         </div>
                     </label>
 
-                    <label className={`p-4 rounded-2xl border transition-all cursor-pointer flex items-start gap-3 ${searchProvider === 'tavily' ? 'bg-amber-50/80 border-amber-300' : 'bg-[#fbf9fe] border-purple-50'}`}>
+                    <label className={`p-4 rounded-2xl border transition-all cursor-pointer flex items-start gap-3 ${searchProvider === 'bing' ? 'bg-amber-50/80 border-amber-300 shadow-xs' : 'bg-[#fbf9fe] border-purple-50'}`}>
+                        <input
+                            type="radio"
+                            name="searchProvider"
+                            checked={searchProvider === 'bing'}
+                            onChange={() => setSearchProvider('bing')}
+                            className="mt-1 accent-amber-500 cursor-pointer"
+                        />
+                        <div>
+                            <div className="font-bold text-[#4a4365] text-[13px]">必应全网 (Bing CN)</div>
+                            <div className="text-[11px] text-[#8a84a4]">免 Key 国内毫秒级网页直连抓取</div>
+                        </div>
+                    </label>
+
+                    <label className={`p-4 rounded-2xl border transition-all cursor-pointer flex items-start gap-3 ${searchProvider === 'tavily' ? 'bg-amber-50/80 border-amber-300 shadow-xs' : 'bg-[#fbf9fe] border-purple-50'}`}>
                         <input
                             type="radio"
                             name="searchProvider"
@@ -519,11 +535,11 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigSaved }) => {
                         />
                         <div>
                             <div className="font-bold text-[#4a4365] text-[13px]">Tavily AI Search</div>
-                            <div className="text-[11px] text-[#8a84a4]">AI 原生搜索，针对 LLM 预清洗</div>
+                            <div className="text-[11px] text-[#8a84a4]">AI 优化结构化搜索 (需 API Key)</div>
                         </div>
                     </label>
 
-                    <label className={`p-4 rounded-2xl border transition-all cursor-pointer flex items-start gap-3 ${searchProvider === 'bocha' ? 'bg-amber-50/80 border-amber-300' : 'bg-[#fbf9fe] border-purple-50'}`}>
+                    <label className={`p-4 rounded-2xl border transition-all cursor-pointer flex items-start gap-3 ${searchProvider === 'bocha' ? 'bg-amber-50/80 border-amber-300 shadow-xs' : 'bg-[#fbf9fe] border-purple-50'}`}>
                         <input
                             type="radio"
                             name="searchProvider"
@@ -532,8 +548,8 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigSaved }) => {
                             className="mt-1 accent-amber-500 cursor-pointer"
                         />
                         <div>
-                            <div className="font-bold text-[#4a4365] text-[13px]">博查 AI 搜索</div>
-                            <div className="text-[11px] text-[#8a84a4]">国内政策与招生信息深度优化</div>
+                            <div className="font-bold text-[#4a4365] text-[13px]">博查 AI (Bocha)</div>
+                            <div className="text-[11px] text-[#8a84a4]">国内政策与高校招生深度检索 (需 Key)</div>
                         </div>
                     </label>
                 </div>

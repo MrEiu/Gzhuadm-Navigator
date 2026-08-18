@@ -15,13 +15,27 @@ export default function App() {
         }
     });
 
-    const handleLoginSuccess = (user: User) => {
+    const [adminPortal, setAdminPortal] = useState<'chat' | 'admin'>(() => {
+        return (localStorage.getItem('gzadm_admin_portal') as 'chat' | 'admin') || 'admin';
+    });
+
+    const handleLoginSuccess = (user: User, portal: 'chat' | 'admin' = 'admin') => {
         setCurrentUser(user);
+        if (user.role === 'admin') {
+            setAdminPortal(portal);
+            localStorage.setItem('gzadm_admin_portal', portal);
+        }
     };
 
     const handleLogout = () => {
         setCurrentUser(null);
         localStorage.removeItem('aurasense_logged_user');
+    };
+
+    const handleSwitchPortal = (target?: 'chat' | 'admin') => {
+        const next = target || (adminPortal === 'admin' ? 'chat' : 'admin');
+        setAdminPortal(next);
+        localStorage.setItem('gzadm_admin_portal', next);
     };
 
     return (
@@ -31,14 +45,22 @@ export default function App() {
                 <AuthModal onLoginSuccess={handleLoginSuccess} />
             )}
 
-            {/* 2. Logged-in Candidate: Admissions Consultation Frontend */}
-            {currentUser?.role === 'user' && (
-                <ChatPage currentUser={currentUser} onLogout={handleLogout} />
+            {/* 2. Logged-in Candidate OR Admin in Student Chat Mode */}
+            {currentUser && (currentUser.role === 'user' || (currentUser.role === 'admin' && adminPortal === 'chat')) && (
+                <ChatPage
+                    currentUser={currentUser}
+                    onLogout={handleLogout}
+                    onSwitchPortal={currentUser.role === 'admin' ? () => handleSwitchPortal('admin') : undefined}
+                />
             )}
 
-            {/* 3. Logged-in Admin: RAG Administration & Monitoring Center */}
-            {currentUser?.role === 'admin' && (
-                <AdminLayout currentUser={currentUser} onLogout={handleLogout} />
+            {/* 3. Logged-in Admin in Admin Mode */}
+            {currentUser?.role === 'admin' && adminPortal === 'admin' && (
+                <AdminLayout
+                    currentUser={currentUser}
+                    onLogout={handleLogout}
+                    onSwitchPortal={() => handleSwitchPortal('chat')}
+                />
             )}
 
             <style>{`.hide-scrollbar::-webkit-scrollbar { display: none; }`}</style>

@@ -11,27 +11,68 @@ const userAccountsFilePath = path.join(dataDir, 'users_accounts.json');
 export const verificationCodesMap = new Map();
 
 export const loadUserAccounts = () => {
-    if (!fs.existsSync(userAccountsFilePath)) {
-        const initialUsers = [
-            {
-                username: 'admin',
-                passwordHash: bcrypt.hashSync('admin123', 10),
-                role: 'admin',
-                phone: '13800138000',
-                email: 'admin@gzhu.edu.cn',
-                createdAt: new Date().toISOString()
-            }
-        ];
+    let accounts = [];
+    if (fs.existsSync(userAccountsFilePath)) {
         try {
-            fs.writeFileSync(userAccountsFilePath, JSON.stringify(initialUsers, null, 2), 'utf8');
-        } catch (e) { }
-        return initialUsers;
+            accounts = JSON.parse(fs.readFileSync(userAccountsFilePath, 'utf8'));
+            if (!Array.isArray(accounts)) accounts = [];
+        } catch {
+            accounts = [];
+        }
     }
+
+    // Ensure admin user exists
+    if (!accounts.some(u => u.username === 'admin')) {
+        accounts.unshift({
+            username: 'admin',
+            passwordHash: bcrypt.hashSync('admin123', 10),
+            role: 'admin',
+            phone: '13800138000',
+            email: 'admin@gzhu.edu.cn',
+            createdAt: new Date().toISOString()
+        });
+    }
+
+    // Auto-reconcile and sync any student users found in profiles or sessions
+    let modified = false;
     try {
-        return JSON.parse(fs.readFileSync(userAccountsFilePath, 'utf8'));
-    } catch {
-        return [];
+        const profiles = loadJsonProfiles();
+        const profileUsernames = Object.keys(profiles);
+
+        // Also check sessions
+        const sessionsPath = path.join(dataDir, 'user_sessions.json');
+        let sessionUsernames = [];
+        if (fs.existsSync(sessionsPath)) {
+            try {
+                const sessions = JSON.parse(fs.readFileSync(sessionsPath, 'utf8'));
+                sessionUsernames = Object.keys(sessions);
+            } catch { }
+        }
+
+        const allKnownUsernames = Array.from(new Set([...profileUsernames, ...sessionUsernames]));
+        for (const un of allKnownUsernames) {
+            if (un && !accounts.some(u => u.username === un)) {
+                const p = profiles[un] || {};
+                accounts.push({
+                    username: un,
+                    passwordHash: bcrypt.hashSync('123456', 10),
+                    role: 'user',
+                    phone: p.phone || '',
+                    email: p.email || '',
+                    createdAt: p.updatedAt || new Date().toISOString()
+                });
+                modified = true;
+            }
+        }
+    } catch (e) {
+        console.error('User reconciliation error:', e);
     }
+
+    if (modified || !fs.existsSync(userAccountsFilePath)) {
+        saveUserAccounts(accounts);
+    }
+
+    return accounts;
 };
 
 export const saveUserAccounts = (accounts) => {

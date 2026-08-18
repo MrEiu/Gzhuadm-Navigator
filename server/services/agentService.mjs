@@ -74,6 +74,10 @@ export const webSearchTool = tool({
         results.forEach((r, idx) => {
             text += `${idx + 1}. **[${r.title}](${r.url})**\n`;
             if (r.snippet) text += `   摘要：${r.snippet}\n`;
+            if (r.images && r.images.length > 0) {
+                const imgMarkdown = r.images.map(img => `![${img.title || r.title}](${img.url || img})`).join(' ');
+                text += `   相关配图（如对回答有帮助可直接在 Markdown 中引用）：${imgMarkdown}\n`;
+            }
             text += `\n`;
         });
         return text;
