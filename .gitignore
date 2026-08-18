@@ -6,3 +6,4 @@ valkey/
 .env
 .env.local
 *.log
+doccraft/
