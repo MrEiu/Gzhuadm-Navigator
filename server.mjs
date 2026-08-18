@@ -1424,7 +1424,17 @@ app.post('/api/admin/users/delete', (req, res) => {
 
 // Admin System Config APIs
 app.get('/api/admin/config', (_req, res) => {
+  loadEnvFile(envMainPath);
+  loadEnvFile(envPath);
   const providerPool = loadSystemProviders();
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+
+  const curAuthMode = (process.env.AUTH_REGISTRATION_MODE === 'phone' || process.env.AUTH_REGISTRATION_MODE === 'email') 
+    ? process.env.AUTH_REGISTRATION_MODE 
+    : 'username';
+
   res.json({
     ok: true,
     config: {
@@ -1442,8 +1452,8 @@ app.get('/api/admin/config', (_req, res) => {
       tavilyKeyMasked: (process.env.TAVILY_API_KEY || tavilyApiKey) ? `${(process.env.TAVILY_API_KEY || tavilyApiKey).slice(0, 4)}••••` : '',
       hasBochaKey: Boolean(process.env.BOCHA_API_KEY || bochaApiKey),
       bochaKeyMasked: (process.env.BOCHA_API_KEY || bochaApiKey) ? `${(process.env.BOCHA_API_KEY || bochaApiKey).slice(0, 4)}••••` : '',
-      advancedAuthEnabled: process.env.ADVANCED_AUTH_ENABLED === 'true',
-      authRegistrationMode: process.env.AUTH_REGISTRATION_MODE || (process.env.ADVANCED_AUTH_ENABLED === 'true' ? 'all' : 'username'),
+      advancedAuthEnabled: curAuthMode !== 'username',
+      authRegistrationMode: curAuthMode,
       tencentSmsSecretId: process.env.TENCENT_SMS_SECRET_ID || '',
       tencentSmsSecretKeyMasked: process.env.TENCENT_SMS_SECRET_KEY ? '••••••••' : '',
       tencentSmsSdkAppId: process.env.TENCENT_SMS_SDK_APP_ID || '',
