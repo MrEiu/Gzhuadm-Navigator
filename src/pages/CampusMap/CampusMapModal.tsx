@@ -17,13 +17,15 @@ interface CampusMapModalProps {
     isOpen: boolean;
     onClose: () => void;
     onAskQuestion: (text: string) => void;
+    pinScale?: number;
 }
 
 export const CampusMapModal: React.FC<CampusMapModalProps> = ({
     locations,
     isOpen,
     onClose,
-    onAskQuestion
+    onAskQuestion,
+    pinScale = 0.8
 }) => {
     const [activeCategory, setActiveCategory] = useState('全部');
     const [searchQuery, setSearchQuery] = useState('');
@@ -359,15 +361,16 @@ export const CampusMapModal: React.FC<CampusMapModalProps> = ({
                                 style={{
                                     transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
                                     transformOrigin: 'center center',
-                                    transition: isDragging ? 'none' : 'transform 0.25s cubic-bezier(0.25, 1, 0.5, 1)'
+                                    transition: isDragging ? 'none' : 'transform 0.25s cubic-bezier(0.25, 1, 0.5, 1)',
+                                    aspectRatio: '1506 / 1280'
                                 }}
-                                className="relative w-full max-w-[1100px] aspect-[16/10] rounded-3xl overflow-hidden shadow-2xl border-4 border-white shrink-0 bg-[#352f4a]"
+                                className="relative w-auto h-auto max-w-[1200px] max-h-[92%] rounded-3xl overflow-hidden shadow-2xl border-4 border-white shrink-0 bg-[#352f4a]"
                             >
                                 {/* High-Res Campus Base Image */}
                                 <img
                                     src="/campus.jpg"
                                     alt="广州大学校园全景图"
-                                    className="w-full h-full object-cover pointer-events-none"
+                                    className="w-full h-full object-fill pointer-events-none select-none block"
                                     onError={(e) => {
                                         // Fallback if campus.jpg is loading from root
                                         (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1562774053-701939374585?q=80&w=1200&auto=format&fit=crop';
@@ -420,13 +423,14 @@ export const CampusMapModal: React.FC<CampusMapModalProps> = ({
                                             key={loc.id}
                                             style={{
                                                 left: `${loc.coordinates.x}%`,
-                                                top: `${loc.coordinates.y}%`
+                                                top: `${loc.coordinates.y}%`,
+                                                transform: `translate(-50%, -50%) scale(${pinScale})`
                                             }}
                                             onClick={(e) => {
                                                 e.stopPropagation();
                                                 handleSelectLocation(loc);
                                             }}
-                                            className="absolute -translate-x-1/2 -translate-y-1/2 group cursor-pointer z-20"
+                                            className="absolute group cursor-pointer z-20 transition-transform origin-center"
                                         >
                                             {/* Pulsing Beacon Ring */}
                                             <span className={`absolute -inset-2.5 rounded-full animate-ping ${
@@ -434,21 +438,21 @@ export const CampusMapModal: React.FC<CampusMapModalProps> = ({
                                             }`} />
 
                                             {/* Pin Badge */}
-                                            <div className={`relative flex items-center gap-1.5 px-3 py-1.5 rounded-2xl shadow-xl border-2 transition-all duration-300 ${
+                                            <div className={`relative flex items-center gap-1 px-2.5 py-1 rounded-xl shadow-xl border transition-all duration-200 ${
                                                 isSelected
-                                                    ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white border-amber-300 scale-115 z-30 shadow-purple-500/40 ring-4 ring-purple-300/40'
+                                                    ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white border-amber-300 scale-110 z-30 shadow-purple-500/40 ring-4 ring-purple-300/40'
                                                     : isInRoute
                                                     ? 'bg-gradient-to-r from-amber-500 to-rose-500 text-white border-white scale-105'
-                                                    : 'bg-white/95 text-[#4a4365] hover:bg-[#a494e8] hover:text-white border-white hover:scale-110'
+                                                    : 'bg-white/95 text-[#4a4365] hover:bg-[#a494e8] hover:text-white border-white/90 hover:scale-105'
                                             }`}>
                                                 {isInRoute ? (
-                                                    <span className="w-4 h-4 rounded-full bg-white text-amber-600 font-black text-[10px] flex items-center justify-center shrink-0">
+                                                    <span className="w-4 h-4 rounded-full bg-white text-amber-600 font-black text-[9.5px] flex items-center justify-center shrink-0">
                                                         {routeOrder! + 1}
                                                     </span>
                                                 ) : (
-                                                    <MapPin size={14} className={isSelected ? 'text-amber-300' : 'text-[#a494e8] group-hover:text-white shrink-0'} />
+                                                    <MapPin size={12} className={isSelected ? 'text-amber-300' : 'text-[#a494e8] group-hover:text-white shrink-0'} />
                                                 )}
-                                                <span className="text-[11.5px] font-black whitespace-nowrap drop-shadow-xs">
+                                                <span className="text-[10.5px] font-black whitespace-nowrap drop-shadow-xs">
                                                     {loc.name.split(' ')[0]}
                                                 </span>
                                             </div>

@@ -31,6 +31,26 @@ export const ChatPage: React.FC<ChatPageProps> = ({ currentUser, onLogout, onSwi
 
     const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
     const [isMapGuideOpen, setIsMapGuideOpen] = useState(false);
+    const [campusLocations, setCampusLocations] = useState<CampusLocation[]>(DEFAULT_CAMPUS_LOCATIONS);
+    const [mapPinScale, setMapPinScale] = useState<number>(0.8);
+
+    useEffect(() => {
+        if (isMapGuideOpen) {
+            fetch(`${API_BASE}/api/campus-map`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.ok && data.data) {
+                        if (Array.isArray(data.data.locations) && data.data.locations.length > 0) {
+                            setCampusLocations(data.data.locations);
+                        }
+                        if (typeof data.data.pinScale === 'number') {
+                            setMapPinScale(data.data.pinScale);
+                        }
+                    }
+                })
+                .catch(() => {});
+        }
+    }, [isMapGuideOpen]);
 
     // --- Session States ---
     const [sessions, setSessions] = useState<ChatSession[]>([]);
@@ -370,10 +390,11 @@ export const ChatPage: React.FC<ChatPageProps> = ({ currentUser, onLogout, onSwi
             </div>
 
             <CampusMapModal
-                locations={DEFAULT_CAMPUS_LOCATIONS}
+                locations={campusLocations}
                 isOpen={isMapGuideOpen}
                 onClose={() => setIsMapGuideOpen(false)}
                 onAskQuestion={handleAskLocationQuestion}
+                pinScale={mapPinScale}
             />
 
             <UserProfileModal

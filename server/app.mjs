@@ -11,7 +11,7 @@ import authRouter from './routes/auth.mjs';
 import chatRouter from './routes/chat.mjs';
 import userRouter from './routes/user.mjs';
 import ragRouter from './routes/rag.mjs';
-import adminRouter from './routes/admin.mjs';
+import adminRouter, { loadCampusMapData } from './routes/admin.mjs';
 
 export const createApp = () => {
     const app = express();

@@ -1,0 +1,18 @@
+{
+  "locations": [
+    {
+      "id": "loc-library",
+      "name": "何世杰图书馆",
+      "category": "教学科研",
+      "coordinates": {
+        "x": 49.5,
+        "y": 55.5
+      },
+      "description": "test",
+      "images": []
+    }
+  ],
+  "routes": [],
+  "pinScale": 0.75,
+  "updatedAt": "2026-08-18T14:23:39.654Z"
+}

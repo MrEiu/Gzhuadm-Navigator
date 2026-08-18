@@ -682,8 +682,13 @@ router.get('/qa-records', async (_req, res) => {
         });
         records.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
         res.json({ ok: true, count: records.length, records });
-// 9. Campus Map Guide & POI/Route Management APIs
-export const CAMPUS_MAP_FILE = path.join(DATA_DIR, 'campus_map_data.json');
+    } catch (err) {
+        res.status(500).json({ ok: false, error: err.message });
+    }
+});
+
+// 9. Campus Map Guide & POI/Route Management APIs (Stored at root directory as campus_navigation.map)
+export const CAMPUS_MAP_FILE = path.resolve(process.cwd(), 'campus_navigation.map');
 
 export const loadCampusMapData = () => {
     try {
@@ -699,9 +704,6 @@ export const loadCampusMapData = () => {
 
 export const saveCampusMapData = (data) => {
     try {
-        if (!fs.existsSync(DATA_DIR)) {
-            fs.mkdirSync(DATA_DIR, { recursive: true });
-        }
         fs.writeFileSync(CAMPUS_MAP_FILE, JSON.stringify(data, null, 2), 'utf8');
         return true;
     } catch (e) {
@@ -716,17 +718,18 @@ router.get('/campus-map', (_req, res) => {
 });
 
 router.post('/campus-map', (req, res) => {
-    const { locations, routes } = req.body || {};
+    const { locations, routes, pinScale } = req.body || {};
     if (!locations || !Array.isArray(locations)) {
         return res.status(400).json({ ok: false, error: '缺少地标数据 (locations 必须为数组)' });
     }
     const saved = saveCampusMapData({
         locations,
         routes: routes || [],
+        pinScale: typeof pinScale === 'number' ? pinScale : 0.8,
         updatedAt: new Date().toISOString()
     });
     if (saved) {
-        res.json({ ok: true, message: '校园地图导览数据已成功保存！' });
+        res.json({ ok: true, message: '校园地图导览配置已成功保存至根目录 campus_navigation.map！' });
     } else {
         res.status(500).json({ ok: false, error: '保存校园地图数据失败' });
     }

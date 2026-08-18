@@ -3,7 +3,7 @@ import {
     BarChart3, BookOpen, Users, MessageSquare,
     Cpu, Sliders, Shield, LogOut, RefreshCw,
     BrainCircuit, Sparkles, Globe, ChevronRight,
-    GraduationCap
+    GraduationCap, Compass
 } from 'lucide-react';
 import { User, DashboardStats } from '../../types';
 import { THEME } from '../../constants/theme';
@@ -15,6 +15,7 @@ import { UsersTab } from './UsersTab';
 import { AnalyticsTab } from './AnalyticsTab';
 import { PlaygroundTab } from './PlaygroundTab';
 import { SettingsTab } from './SettingsTab';
+import { CampusMapTab } from './CampusMapTab';
 
 interface AdminLayoutProps {
     currentUser: User;
@@ -23,7 +24,7 @@ interface AdminLayoutProps {
 }
 
 export const AdminLayout: React.FC<AdminLayoutProps> = ({ currentUser, onLogout, onSwitchPortal }) => {
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'rag' | 'users' | 'analytics' | 'playground' | 'settings'>('dashboard');
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'rag' | 'campusMap' | 'users' | 'analytics' | 'playground' | 'settings'>('dashboard');
     const [stats, setStats] = useState<DashboardStats | null>(null);
     const [loadingStats, setLoadingStats] = useState(false);
     const [refreshTrigger, setRefreshTrigger] = useState(0);
@@ -66,6 +67,13 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ currentUser, onLogout,
             subtitle: 'RAG 向量与文档切片',
             icon: BookOpen,
             badge: stats?.totalRagItems !== undefined ? `${stats.totalRagItems}` : null
+        },
+        {
+            id: 'campusMap',
+            label: '地图导览管理',
+            subtitle: '地标标注与路线规划',
+            icon: Compass,
+            badge: null
         },
         {
             id: 'users',
@@ -255,6 +263,10 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ currentUser, onLogout,
 
                     {activeTab === 'rag' && (
                         <RagManageTab onRefreshStats={fetchStats} />
+                    )}
+
+                    {activeTab === 'campusMap' && (
+                        <CampusMapTab />
                     )}
 
                     {activeTab === 'users' && (
