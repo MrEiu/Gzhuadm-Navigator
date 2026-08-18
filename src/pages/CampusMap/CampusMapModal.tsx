@@ -1,11 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
     Compass, Search, X, Map, Layers, MapPin,
     Info, Image as ImageIcon, Tag, Eye, MessageSquare,
-    Check, Sparkles, Clock, ChevronRight
+    Check, Sparkles, Clock, ChevronRight, Volume2,
+    VolumeX, Play, Pause, Square, RotateCcw, ZoomIn,
+    ZoomOut, Navigation, Lightbulb, Heart, User,
+    ExternalLink
 } from 'lucide-react';
-import { CampusLocation } from '../../types';
+import { CampusLocation, CampusTourRoute } from '../../types';
 import { FilterTabs } from '../../components/ui/FilterTabs';
+import { CAMPUS_TOUR_ROUTES, LILI_GUIDE_AGENT } from '../../constants/campusLocations';
+import { ttsService, TTSState } from '../../services/ttsService';
 
 interface CampusMapModalProps {
     locations: CampusLocation[];
@@ -26,6 +31,35 @@ export const CampusMapModal: React.FC<CampusMapModalProps> = ({
     const [viewMode, setViewMode] = useState<'map' | 'grid'>('map');
     const [activeImgIndex, setActiveImgIndex] = useState(0);
 
+    // Selected Tour Route
+    const [activeRouteId, setActiveRouteId] = useState<string | null>(null);
+
+    // TTS Voice State
+    const [ttsState, setTtsState] = useState<TTSState>(ttsService.getState());
+
+    // Map Canvas Pan & Zoom States
+    const [zoom, setZoom] = useState(1);
+    const [pan, setPan] = useState({ x: 0, y: 0 });
+    const [isDragging, setIsDragging] = useState(false);
+    const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+    const mapContainerRef = useRef<HTMLDivElement>(null);
+
+    // Subscribe to TTS state
+    useEffect(() => {
+        const unsubscribe = ttsService.subscribe(setTtsState);
+        return () => {
+            unsubscribe();
+            ttsService.stop();
+        };
+    }, []);
+
+    // Stop TTS when closing
+    useEffect(() => {
+        if (!isOpen) {
+            ttsService.stop();
+        }
+    }, [isOpen]);
+
     if (!isOpen) return null;
 
     const categories = ['全部', '教学科研', '生活住宿', '餐饮美食', '体育休闲', '校园地标'];
@@ -41,69 +75,142 @@ export const CampusMapModal: React.FC<CampusMapModalProps> = ({
         return matchCat && (matchName || matchDesc || matchTerms || matchHighlights);
     });
 
-    return (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-md flex justify-center items-center p-3 sm:p-6 animate-in fade-in duration-200">
-            <div className="bg-white/95 backdrop-blur-2xl rounded-[32px] w-full max-w-5xl h-[88vh] flex flex-col shadow-2xl border border-white/80 overflow-hidden relative">
+    const activeRoute = CAMPUS_TOUR_ROUTES.find(r => r.id === activeRouteId);
 
-                {/* Header */}
-                <div className="px-6 py-4 border-b border-gray-100/80 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-gradient-to-r from-purple-50/60 via-white to-indigo-50/40 shrink-0">
+    // Handle Pan & Drag
+    const handleMouseDown = (e: React.MouseEvent) => {
+        if (viewMode !== 'map') return;
+        setIsDragging(true);
+        setDragStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
+    };
+
+    const handleMouseMove = (e: React.MouseEvent) => {
+        if (!isDragging) return;
+        setPan({
+            x: e.clientX - dragStart.x,
+            y: e.clientY - dragStart.y
+        });
+    };
+
+    const handleMouseUp = () => {
+        setIsDragging(false);
+    };
+
+    // Zoom Controls
+    const handleZoomIn = () => setZoom(prev => Math.min(prev + 0.25, 2.5));
+    const handleZoomOut = () => setZoom(prev => Math.max(prev - 0.25, 0.8));
+    const handleResetView = () => {
+        setZoom(1);
+        setPan({ x: 0, y: 0 });
+    };
+
+    // Focus on specific location
+    const handleSelectLocation = (loc: CampusLocation) => {
+        setSelectedLoc(loc);
+        setActiveImgIndex(0);
+        // Auto play Lili's narrative voice
+        if (loc.liliNarrative) {
+            ttsService.speak(loc.liliNarrative);
+        }
+    };
+
+    const toggleSpeech = () => {
+        if (ttsState.isPlaying) {
+            if (ttsState.isPaused) {
+                ttsService.resume();
+            } else {
+                ttsService.pause();
+            }
+        } else if (selectedLoc?.liliNarrative) {
+            ttsService.speak(selectedLoc.liliNarrative);
+        } else {
+            ttsService.speak(LILI_GUIDE_AGENT.welcomeSpeech);
+        }
+    };
+
+    const stopSpeech = () => {
+        ttsService.stop();
+    };
+
+    return (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-md flex justify-center items-center p-2 sm:p-5 animate-in fade-in duration-200">
+            <div className="bg-white/95 backdrop-blur-2xl rounded-[36px] w-full max-w-6xl h-[90vh] flex flex-col shadow-[0_25px_80px_rgba(74,67,101,0.35)] border border-white/80 overflow-hidden relative">
+
+                {/* 1. Top Header Bar */}
+                <div className="px-5 sm:px-7 py-3.5 border-b border-purple-100/60 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-gradient-to-r from-purple-50/80 via-white to-indigo-50/60 shrink-0">
+                    
+                    {/* Lili Agent Header Card */}
                     <div className="flex items-center gap-3">
-                        <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-[#a494e8] to-[#c7b8f9] text-white flex items-center justify-center shadow-md shrink-0">
-                            <Compass size={22} className="animate-spin-slow" />
+                        <div className="relative">
+                            <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-[#b3a4ed] to-[#f296b2] p-0.5 shadow-md flex items-center justify-center">
+                                <img
+                                    src={LILI_GUIDE_AGENT.avatar}
+                                    alt={LILI_GUIDE_AGENT.name}
+                                    className="w-full h-full object-cover rounded-[14px]"
+                                />
+                            </div>
+                            <span className="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-emerald-500 border-2 border-white rounded-full animate-pulse" />
                         </div>
+
                         <div>
                             <div className="flex items-center gap-2">
-                                <h3 className="text-[17px] font-black text-[#4a4365]">Gzadm Navigator 校园地图导览</h3>
-                                <span className="bg-[#a494e8]/15 text-[#6c5aa8] text-[11px] font-bold px-2.5 py-0.5 rounded-full border border-[#a494e8]/30">
-                                    {locations.length} 个校园地标
+                                <h3 className="text-[16px] font-black text-[#4a4365] tracking-tight">{LILI_GUIDE_AGENT.name} 校园伴游导览</h3>
+                                <span className="bg-gradient-to-r from-[#a494e8]/20 to-purple-100 text-[#6c5aa8] text-[10.5px] font-black px-2.5 py-0.5 rounded-full border border-purple-200/50 flex items-center gap-1">
+                                    <Sparkles size={11} className="text-purple-600" />
+                                    广州大学大学城校区
                                 </span>
                             </div>
-                            <p className="text-[12px] text-[#7a7398]">查看地标高精实景图、详细功能说明与关联智能词条</p>
+                            <p className="text-[11.5px] text-[#7a7398] font-medium mt-0.5 line-clamp-1">
+                                {LILI_GUIDE_AGENT.role} · 陪伴你沉浸式漫游大美广大
+                            </p>
                         </div>
                     </div>
 
+                    {/* Header Action Controls */}
                     <div className="flex items-center gap-2">
                         {/* Search Input */}
-                        <div className="relative flex-1 md:w-64">
-                            <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                        <div className="relative flex-1 md:w-56">
+                            <Search size={13} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
                             <input
                                 type="text"
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
-                                placeholder="搜索地标、描述或词条(如自习室)..."
-                                className="w-full bg-white/80 border border-gray-200/80 rounded-2xl pl-9 pr-8 py-2 text-[12px] focus:ring-2 focus:ring-[#a494e8] outline-none shadow-inner"
+                                placeholder="搜索地标、自习室、饭堂..."
+                                className="w-full bg-white/90 border border-purple-100/80 rounded-2xl pl-9 pr-8 py-2 text-[12px] text-[#4a4365] focus:ring-2 focus:ring-[#a494e8] outline-none shadow-2xs"
                             />
                             {searchQuery && (
-                                <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                                    <X size={13} />
+                                <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer">
+                                    <X size={12} />
                                 </button>
                             )}
                         </div>
 
-                        {/* View Mode Selector */}
-                        <div className="bg-gray-100/80 p-1 rounded-2xl flex items-center gap-1 border border-gray-200/50 shrink-0">
+                        {/* View Mode (Map / Grid) */}
+                        <div className="bg-purple-100/40 p-1 rounded-2xl flex items-center gap-1 border border-purple-200/40 shrink-0">
                             <button
                                 onClick={() => setViewMode('map')}
-                                className={`px-3 py-1.5 rounded-xl text-[12px] font-bold flex items-center gap-1.5 transition-all cursor-pointer ${viewMode === 'map' ? 'bg-white text-[#4a4365] shadow-xs' : 'text-gray-500 hover:text-gray-700'
-                                    }`}
+                                className={`px-3 py-1.5 rounded-xl text-[12px] font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                                    viewMode === 'map' ? 'bg-white text-[#4a4365] shadow-xs' : 'text-[#8a84a4] hover:text-[#4a4365]'
+                                }`}
                             >
-                                <Map size={14} />
-                                <span>地图</span>
+                                <Map size={13} />
+                                <span>2.5D实景</span>
                             </button>
                             <button
                                 onClick={() => setViewMode('grid')}
-                                className={`px-3 py-1.5 rounded-xl text-[12px] font-bold flex items-center gap-1.5 transition-all cursor-pointer ${viewMode === 'grid' ? 'bg-white text-[#4a4365] shadow-xs' : 'text-gray-500 hover:text-gray-700'
-                                    }`}
+                                className={`px-3 py-1.5 rounded-xl text-[12px] font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                                    viewMode === 'grid' ? 'bg-white text-[#4a4365] shadow-xs' : 'text-[#8a84a4] hover:text-[#4a4365]'
+                                }`}
                             >
-                                <Layers size={14} />
-                                <span>卡片</span>
+                                <Layers size={13} />
+                                <span>地标卡片</span>
                             </button>
                         </div>
 
-                        {/* Close Button */}
+                        {/* Close Modal */}
                         <button
                             onClick={onClose}
-                            className="p-2.5 rounded-2xl text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors cursor-pointer"
+                            className="p-2 rounded-2xl text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors cursor-pointer border border-transparent hover:border-red-100 ml-1"
                             title="关闭导览"
                         >
                             <X size={18} />
@@ -111,60 +218,214 @@ export const CampusMapModal: React.FC<CampusMapModalProps> = ({
                     </div>
                 </div>
 
-                {/* Categories Bar */}
-                <FilterTabs
-                    categories={categories}
-                    activeCategory={activeCategory}
-                    onSelectCategory={setActiveCategory}
-                    label="分类筛选："
-                />
+                {/* 2. Thematic Tour Routes Bar */}
+                <div className="px-5 sm:px-7 py-2.5 bg-gradient-to-r from-purple-50/40 via-white to-amber-50/30 border-b border-purple-100/40 flex items-center justify-between gap-3 overflow-x-auto hide-scrollbar shrink-0 text-[12px]">
+                    <div className="flex items-center gap-2 shrink-0">
+                        <span className="text-[11px] font-bold text-[#4a4365] flex items-center gap-1 shrink-0">
+                            <Navigation size={13} className="text-[#a494e8]" />
+                            漫游路线：
+                        </span>
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={() => setActiveRouteId(null)}
+                                className={`px-3 py-1 rounded-xl font-bold text-[11.5px] transition-all cursor-pointer border ${
+                                    activeRouteId === null
+                                        ? 'bg-[#4a4365] text-white border-[#4a4365] shadow-xs'
+                                        : 'bg-white/80 hover:bg-white text-gray-600 border-purple-100/60'
+                                }`}
+                            >
+                                自由漫游
+                            </button>
 
-                {/* Main Content Area */}
-                <div className="flex-1 overflow-y-auto p-4 sm:p-6 hide-scrollbar relative bg-[#fdfcff]">
+                            {CAMPUS_TOUR_ROUTES.map((route) => {
+                                const isCurrent = activeRouteId === route.id;
+                                return (
+                                    <button
+                                        key={route.id}
+                                        onClick={() => {
+                                            setActiveRouteId(isCurrent ? null : route.id);
+                                            if (!isCurrent && route.locationIds.length > 0) {
+                                                const firstLoc = locations.find(l => l.id === route.locationIds[0]);
+                                                if (firstLoc) handleSelectLocation(firstLoc);
+                                            }
+                                        }}
+                                        className={`px-3 py-1 rounded-xl font-bold text-[11.5px] transition-all cursor-pointer border flex items-center gap-1.5 shrink-0 ${
+                                            isCurrent
+                                                ? 'bg-gradient-to-r from-[#b3a4ed] to-[#a494e8] text-white border-transparent shadow-xs'
+                                                : 'bg-white/80 hover:bg-purple-50/80 text-[#5c547d] border-purple-100/60'
+                                        }`}
+                                    >
+                                        <span>{route.title}</span>
+                                        <span className="text-[10px] opacity-80">({route.duration})</span>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </div>
+
+                    {/* Category Filter Tabs */}
+                    <div className="flex items-center gap-1 shrink-0">
+                        {categories.map((cat) => (
+                            <button
+                                key={cat}
+                                onClick={() => setActiveCategory(cat)}
+                                className={`px-2.5 py-1 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${
+                                    activeCategory === cat
+                                        ? 'bg-purple-100 text-purple-800 font-black'
+                                        : 'text-gray-500 hover:text-[#4a4365] hover:bg-gray-100/60'
+                                }`}
+                            >
+                                {cat}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+
+                {/* 3. Main Workspace Canvas Area */}
+                <div className="flex-1 overflow-hidden relative flex flex-col md:flex-row bg-[#f8f6fc]">
+                    
+                    {/* View A: 2.5D Real-Image Interactive Map */}
                     {viewMode === 'map' ? (
-                        /* Map View */
-                        <div className="w-full h-full min-h-[480px] bg-gradient-to-br from-[#f0ebfb] via-[#f7f4fd] to-[#eaf2fb] rounded-3xl border-2 border-white shadow-inner relative overflow-hidden flex flex-col justify-between p-4 group">
-                            <div className="absolute inset-0 opacity-20 pointer-events-none bg-[radial-gradient(#a494e8_1px,transparent_1px)] [background-size:24px_24px]" />
-                            <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-md px-3.5 py-2 rounded-2xl shadow-sm border border-white text-[12px] font-bold text-[#4a4365] flex items-center gap-2 z-10">
-                                <Compass size={16} className="text-[#a494e8]" />
-                                <span>Gzadm Navigator 3D Campus Virtual Map</span>
+                        <div
+                            ref={mapContainerRef}
+                            onMouseDown={handleMouseDown}
+                            onMouseMove={handleMouseMove}
+                            onMouseUp={handleMouseUp}
+                            onMouseLeave={handleMouseUp}
+                            className={`flex-1 h-full relative overflow-hidden select-none ${isDragging ? 'cursor-grabbing' : 'cursor-grab'} bg-[#ebe6f7] flex items-center justify-center`}
+                        >
+                            {/* Floating Map Zoom Controls */}
+                            <div className="absolute top-4 left-4 z-30 bg-white/90 backdrop-blur-md rounded-2xl p-1 shadow-[0_8px_20px_rgba(74,67,101,0.15)] border border-white flex flex-col gap-1">
+                                <button
+                                    onClick={handleZoomIn}
+                                    className="p-2 rounded-xl text-[#4a4365] hover:bg-purple-100/70 transition-colors cursor-pointer"
+                                    title="放大地图"
+                                >
+                                    <ZoomIn size={16} />
+                                </button>
+                                <button
+                                    onClick={handleZoomOut}
+                                    className="p-2 rounded-xl text-[#4a4365] hover:bg-purple-100/70 transition-colors cursor-pointer"
+                                    title="缩小地图"
+                                >
+                                    <ZoomOut size={16} />
+                                </button>
+                                <button
+                                    onClick={handleResetView}
+                                    className="p-2 rounded-xl text-[#4a4365] hover:bg-purple-100/70 transition-colors cursor-pointer border-t border-purple-100/60"
+                                    title="重置居中"
+                                >
+                                    <RotateCcw size={15} />
+                                </button>
                             </div>
 
-                            {/* Map Pins */}
-                            <div className="relative h-full w-full min-h-[400px]">
+                            {/* Map Canvas with Pan & Zoom Transform */}
+                            <div
+                                style={{
+                                    transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+                                    transformOrigin: 'center center',
+                                    transition: isDragging ? 'none' : 'transform 0.25s cubic-bezier(0.25, 1, 0.5, 1)'
+                                }}
+                                className="relative w-full max-w-[1100px] aspect-[16/10] rounded-3xl overflow-hidden shadow-2xl border-4 border-white shrink-0 bg-[#352f4a]"
+                            >
+                                {/* High-Res Campus Base Image */}
+                                <img
+                                    src="/campus.jpg"
+                                    alt="广州大学校园全景图"
+                                    className="w-full h-full object-cover pointer-events-none"
+                                    onError={(e) => {
+                                        // Fallback if campus.jpg is loading from root
+                                        (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1562774053-701939374585?q=80&w=1200&auto=format&fit=crop';
+                                    }}
+                                />
+
+                                {/* Dark overlay for enhanced pin contrast */}
+                                <div className="absolute inset-0 bg-gradient-to-t from-black/35 via-transparent to-black/20 pointer-events-none" />
+
+                                {/* SVG Thematic Tour Route Connecting Line */}
+                                {activeRoute && (
+                                    <svg className="absolute inset-0 w-full h-full pointer-events-none z-10">
+                                        <defs>
+                                            <linearGradient id="routeGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                                                <stop offset="0%" stopColor="#f59e0b" />
+                                                <stop offset="50%" stopColor="#ec4899" />
+                                                <stop offset="100%" stopColor="#8b5cf6" />
+                                            </linearGradient>
+                                        </defs>
+                                        {/* Polyline Path */}
+                                        <polyline
+                                            points={activeRoute.locationIds
+                                                .map(id => locations.find(l => l.id === id))
+                                                .filter(Boolean)
+                                                .map(l => `${l!.coordinates.x * 11},${l!.coordinates.y * 6.875}`)
+                                                .join(' ')}
+                                            fill="none"
+                                            stroke="url(#routeGradient)"
+                                            strokeWidth="4"
+                                            strokeDasharray="8 6"
+                                            className="animate-pulse"
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                        />
+                                    </svg>
+                                )}
+
+                                {/* Landmark Marker Pins */}
                                 {filteredLocations.map((loc) => {
                                     const isSelected = selectedLoc?.id === loc.id;
+                                    const routeOrder = activeRoute?.locationIds.indexOf(loc.id);
+                                    const isInRoute = routeOrder !== undefined && routeOrder !== -1;
+
                                     return (
                                         <div
                                             key={loc.id}
-                                            style={{ top: `${loc.coordinates.y}%`, left: `${loc.coordinates.x}%` }}
-                                            className="absolute -translate-x-1/2 -translate-y-1/2 group/pin cursor-pointer z-20"
-                                            onClick={() => {
-                                                setSelectedLoc(loc);
-                                                setActiveImgIndex(0);
+                                            style={{
+                                                left: `${loc.coordinates.x}%`,
+                                                top: `${loc.coordinates.y}%`
                                             }}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleSelectLocation(loc);
+                                            }}
+                                            className="absolute -translate-x-1/2 -translate-y-1/2 group cursor-pointer z-20"
                                         >
-                                            <span className="absolute -inset-2 rounded-full bg-[#a494e8]/30 animate-ping" />
+                                            {/* Pulsing Beacon Ring */}
+                                            <span className={`absolute -inset-2.5 rounded-full animate-ping ${
+                                                isInRoute ? 'bg-amber-400/50' : 'bg-purple-400/40'
+                                            }`} />
 
-                                            <div className={`relative flex items-center gap-1.5 px-3 py-1.5 rounded-2xl shadow-lg border transition-all duration-300 ${isSelected
-                                                    ? 'bg-[#4a4365] text-white border-purple-300 scale-110 z-30'
-                                                    : 'bg-white/95 text-[#4a4365] hover:bg-[#a494e8] hover:text-white border-white scale-100 hover:scale-105'
-                                                }`}>
-                                                <MapPin size={15} className={isSelected ? 'text-amber-300' : 'text-[#a494e8] group-hover/pin:text-white'} />
-                                                <span className="text-[12px] font-bold whitespace-nowrap">{loc.name.split(' ')[0]}</span>
+                                            {/* Pin Badge */}
+                                            <div className={`relative flex items-center gap-1.5 px-3 py-1.5 rounded-2xl shadow-xl border-2 transition-all duration-300 ${
+                                                isSelected
+                                                    ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white border-amber-300 scale-115 z-30 shadow-purple-500/40 ring-4 ring-purple-300/40'
+                                                    : isInRoute
+                                                    ? 'bg-gradient-to-r from-amber-500 to-rose-500 text-white border-white scale-105'
+                                                    : 'bg-white/95 text-[#4a4365] hover:bg-[#a494e8] hover:text-white border-white hover:scale-110'
+                                            }`}>
+                                                {isInRoute ? (
+                                                    <span className="w-4 h-4 rounded-full bg-white text-amber-600 font-black text-[10px] flex items-center justify-center shrink-0">
+                                                        {routeOrder! + 1}
+                                                    </span>
+                                                ) : (
+                                                    <MapPin size={14} className={isSelected ? 'text-amber-300' : 'text-[#a494e8] group-hover:text-white shrink-0'} />
+                                                )}
+                                                <span className="text-[11.5px] font-black whitespace-nowrap drop-shadow-xs">
+                                                    {loc.name.split(' ')[0]}
+                                                </span>
                                             </div>
 
-                                            {/* Tooltip Hover Preview */}
-                                            <div className="opacity-0 group-hover/pin:opacity-100 pointer-events-none transition-all duration-200 absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 bg-white/95 backdrop-blur-md rounded-2xl p-2.5 shadow-xl border border-gray-100 z-40 text-left">
-                                                <img src={loc.images[0]} alt={loc.name} className="w-full h-24 object-cover rounded-xl mb-2" />
-                                                <div className="font-bold text-[12px] text-[#4a4365] truncate">{loc.name}</div>
-                                                <div className="text-[10px] text-gray-500 line-clamp-2 mt-0.5">{loc.description}</div>
-                                                <div className="flex flex-wrap gap-1 mt-1.5">
-                                                    {(loc.terms || []).slice(0, 3).map(t => (
-                                                        <span key={t} className="bg-purple-50 text-[#6c5aa8] text-[9px] font-bold px-1.5 py-0.5 rounded-md">
-                                                            #{t}
-                                                        </span>
-                                                    ))}
+                                            {/* Hover Tooltip Card */}
+                                            <div className="opacity-0 group-hover:opacity-100 pointer-events-none transition-all duration-200 absolute bottom-full left-1/2 -translate-y-2 -translate-x-1/2 mb-1 w-64 bg-white/95 backdrop-blur-md rounded-2xl p-3 shadow-2xl border border-purple-100 z-40 text-left">
+                                                <img
+                                                    src={loc.images[0]}
+                                                    alt={loc.name}
+                                                    className="w-full h-24 object-cover rounded-xl mb-2"
+                                                />
+                                                <div className="font-black text-[12.5px] text-[#4a4365] truncate">{loc.name}</div>
+                                                <div className="text-[11px] text-gray-500 line-clamp-2 mt-0.5">{loc.description}</div>
+                                                <div className="flex items-center justify-between mt-2 pt-1 border-t border-purple-50 text-[10px] text-purple-700 font-bold">
+                                                    <span>点击查看实景与听解说</span>
+                                                    <ChevronRight size={12} />
                                                 </div>
                                             </div>
                                         </div>
@@ -172,227 +433,246 @@ export const CampusMapModal: React.FC<CampusMapModalProps> = ({
                                 })}
                             </div>
 
-                            {/* Map Footer Prompt */}
-                            <div className="absolute bottom-4 right-4 bg-white/90 backdrop-blur-md px-4 py-2 rounded-2xl shadow-md border border-white text-[11px] text-gray-500 flex items-center gap-2 z-10">
-                                <Info size={14} className="text-[#a494e8]" />
-                                <span>点击地图上的标点可查看该地标的高清图片、描述与词条</span>
+                            {/* Canvas Bottom Guide Info */}
+                            <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between pointer-events-none z-20">
+                                <div className="bg-black/55 backdrop-blur-md text-white text-[11px] font-bold px-3.5 py-1.5 rounded-2xl border border-white/20 flex items-center gap-1.5 shadow-md">
+                                    <Info size={13} className="text-amber-300" />
+                                    <span>按住鼠标可拖拽全景，滚轮或左上角按钮可缩放地标</span>
+                                </div>
                             </div>
                         </div>
                     ) : (
-                        /* Grid View */
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                            {filteredLocations.map((loc) => (
-                                <div
-                                    key={loc.id}
-                                    className="group bg-white rounded-3xl border border-gray-100 shadow-[0_4px_20px_rgba(186,175,215,0.12)] hover:shadow-[0_12px_35px_rgba(186,175,215,0.25)] transition-all duration-300 flex flex-col overflow-hidden hover:-translate-y-1"
-                                >
-                                    <div className="relative h-44 overflow-hidden bg-gray-100">
-                                        <img
-                                            src={loc.images[0]}
-                                            alt={loc.name}
-                                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                                        />
-                                        <div className="absolute top-3 left-3 bg-black/40 backdrop-blur-md text-white text-[10px] font-bold px-2.5 py-1 rounded-xl">
-                                            {loc.category}
-                                        </div>
-                                        {loc.images.length > 1 && (
-                                            <div className="absolute bottom-3 right-3 bg-white/80 backdrop-blur-md text-[#4a4365] text-[10px] font-bold px-2 py-0.5 rounded-lg flex items-center gap-1">
-                                                <ImageIcon size={11} />
-                                                <span>{loc.images.length} 张图片</span>
+                        /* View B: Card Grid Mode */
+                        <div className="flex-1 h-full overflow-y-auto p-5 sm:p-6 hide-scrollbar">
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                                {filteredLocations.map((loc) => (
+                                    <div
+                                        key={loc.id}
+                                        onClick={() => handleSelectLocation(loc)}
+                                        className="group bg-white rounded-3xl border border-purple-100/70 shadow-[0_4px_20px_rgba(186,175,215,0.12)] hover:shadow-[0_12px_35px_rgba(186,175,215,0.25)] transition-all duration-300 flex flex-col overflow-hidden hover:-translate-y-1 cursor-pointer"
+                                    >
+                                        <div className="relative h-44 overflow-hidden bg-gray-100">
+                                            <img
+                                                src={loc.images[0]}
+                                                alt={loc.name}
+                                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                                            />
+                                            <div className="absolute top-3 left-3 bg-black/50 backdrop-blur-md text-white text-[10px] font-bold px-2.5 py-1 rounded-xl">
+                                                {loc.category}
                                             </div>
-                                        )}
-                                    </div>
-
-                                    <div className="p-4 flex-1 flex flex-col justify-between gap-3">
-                                        <div>
-                                            <h4 className="font-bold text-[15px] text-[#4a4365] group-hover:text-[#a494e8] transition-colors line-clamp-1">
-                                                {loc.name}
-                                            </h4>
-                                            <p className="text-[12px] text-gray-500 line-clamp-2 mt-1 leading-relaxed">
-                                                {loc.description}
-                                            </p>
-
-                                            <div className="mt-3 flex flex-wrap gap-1.5">
-                                                {(loc.terms || []).slice(0, 4).map((term) => (
-                                                    <button
-                                                        key={term}
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            onAskQuestion(`请告诉我关于【${loc.name}】关联词条【${term}】的详细信息`);
-                                                        }}
-                                                        className="bg-[#f4effc] hover:bg-[#e6dcfa] text-[#6c5aa8] text-[10px] font-bold px-2 py-1 rounded-lg flex items-center gap-1 transition-colors cursor-pointer"
-                                                        title={`点击向AI提问“${term}”`}
-                                                    >
-                                                        <Tag size={9} />
-                                                        <span>{term}</span>
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        </div>
-
-                                        <div className="pt-3 border-t border-gray-100 flex items-center gap-2">
                                             <button
-                                                onClick={() => {
-                                                    setSelectedLoc(loc);
-                                                    setActiveImgIndex(0);
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleSelectLocation(loc);
                                                 }}
-                                                className="flex-1 bg-gray-50 hover:bg-gray-100 text-[#4a4365] text-[12px] font-bold py-2 rounded-2xl border border-gray-200/60 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                                                className="absolute bottom-3 right-3 bg-gradient-to-r from-purple-600 to-indigo-600 text-white text-[11px] font-bold px-3 py-1 rounded-xl shadow-md flex items-center gap-1 hover:opacity-90"
                                             >
-                                                <Eye size={14} />
-                                                <span>查看详情</span>
-                                            </button>
-
-                                            <button
-                                                onClick={() => onAskQuestion(`请向我详细介绍一下【${loc.name}】的功能、环境与相关政策`)}
-                                                className="bg-[#4a4365] hover:bg-[#38324f] text-white text-[12px] font-bold px-3 py-2 rounded-2xl flex items-center gap-1.5 shadow-sm active:scale-95 transition-all cursor-pointer"
-                                                title="向AI招生顾问提问该地点"
-                                            >
-                                                <MessageSquare size={13} />
-                                                <span>提问</span>
+                                                <Volume2 size={12} /> 听丽丽解说
                                             </button>
                                         </div>
+
+                                        <div className="p-4 flex-1 flex flex-col justify-between gap-3">
+                                            <div>
+                                                <h4 className="font-bold text-[15px] text-[#4a4365] group-hover:text-[#a494e8] transition-colors line-clamp-1">
+                                                    {loc.name}
+                                                </h4>
+                                                <p className="text-[12px] text-gray-500 line-clamp-2 mt-1 leading-relaxed">
+                                                    {loc.description}
+                                                </p>
+                                            </div>
+
+                                            <div className="pt-2 border-t border-purple-50 flex items-center justify-between text-[11px]">
+                                                <span className="text-[#a494e8] font-bold">查看详细参数 ➔</span>
+                                                <span className="text-gray-400 font-medium">{loc.images.length} 张实景图</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* 4. Right Companion & POI Detail Drawer */}
+                    {selectedLoc && (
+                        <div className="w-full md:w-96 bg-white/95 backdrop-blur-xl border-t md:border-t-0 md:border-l border-purple-100/80 shadow-2xl flex flex-col h-[52vh] md:h-full overflow-hidden shrink-0 z-30 animate-in slide-in-from-right-10 duration-300">
+                            
+                            {/* Drawer Header with Lili Avatar & Voice Action */}
+                            <div className="p-4 sm:p-5 border-b border-purple-100/60 bg-gradient-to-br from-purple-50/70 to-indigo-50/50 flex items-start justify-between gap-3 shrink-0">
+                                <div className="flex items-center gap-3">
+                                    <img
+                                        src={LILI_GUIDE_AGENT.avatar}
+                                        alt={LILI_GUIDE_AGENT.name}
+                                        className="w-11 h-11 rounded-2xl object-cover shadow-sm border border-white"
+                                    />
+                                    <div>
+                                        <div className="font-black text-[#4a4365] text-[14px]">学姐丽丽 · 伴游解说</div>
+                                        <div className="text-[10.5px] text-[#8a84a4]">已定位：{selectedLoc.name.split(' ')[0]}</div>
                                     </div>
                                 </div>
-                            ))}
-                        </div>
-                    )}
-
-                    {filteredLocations.length === 0 && (
-                        <div className="h-64 flex flex-col items-center justify-center text-center text-gray-400 gap-2">
-                            <Compass size={40} className="text-gray-300" />
-                            <div className="text-[14px] font-bold text-gray-500">未找到符合条件的地标或词条</div>
-                            <div className="text-[12px]">尝试更改关键词或选择其他分类标签</div>
-                        </div>
-                    )}
-                </div>
-
-                {/* Detail Popup Drawer */}
-                {selectedLoc && (
-                    <div className="absolute inset-0 z-50 bg-black/40 backdrop-blur-xs flex justify-end animate-in fade-in duration-200">
-                        <div className="w-full max-w-xl bg-white h-full shadow-2xl flex flex-col animate-in slide-in-from-right duration-300 relative overflow-hidden">
-
-                            <div className="relative h-64 bg-gray-900 shrink-0">
-                                <img
-                                    src={selectedLoc.images[activeImgIndex] || selectedLoc.images[0]}
-                                    alt={selectedLoc.name}
-                                    className="w-full h-full object-cover"
-                                />
-                                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-black/30" />
 
                                 <button
                                     onClick={() => setSelectedLoc(null)}
-                                    className="absolute top-4 right-4 bg-black/40 hover:bg-black/60 text-white p-2 rounded-full backdrop-blur-md transition-colors cursor-pointer"
+                                    className="p-1.5 rounded-xl text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors cursor-pointer"
                                 >
-                                    <X size={18} />
+                                    <X size={16} />
                                 </button>
-
-                                <div className="absolute bottom-4 left-6 right-6 text-white">
-                                    <span className="bg-[#a494e8] text-white text-[10px] font-bold px-2.5 py-0.5 rounded-md">
-                                        {selectedLoc.category}
-                                    </span>
-                                    <h3 className="text-[20px] font-black mt-1 leading-tight">{selectedLoc.name}</h3>
-                                </div>
                             </div>
 
-                            {selectedLoc.images.length > 1 && (
-                                <div className="px-6 py-2 bg-gray-900 flex gap-2 overflow-x-auto">
-                                    {selectedLoc.images.map((img, idx) => (
-                                        <img
-                                            key={idx}
-                                            src={img}
-                                            alt="thumbnail"
-                                            onClick={() => setActiveImgIndex(idx)}
-                                            className={`w-16 h-12 object-cover rounded-lg cursor-pointer border-2 transition-all ${activeImgIndex === idx ? 'border-[#a494e8] scale-105' : 'border-transparent opacity-60 hover:opacity-100'
-                                                }`}
-                                        />
-                                    ))}
-                                </div>
-                            )}
+                            {/* Drawer Scrollable Content */}
+                            <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 hide-scrollbar">
+                                
+                                {/* Lili's Cheerful Voice Narrative Card */}
+                                <div className="bg-gradient-to-br from-[#f8f5ff] to-[#f2ecff] rounded-3xl p-4 border border-purple-200/70 shadow-xs space-y-3 relative overflow-hidden">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-1.5 text-purple-800 font-black text-[12.5px]">
+                                            <Sparkles size={14} className="text-amber-500 animate-spin-slow" />
+                                            <span>丽丽的伴游大实话</span>
+                                        </div>
 
-                            <div className="flex-1 overflow-y-auto p-6 space-y-5 hide-scrollbar">
-                                <div>
-                                    <h4 className="text-[12px] font-black text-gray-400 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
-                                        <Info size={14} className="text-[#a494e8]" /> 设施与功能描述
-                                    </h4>
-                                    <p className="text-[14px] text-[#4a4365] leading-relaxed bg-purple-50/40 p-4 rounded-2xl border border-purple-100/60">
-                                        {selectedLoc.description}
+                                        {/* TTS Audio Controls */}
+                                        <div className="flex items-center gap-1">
+                                            <button
+                                                onClick={toggleSpeech}
+                                                className={`px-3 py-1.5 rounded-xl text-[11.5px] font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs ${
+                                                    ttsState.isPlaying && !ttsState.isPaused
+                                                        ? 'bg-gradient-to-r from-amber-500 to-rose-500 text-white'
+                                                        : 'bg-white text-purple-700 hover:bg-purple-50'
+                                                }`}
+                                            >
+                                                {ttsState.isPlaying && !ttsState.isPaused ? (
+                                                    <>
+                                                        <Pause size={12} />
+                                                        <span>暂停解说</span>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <Play size={12} />
+                                                        <span>语音朗读</span>
+                                                    </>
+                                                )}
+                                            </button>
+                                            {ttsState.isPlaying && (
+                                                <button
+                                                    onClick={stopSpeech}
+                                                    className="p-1.5 rounded-xl bg-white text-gray-400 hover:text-red-500 transition-colors cursor-pointer"
+                                                    title="停止播放"
+                                                >
+                                                    <Square size={12} />
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* Animated Waveform Indicator */}
+                                    {ttsState.isPlaying && !ttsState.isPaused && (
+                                        <div className="flex items-center gap-1 py-1">
+                                            <span className="w-1 h-3 bg-purple-500 rounded-full animate-bounce" />
+                                            <span className="w-1 h-5 bg-indigo-500 rounded-full animate-bounce [animation-delay:0.15s]" />
+                                            <span className="w-1 h-4 bg-pink-500 rounded-full animate-bounce [animation-delay:0.3s]" />
+                                            <span className="w-1 h-6 bg-purple-600 rounded-full animate-bounce [animation-delay:0.45s]" />
+                                            <span className="w-1 h-3 bg-amber-500 rounded-full animate-bounce [animation-delay:0.2s]" />
+                                            <span className="text-[10px] text-purple-700 font-bold ml-1.5">丽丽正在语音解说中...</span>
+                                        </div>
+                                    )}
+
+                                    {/* Speech Text Bubble */}
+                                    <p className="text-[12.5px] text-[#4a4365] leading-relaxed font-medium">
+                                        “{selectedLoc.liliNarrative || selectedLoc.description}”
                                     </p>
                                 </div>
 
-                                {selectedLoc.openingHours && (
-                                    <div>
-                                        <h4 className="text-[12px] font-black text-gray-400 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
-                                            <Clock size={14} className="text-[#a494e8]" /> 开放与服务时间
-                                        </h4>
-                                        <div className="text-[13px] font-bold text-[#4a4365] bg-gray-50 p-3 rounded-xl border border-gray-100">
-                                            {selectedLoc.openingHours}
-                                        </div>
+                                {/* Real Photos Carousel Gallery */}
+                                <div className="space-y-2">
+                                    <div className="flex items-center justify-between text-[12px] font-bold text-[#4a4365]">
+                                        <span className="flex items-center gap-1.5">
+                                            <ImageIcon size={13} className="text-[#a494e8]" />
+                                            实景高清画廊
+                                        </span>
+                                        <span className="text-[10px] text-gray-400">
+                                            {activeImgIndex + 1} / {selectedLoc.images.length}
+                                        </span>
                                     </div>
-                                )}
 
-                                {selectedLoc.highlights && (
-                                    <div>
-                                        <h4 className="text-[12px] font-black text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                                            <Sparkles size={14} className="text-[#a494e8]" /> 地标亮点
-                                        </h4>
-                                        <div className="grid grid-cols-1 gap-2">
-                                            {selectedLoc.highlights.map((hl, i) => (
-                                                <div key={i} className="flex items-center gap-2 text-[13px] text-gray-700 bg-white p-2.5 rounded-xl border border-gray-100 shadow-2xs">
-                                                    <Check size={14} className="text-emerald-500 shrink-0" />
-                                                    <span>{hl}</span>
-                                                </div>
+                                    <div className="relative h-44 rounded-2xl overflow-hidden bg-gray-100 border border-purple-100 shadow-xs">
+                                        <img
+                                            src={selectedLoc.images[activeImgIndex]}
+                                            alt={selectedLoc.name}
+                                            className="w-full h-full object-cover"
+                                        />
+                                    </div>
+
+                                    {selectedLoc.images.length > 1 && (
+                                        <div className="flex gap-2 overflow-x-auto hide-scrollbar py-1">
+                                            {selectedLoc.images.map((img, idx) => (
+                                                <button
+                                                    key={idx}
+                                                    onClick={() => setActiveImgIndex(idx)}
+                                                    className={`w-14 h-10 rounded-xl overflow-hidden border-2 transition-all shrink-0 cursor-pointer ${
+                                                        activeImgIndex === idx ? 'border-[#a494e8] scale-105 shadow-xs' : 'border-transparent opacity-60'
+                                                    }`}
+                                                >
+                                                    <img src={img} alt="thumb" className="w-full h-full object-cover" />
+                                                </button>
                                             ))}
                                         </div>
+                                    )}
+                                </div>
+
+                                {/* Lili's Insider Tips & Highlights */}
+                                {selectedLoc.liliTips && selectedLoc.liliTips.length > 0 && (
+                                    <div className="bg-amber-50/70 rounded-2xl p-3.5 border border-amber-200/60 space-y-2">
+                                        <div className="text-[12px] font-bold text-amber-900 flex items-center gap-1.5">
+                                            <Lightbulb size={13} className="text-amber-500" />
+                                            学姐实测打卡避坑秘籍
+                                        </div>
+                                        <ul className="space-y-1.5 text-[11.5px] text-amber-800/90 font-medium">
+                                            {selectedLoc.liliTips.map((tip, i) => (
+                                                <li key={i} className="flex items-start gap-1.5">
+                                                    <span className="text-amber-500 font-bold">•</span>
+                                                    <span>{tip}</span>
+                                                </li>
+                                            ))}
+                                        </ul>
                                     </div>
                                 )}
 
-                                <div>
-                                    <h4 className="text-[12px] font-black text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                                        <Tag size={14} className="text-[#a494e8]" /> 关联词条与热门关键词 (点击可向AI咨询)
-                                    </h4>
-                                    <div className="flex flex-wrap gap-2">
+                                {/* Location Details & Opening Hours */}
+                                <div className="bg-gray-50/80 rounded-2xl p-3.5 border border-gray-100 space-y-2 text-[11.5px]">
+                                    {selectedLoc.openingHours && (
+                                        <div className="flex items-center gap-2 text-gray-600">
+                                            <Clock size={12} className="text-gray-400 shrink-0" />
+                                            <span>{selectedLoc.openingHours}</span>
+                                        </div>
+                                    )}
+                                    <div className="flex flex-wrap gap-1 pt-1">
                                         {(selectedLoc.terms || []).map((term) => (
-                                            <button
+                                            <span
                                                 key={term}
-                                                onClick={() => {
-                                                    setSelectedLoc(null);
-                                                    onAskQuestion(`请问关于【${selectedLoc.name}】的【${term}】有何具体规则或政策？`);
-                                                }}
-                                                className="bg-[#f3eefc] hover:bg-[#a494e8] hover:text-white text-[#6c5aa8] text-[12px] font-bold px-3 py-1.5 rounded-xl border border-[#e4dcf8] flex items-center gap-1.5 transition-all group cursor-pointer"
+                                                className="bg-white text-[#6c5aa8] border border-purple-100 text-[10px] font-bold px-2 py-0.5 rounded-lg"
                                             >
-                                                <Tag size={12} className="group-hover:rotate-12 transition-transform" />
-                                                <span>#{term}</span>
-                                                <ChevronRight size={12} className="opacity-50 group-hover:opacity-100" />
-                                            </button>
+                                                #{term}
+                                            </span>
                                         ))}
                                     </div>
                                 </div>
                             </div>
 
-                            <div className="p-4 bg-gray-50 border-t border-gray-100 flex gap-3">
-                                <button
-                                    onClick={() => setSelectedLoc(null)}
-                                    className="px-5 py-3 rounded-2xl text-[13px] font-bold text-gray-600 hover:bg-gray-200/60 transition-colors cursor-pointer"
-                                >
-                                    返回导览列表
-                                </button>
+                            {/* Drawer Bottom Action: Ask Question */}
+                            <div className="p-4 border-t border-purple-100/60 bg-white shrink-0">
                                 <button
                                     onClick={() => {
-                                        const locName = selectedLoc.name;
-                                        setSelectedLoc(null);
-                                        onAskQuestion(`请向我详细介绍一下【${locName}】的整体情况、环境与注意事项。`);
+                                        onClose();
+                                        onAskQuestion(`请丽丽学姐为我详细介绍【${selectedLoc.name}】的详细情况和就读体验！`);
                                     }}
-                                    className="flex-1 bg-gradient-to-r from-[#4a4365] to-[#685d8a] hover:from-[#3a3452] hover:to-[#554a75] text-white text-[13px] font-bold py-3 rounded-2xl shadow-lg flex items-center justify-center gap-2 active:scale-95 transition-all cursor-pointer"
+                                    className="w-full py-3 bg-gradient-to-r from-[#b3a4ed] to-[#a494e8] hover:opacity-95 text-white font-bold text-[13px] rounded-2xl shadow-[0_4px_15px_rgba(179,164,237,0.4)] flex items-center justify-center gap-2 cursor-pointer active:scale-98 transition-all"
                                 >
-                                    <MessageSquare size={16} />
-                                    <span>一键向 Dr. Elena 咨询该地点</span>
+                                    <MessageSquare size={15} />
+                                    <span>就此地标向丽丽学姐提问</span>
                                 </button>
                             </div>
-
                         </div>
-                    </div>
-                )}
-
+                    )}
+                </div>
             </div>
         </div>
     );

@@ -39,7 +39,7 @@ export interface ChatSession {
     updatedAt: string;
 }
 
-// --- Campus Map Location Types ---
+// --- Campus Map Location & Tour Guide Types ---
 export interface CampusLocation {
     id: string;
     name: string;
@@ -50,6 +50,19 @@ export interface CampusLocation {
     coordinates: { x: number; y: number };
     highlights?: string[];
     openingHours?: string;
+    liliNarrative?: string;   // 学姐“丽丽”的专属伴游语音解说词
+    liliTips?: string[];       // 学姐实测避坑与打卡秘籍
+}
+
+export interface CampusTourRoute {
+    id: string;
+    title: string;
+    subtitle: string;
+    icon: string;
+    color: string;
+    duration: string;
+    description: string;
+    locationIds: string[];
 }
 
 // --- RAG Knowledge Base Types ---
