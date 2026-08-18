@@ -7,6 +7,19 @@ import { fileURLToPath } from 'url';
 import pg from 'pg';
 import { createClient } from 'redis';
 import { env, pipeline } from '@xenova/transformers';
+import { Agent, tool, run, setDefaultOpenAIClient, setOpenAIAPI, user, assistant, setTracingDisabled } from '@openai/agents';
+import { z } from 'zod';
+import OpenAI from 'openai';
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('⚠️ [Unhandled Rejection]:', reason);
+});
+process.on('uncaughtException', (error) => {
+  console.error('⚠️ [Uncaught Exception]:', error);
+});
+
+// Disable default tracing telemetry exporter if not configured
+setTracingDisabled(true);
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -37,6 +50,29 @@ const loadEnvFile = (filePath) => {
 
 loadEnvFile(envPath);
 loadEnvFile(envMainPath);
+
+// Initialize @openai/agents client configuration
+const deepseekKey = process.env.DEEPSEEK_API_KEY;
+const openaiKey = process.env.OPENAI_API_KEY;
+if (deepseekKey && !openaiKey) {
+  const customClient = new OpenAI({
+    baseURL: process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com',
+    apiKey: deepseekKey,
+  });
+  setDefaultOpenAIClient(customClient);
+  setOpenAIAPI('chat_completions');
+  console.log('🤖 [OpenAI Agents SDK] Configured with DeepSeek API Client (chat_completions mode)');
+} else if (openaiKey) {
+  const customClient = new OpenAI({
+    baseURL: process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1',
+    apiKey: openaiKey,
+  });
+  setDefaultOpenAIClient(customClient);
+  setOpenAIAPI('chat_completions');
+  console.log('🤖 [OpenAI Agents SDK] Configured with OpenAI API Client');
+} else {
+  console.log('ℹ️ [OpenAI Agents SDK] No remote API Key detected. Local BGE RAG offline fallback active.');
+}
 
 fs.mkdirSync(dataDir, { recursive: true });
 fs.mkdirSync(uploadsDir, { recursive: true });
@@ -1220,9 +1256,100 @@ app.get('/api/user/personal-rag', async (req, res) => {
   res.json({ ok: true, items });
 });
 
-// --- Chat Endpoint with RAG Integration ---
+// ==========================================
+// OpenAI Agents SDK Tool Definitions
+// ==========================================
+
+// 1. Campus Fact & RAG Knowledge Search Tool
+const searchCampusKnowledgeTool = tool({
+  name: 'searchCampusKnowledge',
+  description: '查询广州大学及校方权威事实数据库（RAG）。当考生或家长询问具体省份的历年高考录取分数线、排位对照、各专业特色与要求、宿舍环境配置与实景图片、学费标准及“奖助贷勤补”资助政策等校方权威事实数据时，必须调用此工具获取准确数据。日常寒暄、问候、常规通识分析切勿调用此工具。',
+  parameters: z.object({
+    query: z.string().describe('检索校方知识库的搜索词或问题，如“录取分数线”、“计算机科学与技术”、“宿舍环境 实景图”、“学费奖学金”'),
+  }),
+  execute: async ({ query }) => {
+    console.log(`🔍 [Agent Tool Call] searchCampusKnowledge with query: "${query}"`);
+    const ragMatches = await searchRagEngine(query, 3);
+    if (!ragMatches || ragMatches.length === 0) {
+      return '校方数据库中暂未检索到直接匹配的条目。请结合通用招生指导常识进行解答，并提示学生关注招生办官方发布。';
+    }
+    return formatRagContext(ragMatches);
+  },
+});
+
+// 2. VIP Personal Memory Search Tool
+const searchPersonalMemoryTool = tool({
+  name: 'searchPersonalMemory',
+  description: '查询当前考生的专属历史咨询偏好与背景记忆档案（仅在需要回顾该考生的历史诉求、家庭经济偏好、特殊意向时调用）。',
+  parameters: z.object({
+    username: z.string().describe('当前考生的用户名'),
+    query: z.string().describe('需要检索的历史偏好关键词，如“意向城市”、“目标专业”、“家庭预算”'),
+  }),
+  execute: async ({ username, query }) => {
+    if (!username) return '未提供考生用户名';
+    console.log(`🧠 [Agent Tool Call] searchPersonalMemory for "${username}" with query: "${query}"`);
+    const matches = await searchUserPersonalRagEngine(username, query, 3);
+    if (!matches || matches.length === 0) return '暂无该考生的历史偏好记录。';
+    return matches.map(m => `- ${m.item.title} (${m.item.category}): ${m.item.content}`).join('\n');
+  },
+});
+
+// 3. Save User Preference Tool
+const saveUserPreferenceTool = tool({
+  name: 'saveUserPreference',
+  description: '当考生在对话中表达了明确的志愿意向、专业兴趣、目标城市、家庭预算或特殊报考诉求时，调用此工具将该偏好沉淀记录到考生专属档案中。',
+  parameters: z.object({
+    username: z.string().describe('考生的用户名'),
+    preference: z.string().describe('提炼出的考生具体偏好内容，例如“倾向留在大湾区就业，优先考虑计算机或人工智能专业”'),
+    category: z.string().default('志愿偏好').describe('偏好分类，如“专业偏好”、“地域偏好”、“家庭经济”'),
+  }),
+  execute: async ({ username, preference, category }) => {
+    if (!username || !preference) return '保存失败：缺少用户名或偏好内容';
+    console.log(`💾 [Agent Tool Call] saveUserPreference for "${username}": "${preference}" (${category})`);
+    await saveUserPersonalMemory(username, preference, '考生偏好沉淀', category);
+    return '已成功记录考生的报考偏好。';
+  },
+});
+
+const defaultAgentModel = process.env.DEEPSEEK_API_KEY
+  ? (process.env.DEEPSEEK_MODEL || 'deepseek-chat')
+  : (process.env.OPENAI_MODEL || 'gpt-4o');
+
+const createAdmissionsAgent = (userProfile, username) => {
+  let instructions = ADMISSIONS_SYSTEM_PROMPT;
+  if (userProfile) {
+    instructions += `\n\n【当前咨询学生背景资料】：
+- 姓名：${userProfile.name || username || '未填'}
+- 性别：${userProfile.gender || '未填'}
+- 手机号：${userProfile.phone || '未填'}
+- 高考省份：${userProfile.province || '未填'}
+- 高考分数：${userProfile.score || '未填'} 分
+- 全省排名：${userProfile.rank ? `第 ${userProfile.rank} 名` : '未填'}
+- 选科情况：${userProfile.subjects || '未填'}
+- 特殊情况说明：${userProfile.specialConditions || '无'}
+${userProfile.isVip || (typeof userProfile.score === 'number' && userProfile.score > 580) ? '✨ 该学生为 VIP 优先保障咨询用户 (高考成绩 > 580分)，请针对其高考位次及个性化喜好提供定制化报考方案！' : ''}`;
+  }
+
+  instructions += `\n\n【智能体自主决策与工具调用指引】：
+1. **按需 RAG 检索（核心原则）**：
+   - 遇到询问具体省份录取分数线、排位比对、特定专业详情、宿舍环境配置与实景图片、学费标准与奖助学金政策等具体事实时，**必须主动调用 searchCampusKnowledge 工具**查询校方真实数据，严禁凭空编造事实或数据。
+2. **日常对话零工具**：
+   - 遇到打招呼（如“你好”、“在吗”）、礼貌问候、或者通识性选专业方法论（如张雪峰式实用分析方法、冷热门专业宏观趋势）等通用咨询时，**直接依据知识储备进行解答，绝不调用 searchCampusKnowledge 工具**。
+3. **偏好沉淀**：
+   - 考生在对话中表明了明确的报考诉求或家庭情况（例如“我只想去广州读大学”、“以后想考公或者进国企”），可主动调用 saveUserPreference 工具沉淀记录。
+4. **图片展示规范**：
+   - 若知识检索工具返回中包含 Markdown 图片链接（\`![caption](url)\`），请在回复中原样保留并自然展现给用户。`;
+
+  return new Agent({
+    name: 'Dr. Elena - Admissions Advisor',
+    instructions,
+    model: defaultAgentModel,
+    tools: [searchCampusKnowledgeTool, searchPersonalMemoryTool, saveUserPreferenceTool],
+  });
+};
+
+// --- Chat Endpoint with Agent Workflow Integration ---
 app.post('/api/aura/chat', async (req, res) => {
-  const apiKey = process.env.DEEPSEEK_API_KEY;
   const username = req.body?.username || '';
   const incomingMessages = Array.isArray(req.body?.messages) ? req.body.messages : [];
   const lastUserMsg = [...incomingMessages].reverse().find(m => m.role === 'user')?.content || '';
@@ -1243,61 +1370,11 @@ app.post('/api/aura/chat', async (req, res) => {
     });
   }
 
-  // 2. VIP User Rule (> 580 -> Personal RAG Memory Search & Auto Save)
-  const isVip = userProfile && (userProfile.isVip || (typeof userProfile.score === 'number' && userProfile.score > 580));
-  let personalRagContext = '';
+  const hasRemoteKey = Boolean(process.env.DEEPSEEK_API_KEY || process.env.OPENAI_API_KEY);
 
-  if (isVip && username) {
-    // Search user's personal RAG memory store
-    const personalMatches = await searchUserPersonalRagEngine(username, lastUserMsg, 3);
-    if (personalMatches.length) {
-      personalRagContext = `【该 VIP 用户的专属个人背景与历史记忆档案（优先匹配）】：\n`;
-      personalMatches.forEach(({ item }) => {
-        personalRagContext += `- ${item.title} (${item.category}): ${item.content}\n`;
-      });
-      personalRagContext += `\n`;
-    }
-
-    // Auto extract personal preference/intent memory from conversation
-    if (lastUserMsg.length >= 6 && /(想|喜欢|考|专业|地区|分数|冲|稳|保|大学|城市|预算|家庭|打算)/.test(lastUserMsg)) {
-      saveUserPersonalMemory(
-        username,
-        `对话提及咨询诉求与偏好：“${lastUserMsg}”`,
-        '对话偏好提取',
-        '兴趣与意向'
-      ).catch(() => {});
-    }
-  }
-
-  // 3. Perform Campus RAG Knowledge Search
-  const ragMatches = await searchRagEngine(lastUserMsg, 3);
-  const ragContext = formatRagContext(ragMatches);
-
-  let systemPromptWithProfile = ADMISSIONS_SYSTEM_PROMPT;
-  if (userProfile) {
-    systemPromptWithProfile += `\n\n【当前咨询学生背景资料】：
-- 姓名：${userProfile.name || username}
-- 性别：${userProfile.gender || '未填'}
-- 手机号：${userProfile.phone || '未填'}
-- 高考省份：${userProfile.province || '未填'}
-- 高考分数：${userProfile.score || '未填'} 分
-- 全省排名：${userProfile.rank ? `第 ${userProfile.rank} 名` : '未填'}
-- 选科情况：${userProfile.subjects || '未填'}
-- 特殊情况说明：${userProfile.specialConditions || '无'}
-${isVip ? '✨ 该学生为 VIP 优先保障咨询用户 (高考成绩 > 580分)，系统已启用专属个人 RAG 记忆检索！请针对其高考位次及个性化喜好提供定制化报考方案！' : ''}`;
-  }
-
-  const messages = [
-    { role: 'system', content: systemPromptWithProfile },
-    ...(personalRagContext ? [{ role: 'system', content: personalRagContext }] : []),
-    ...(ragContext ? [{ role: 'system', content: ragContext }] : []),
-    ...incomingMessages
-      .filter((m) => m && typeof m.role === 'string' && typeof m.content === 'string')
-      .map((m) => ({ role: m.role, content: m.content })),
-  ];
-
-  // 2. If no API key, serve local response using RAG context
-  if (!apiKey) {
+  // 2. If no remote API key, serve local response using RAG context
+  if (!hasRemoteKey) {
+    const ragMatches = await searchRagEngine(lastUserMsg, 3);
     if (ragMatches.length) {
       const topMatch = ragMatches[0].item;
       let reply = `根据校方数据库核对：\n\n### 📌 ${topMatch.title}\n${topMatch.content}\n\n`;
@@ -1322,52 +1399,54 @@ ${isVip ? '✨ 该学生为 VIP 优先保障咨询用户 (高考成绩 > 580分)
 
     return res.json({
       ok: true,
-      reply: `同学/家长您好！我是 **Dr. Elena**。✨\n\n关于您咨询的“${lastUserMsg}”，您可以关注我们的热门专业录取分数线、宿舍条件（配备独卫与空调）及学费资助政策。若有更具体的专业或分数问题，欢迎随时告诉我！`,
+      reply: `同学/家长您好！我是招生咨询顾问 **Dr. Elena**。✨\n\n关于您咨询的“${lastUserMsg}”，您可以向我询问广州大学热门专业录取分数线、四人间宿舍环境配置或学费与资助政策，我会随时为您解答！`,
       source: 'local-fallback'
     });
   }
 
-  // 3. DeepSeek LLM Call with RAG context
+  // 3. Run @openai/agents Autonomous Agent Workflow
   try {
-    const deepseekResponse = await fetch('https://api.deepseek.com/chat/completions', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: process.env.DEEPSEEK_MODEL || 'deepseek-chat',
-        messages,
-        temperature: 0.7,
-        stream: false,
-      }),
-    });
+    const agent = createAdmissionsAgent(userProfile, username);
 
-    if (!deepseekResponse.ok) {
-      return res.json({
-        ok: true,
-        reply: ragContext ? `根据数据库记录：\n\n${ragContext}` : '服务器连接中，请稍后再试。',
-        source: 'rag-fallback'
+    const inputItems = incomingMessages
+      .filter((m) => m && typeof m.role === 'string' && typeof m.content === 'string')
+      .map((m) => {
+        if (m.role === 'assistant') return assistant(m.content);
+        return user(m.content);
+      });
+
+    if (inputItems.length === 0 && lastUserMsg) {
+      inputItems.push(user(lastUserMsg));
+    }
+
+    console.log(`🤖 [Agent Run] Executing Admissions Agent for user: ${username || 'anonymous'}`);
+    const runResult = await run(agent, inputItems);
+
+    const reply = runResult.finalOutput || '我刚刚有点走神了，您可以再说一次吗？';
+
+    let calledRagTool = false;
+    if (Array.isArray(runResult.newItems)) {
+      calledRagTool = runResult.newItems.some(item => {
+        const name = item.name || item.toolName || item.tool?.name || item.function?.name || item.rawItem?.name;
+        return name === 'searchCampusKnowledge' || JSON.stringify(item).includes('searchCampusKnowledge');
       });
     }
 
-    const payload = await deepseekResponse.json();
-    let reply = payload?.choices?.[0]?.message?.content?.trim() || '我刚刚有点走神了，您可以再说一次吗？';
-
-    const matchedImages = ragMatches.flatMap(m => m.item.imageAttachments || []);
-    if (matchedImages.length) {
-      matchedImages.forEach(img => {
-        if (!reply.includes(img.url)) {
-          reply += `\n\n![${img.caption || img.name}](${img.url})`;
-        }
-      });
-    }
-
-    res.json({ ok: true, reply, source: 'deepseek-bge-rag-api' });
-  } catch (error) {
     res.json({
       ok: true,
-      reply: ragContext ? `根据数据库为您查找到以下信息：\n\n${ragContext}` : '服务响应稍慢，请再次发送请求。',
+      reply,
+      source: calledRagTool ? 'openai-agents-rag-tool' : 'openai-agents-direct'
+    });
+  } catch (error) {
+    console.error('⚠️ [Agent Run Error]:', error);
+
+    // Fallback to local RAG knowledge match on failure
+    const ragMatches = await searchRagEngine(lastUserMsg, 3);
+    const ragContext = formatRagContext(ragMatches);
+
+    res.json({
+      ok: true,
+      reply: ragContext ? `根据校方数据库为您查找到以下信息：\n\n${ragContext}` : '服务响应稍慢，请再次发送请求。',
       source: 'rag-fallback'
     });
   }
