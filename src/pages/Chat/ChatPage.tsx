@@ -71,7 +71,12 @@ export const ChatPage: React.FC<ChatPageProps> = ({ currentUser, onLogout, onSwi
     // --- Session States ---
     const [sessions, setSessions] = useState<ChatSession[]>([]);
     const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
-    const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+    const [isSidebarOpen, setIsSidebarOpen] = useState(() => {
+        if (typeof window !== 'undefined') {
+            return window.innerWidth >= 640;
+        }
+        return true;
+    });
 
     const [typing, setTyping] = useState(false);
     const [inputText, setInputText] = useState('');
@@ -206,6 +211,9 @@ export const ChatPage: React.FC<ChatPageProps> = ({ currentUser, onLogout, onSwi
         const newSess = createDefaultSession();
         const updated = [newSess, ...sessions];
         syncSessions(currentUser.username, updated, newSess.id);
+        if (typeof window !== 'undefined' && window.innerWidth < 640) {
+            setIsSidebarOpen(false);
+        }
     };
 
     const handleSelectSession = (sessionId: string) => {
@@ -213,6 +221,9 @@ export const ChatPage: React.FC<ChatPageProps> = ({ currentUser, onLogout, onSwi
         try {
             localStorage.setItem(`aurasense_active_session_${currentUser.username}`, sessionId);
         } catch { }
+        if (typeof window !== 'undefined' && window.innerWidth < 640) {
+            setIsSidebarOpen(false);
+        }
     };
 
     const handleDeleteSession = (sessionId: string, e: React.MouseEvent) => {
@@ -326,13 +337,21 @@ export const ChatPage: React.FC<ChatPageProps> = ({ currentUser, onLogout, onSwi
 
             <div className="flex-1 flex overflow-hidden relative">
                 {isSidebarOpen && (
-                    <SessionDrawer
-                        sessions={sessions}
-                        activeSessionId={activeSessionId}
-                        onSelectSession={handleSelectSession}
-                        onCreateSession={handleCreateNewSession}
-                        onDeleteSession={handleDeleteSession}
-                    />
+                    <div className="sm:relative absolute inset-0 z-30 sm:z-auto flex">
+                        <SessionDrawer
+                            sessions={sessions}
+                            activeSessionId={activeSessionId}
+                            onSelectSession={handleSelectSession}
+                            onCreateSession={handleCreateNewSession}
+                            onDeleteSession={handleDeleteSession}
+                            onClose={() => setIsSidebarOpen(false)}
+                        />
+                        {/* Mobile backdrop */}
+                        <div
+                            className="flex-1 bg-black/25 backdrop-blur-[2px] sm:hidden cursor-pointer"
+                            onClick={() => setIsSidebarOpen(false)}
+                        />
+                    </div>
                 )}
 
                 <div className="flex-1 flex flex-col h-full overflow-hidden relative">

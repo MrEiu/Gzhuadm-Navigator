@@ -1,5 +1,5 @@
 import React from 'react';
-import { MessageSquare, Plus, Trash2 } from 'lucide-react';
+import { MessageSquare, Plus, Trash2, X } from 'lucide-react';
 import { ChatSession } from '../../types';
 
 interface SessionDrawerProps {
@@ -8,6 +8,7 @@ interface SessionDrawerProps {
     onSelectSession: (id: string) => void;
     onCreateSession: () => void;
     onDeleteSession: (id: string, e: React.MouseEvent) => void;
+    onClose?: () => void;
 }
 
 export const SessionDrawer: React.FC<SessionDrawerProps> = ({
@@ -15,22 +16,34 @@ export const SessionDrawer: React.FC<SessionDrawerProps> = ({
     activeSessionId,
     onSelectSession,
     onCreateSession,
-    onDeleteSession
+    onDeleteSession,
+    onClose
 }) => {
     return (
-        <aside className="w-full sm:w-56 md:w-60 bg-white/40 backdrop-blur-md border-r border-white/60 flex flex-col p-3 gap-2 overflow-y-auto hide-scrollbar shrink-0 animate-in slide-in-from-left duration-300">
+        <aside className="w-full sm:w-56 md:w-60 h-full bg-white/80 sm:bg-white/40 backdrop-blur-xl sm:backdrop-blur-md border-r border-white/60 flex flex-col p-3 gap-2 overflow-y-auto hide-scrollbar shrink-0 shadow-xl sm:shadow-none animate-in slide-in-from-left duration-300">
             <div className="flex items-center justify-between px-2 pt-1 pb-2 border-b border-gray-100/60">
                 <div className="flex items-center gap-1.5 text-[12px] font-black text-[#4a4365]">
                     <MessageSquare size={15} className="text-[#a494e8]" />
                     <span>对话记录 ({sessions.length})</span>
                 </div>
-                <button
-                    onClick={onCreateSession}
-                    className="p-1 rounded-xl hover:bg-white text-[#a494e8] transition-colors cursor-pointer"
-                    title="新建对话"
-                >
-                    <Plus size={16} />
-                </button>
+                <div className="flex items-center gap-1">
+                    <button
+                        onClick={onCreateSession}
+                        className="p-1 rounded-xl hover:bg-white text-[#a494e8] transition-colors cursor-pointer"
+                        title="新建对话"
+                    >
+                        <Plus size={16} />
+                    </button>
+                    {onClose && (
+                        <button
+                            onClick={onClose}
+                            className="p-1 rounded-xl hover:bg-white text-gray-400 hover:text-[#4a4365] transition-colors cursor-pointer sm:hidden"
+                            title="关闭列表"
+                        >
+                            <X size={16} />
+                        </button>
+                    )}
+                </div>
             </div>
 
             <div className="space-y-1.5 flex-1">
