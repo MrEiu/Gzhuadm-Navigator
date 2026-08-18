@@ -13,6 +13,7 @@ import { performWebSearch } from '../services/webSearch.mjs';
 import { loadJsonProfiles, saveJsonProfiles } from '../services/personalRag.mjs';
 import { loadUserAccounts, saveUserAccounts, hashPassword } from './auth.mjs';
 import { loadJsonSessions } from './user.mjs';
+import { loadTtsConfig, saveTtsConfig, MSEDGE_PRESET_VOICES } from '../services/ttsService.mjs';
 
 const router = express.Router();
 
@@ -794,6 +795,31 @@ router.post('/agent-config', (req, res) => {
         res.json({ ok: true, message: '智能体形象与头像配置已成功保存！', data: updated });
     } else {
         res.status(500).json({ ok: false, error: '保存智能体形象配置失败' });
+    }
+});
+
+// 11. Multi-Engine TTS Configuration API
+router.get('/tts-config', (_req, res) => {
+    const config = loadTtsConfig();
+    res.json({ ok: true, data: config, presetVoices: MSEDGE_PRESET_VOICES });
+});
+
+router.post('/tts-config', (req, res) => {
+    const { engine, msedge, onnx, api } = req.body || {};
+    const current = loadTtsConfig();
+    const updated = {
+        ...current,
+        engine: engine || current.engine,
+        msedge: { ...current.msedge, ...(msedge || {}) },
+        onnx: { ...current.onnx, ...(onnx || {}) },
+        api: { ...current.api, ...(api || {}) },
+        updatedAt: new Date().toISOString()
+    };
+    const saved = saveTtsConfig(updated);
+    if (saved) {
+        res.json({ ok: true, message: 'TTS 语音合成配置已成功保存！', data: updated });
+    } else {
+        res.status(500).json({ ok: false, error: '保存 TTS 配置失败' });
     }
 });
 

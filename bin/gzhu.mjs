@@ -214,6 +214,16 @@ const saveEnvFile = (config) => {
   if (config.mailFromName !== undefined) envMap.set('MAIL_FROM_NAME', config.mailFromName);
   if (config.smtpSecureEnabled !== undefined) envMap.set('SMTP_SECURE_ENABLED', config.smtpSecureEnabled);
 
+  // TTS Voice Synthesis Engine Configuration
+  if (config.ttsEngine) envMap.set('TTS_ENGINE', config.ttsEngine);
+  if (config.msedgeVoice) envMap.set('MSEDGE_VOICE', config.msedgeVoice);
+  if (config.onnxModelPath) envMap.set('ONNX_TTS_MODEL_PATH', config.onnxModelPath);
+  if (config.onnxSpeed) envMap.set('ONNX_TTS_SPEED', config.onnxSpeed);
+  if (config.ttsApiUrl) envMap.set('TTS_API_URL', config.ttsApiUrl);
+  if (config.ttsApiKey) envMap.set('TTS_API_KEY', config.ttsApiKey);
+  if (config.ttsApiModel) envMap.set('TTS_API_MODEL', config.ttsApiModel);
+  if (config.ttsApiVoice) envMap.set('TTS_API_VOICE', config.ttsApiVoice);
+
   if (!envMap.has('PORT')) {
     envMap.set('PORT', '3001');
   }
@@ -386,23 +396,39 @@ async function runInit() {
     let tavilyApiKey = existingEnv.get('TAVILY_API_KEY') || '';
     let bochaApiKey = existingEnv.get('BOCHA_API_KEY') || '';
 
-    console.log(`${c.dim}提示：向导中每一个步骤均支持跳过。直接按 [回车 Enter] 或输入 [s] 即可保留当前步骤的已有配置并进入下一步。${c.reset}\n`);
+    console.log(`${c.dim}提示：向导中每一个步骤均支持直接按 [回车 Enter] 保留当前配置并进入下一步。${c.reset}\n`);
 
     // =============================================================
-    // STEP 1: Multi-Provider Pool Configuration (每步支持跳过/更新)
+    // STEP 1: Multi-Provider Pool Configuration (支持保持/追加/重置)
     // =============================================================
     console.log(`${c.bold}===============================================================${c.reset}`);
-    console.log(`${c.bold}【步骤 1/4】配置模型提供商池 (Provider Pool)：${c.reset}`);
+    console.log(`${c.bold}【步骤 1/5】配置模型提供商池 (Provider Pool)：${c.reset}`);
     if (providerPool.length > 0) {
       console.log(`  👉 ${c.green}已配置 ${providerPool.length} 个提供商：${c.reset}`);
       providerPool.forEach((p, idx) => {
-        console.log(`     ${c.cyan}[${idx + 1}]${c.reset} ${c.bold}${p.name}${c.reset} ${c.dim}(Base: ${p.baseUrl})${c.reset}`);
+        console.log(`     [${idx + 1}] ${c.bold}${p.name}${c.reset} ${c.dim}(Base: ${p.baseUrl})${c.reset}`);
       });
       console.log('');
-      const step1Ans = await rl.question(`${c.green}? [回车/s] 跳过并保持已有提供商，或输入 [1] 重新配置提供商: ${c.reset}`);
-      if (step1Ans.trim().toLowerCase() !== '1' && step1Ans.trim().toLowerCase() !== 'r') {
-        console.log(`${c.green}✅ 已跳过步骤 1，保留当前 ${providerPool.length} 个提供商池！${c.reset}\n`);
-      } else {
+      console.log(`  ${c.cyan}[1]${c.reset} ${c.bold}追加新供应商${c.reset}   ${c.dim}(保留现有配置，添加新的大模型提供商)${c.reset}`);
+      console.log(`  ${c.cyan}[2]${c.reset} ${c.bold}重新配置提供商${c.reset} ${c.dim}(清空并重新设置全部提供商)${c.reset}`);
+      console.log(`  ${c.cyan}[回车]${c.reset} 保持已有提供商 (${providerPool.length}个) 并进入下一步\n`);
+
+      const step1Ans = await rl.question(`${c.green}? 请选择 [回车保持 / 1 追加 / 2 重新配置]: ${c.reset}`);
+      const trimmedStep1 = step1Ans.trim();
+
+      if (trimmedStep1 === '1') {
+        let addMore = true;
+        while (addMore) {
+          console.log('');
+          const extraProvider = await promptSingleProvider(rl, `➡️ 请配置新增的第 ${providerPool.length + 1} 个大模型提供商：`);
+          providerPool.push(extraProvider);
+          console.log(`${c.green}✅ 已成功追加提供商 [${providerPool.length}]: ${extraProvider.name}${c.reset}\n`);
+          const moreAns = await rl.question(`${c.green}? 是否继续追加更多模型提供商？(y/N): ${c.reset}`);
+          if (moreAns.trim().toLowerCase() !== 'y') {
+            addMore = false;
+          }
+        }
+      } else if (trimmedStep1 === '2') {
         providerPool = [];
         const firstProvider = await promptSingleProvider(rl, '➡️ 请配置第 1 个大模型提供商 (主提供商)：');
         providerPool.push(firstProvider);
@@ -420,6 +446,8 @@ async function runInit() {
             addMore = false;
           }
         }
+      } else {
+        console.log(`${c.green}✅ 保持已有配置，保留当前 ${providerPool.length} 个提供商池！${c.reset}\n`);
       }
     } else {
       const firstProvider = await promptSingleProvider(rl, '➡️ 请配置第 1 个大模型提供商 (主提供商)：');
@@ -447,13 +475,13 @@ async function runInit() {
     // STEP 2: Model Assignment (标准对话模型 & 快速模型分配 · 支持跳过)
     // =============================================================
     console.log(`${c.bold}===============================================================${c.reset}`);
-    console.log(`${c.bold}【步骤 2/4】分配标准对话模型与快速处理模型：${c.reset}`);
+    console.log(`${c.bold}【步骤 2/5】分配标准对话模型与快速处理模型：${c.reset}`);
     console.log(`  👉 当前标准模型: ${c.cyan}${c.bold}${defaultModel}${c.reset} 【${defaultProv?.name || '默认'}】`);
     console.log(`  👉 当前快速模型: ${c.magenta}${c.bold}${fastModel}${c.reset} 【${fastProv?.name || '默认'}】\n`);
 
-    const step2Ans = await rl.question(`${c.green}? [回车/s] 跳过并保持当前模型分配，或输入 [1] 重新选择分配: ${c.reset}`);
-    if (step2Ans.trim().toLowerCase() !== '1' && step2Ans.trim().toLowerCase() !== 'r') {
-      console.log(`${c.green}✅ 已跳过步骤 2，保留当前模型分配！${c.reset}\n`);
+    const step2Ans = await rl.question(`${c.green}? 请选择 [回车保持当前分配 / 1 重新分配]: ${c.reset}`);
+    if (step2Ans.trim() !== '1') {
+      console.log(`${c.green}✅ 保持当前模型分配！${c.reset}\n`);
     } else {
       // 2.1 Standard Model
       if (providerPool.length > 1) {
@@ -545,7 +573,7 @@ async function runInit() {
     // STEP 3: Single-Choice Registration Mode (三选一 · 互斥单选 · 支持跳过)
     // =============================================================
     console.log(`${c.bold}===============================================================${c.reset}`);
-    console.log(`${c.bold}【步骤 3/4】考生注册与登录方式选择 (三选一 · 互斥单选)：${c.reset}`);
+    console.log(`${c.bold}【步骤 3/5】考生注册与登录方式选择 (三选一 · 互斥单选)：${c.reset}`);
     console.log(`  👉 当前注册方式: ${c.bold}${c.cyan}${authModeNames[authRegistrationMode] || authRegistrationMode}${c.reset}\n`);
 
     console.log(`  ${c.cyan}[1]${c.reset} ${c.bold}普通账号密码注册${c.reset}   ${c.dim}(静态标准模式 · 账号名+密码 · 零第三方依赖)${c.reset}`);
@@ -624,7 +652,7 @@ async function runInit() {
     // STEP 4: Configure Web Search Engine (支持跳过)
     // =============================================================
     console.log(`\n${c.bold}===============================================================${c.reset}`);
-    console.log(`${c.bold}【步骤 4/4】请选择联网搜索引擎 (用于高考录取政策实时查询)：${c.reset}`);
+    console.log(`${c.bold}【步骤 4/5】请选择联网搜索引擎 (用于高考录取政策实时查询)：${c.reset}`);
     console.log(`  👉 当前搜索引擎: ${c.green}${c.bold}${searchProvider.toUpperCase()}${c.reset}\n`);
 
     console.log(`  ${c.cyan}[1]${c.reset} ${c.bold}多源智能容灾检索${c.reset}  ${c.green}(推荐 · 必应全网直连 + DDG + 招生快照三级容灾 · 免 Key 开箱即用)${c.reset}`);
@@ -667,6 +695,75 @@ async function runInit() {
     }
 
     // =============================================================
+    // STEP 5: TTS Voice Synthesis Engine (方案 1: Edge Neural / 方案 2: ONNX / 方案 4: Cloud API)
+    // =============================================================
+    console.log(`\n${c.bold}===============================================================${c.reset}`);
+    console.log(`${c.bold}【步骤 5/5】请配置校园伴游 (丽丽学姐) 语音合成 TTS 引擎：${c.reset}`);
+
+    let ttsEngine = existingEnv.get('TTS_ENGINE') || 'msedge';
+    let msedgeVoice = existingEnv.get('MSEDGE_VOICE') || 'zh-CN-XiaoyiNeural';
+    let onnxModelPath = existingEnv.get('ONNX_TTS_MODEL_PATH') || 'data/models/tts_vits_zh.onnx';
+    let onnxSpeed = existingEnv.get('ONNX_TTS_SPEED') || '1.0';
+    let ttsApiUrl = existingEnv.get('TTS_API_URL') || 'https://api.openai.com/v1';
+    let ttsApiKey = existingEnv.get('TTS_API_KEY') || '';
+    let ttsApiModel = existingEnv.get('TTS_API_MODEL') || 'tts-1';
+    let ttsApiVoice = existingEnv.get('TTS_API_VOICE') || 'nova';
+
+    console.log(`  👉 当前语音引擎: ${c.green}${c.bold}${ttsEngine.toUpperCase()}${c.reset}\n`);
+
+    console.log(`  ${c.cyan}[1]${c.reset} ${c.bold}微软 Edge Neural TTS${c.reset}  ${c.green}(方案 1 · 推荐 · 媲美真人女大学生音色 · 免 Key 开箱即用)${c.reset}`);
+    console.log(`  ${c.cyan}[2]${c.reset} ${c.bold}本地 ONNX 离线模型${c.reset}    ${c.dim}(方案 2 · 纯本地轻量推理 · 0 依赖纯离线运行)${c.reset}`);
+    console.log(`  ${c.cyan}[3]${c.reset} ${c.bold}自定义 Cloud TTS API${c.reset}  ${c.dim}(方案 4 · OpenAI 协议兼容 · 硅基流动 / 豆包 / 自建网关)${c.reset}`);
+    console.log('');
+
+    let defTtsIndex = 1;
+    if (ttsEngine === 'onnx') defTtsIndex = 2;
+    else if (ttsEngine === 'api') defTtsIndex = 3;
+
+    const ttsAns = await rl.question(`${c.green}? 请选择 TTS 引擎编号 [1-3] (回车保持当前: [${defTtsIndex}]): ${c.reset}`);
+    const trimmedTts = ttsAns.trim();
+    if (trimmedTts === '1' || (!trimmedTts && defTtsIndex === 1)) {
+      ttsEngine = 'msedge';
+      console.log(`\n${c.cyan}${c.bold}🎙️ 请选择【丽丽学姐】预设发音人音色：${c.reset}`);
+      console.log(`  ${c.cyan}[1]${c.reset} ${c.bold}晓伊 (Xiaoyi)${c.reset}      ${c.green}(青春活泼女大学生 · 推荐)${c.reset}`);
+      console.log(`  ${c.cyan}[2]${c.reset} ${c.bold}晓晓 (Xiaoxiao)${c.reset}    ${c.dim}(亲切知性 · 温柔自然)${c.reset}`);
+      console.log(`  ${c.cyan}[3]${c.reset} ${c.bold}晓北 (Xiaobei)${c.reset}     ${c.dim}(东北风趣 · 幽默活力)${c.reset}`);
+      console.log(`  ${c.cyan}[4]${c.reset} ${c.bold}晓佳 (HiuGaai)${c.reset}     ${c.dim}(粤语导览 · 广府特色)${c.reset}`);
+      console.log(`  ${c.cyan}[5]${c.reset} ${c.bold}云希 (Yunxi)${c.reset}       ${c.dim}(阳光少年 · 活力男声)${c.reset}`);
+
+      const voiceMap = {
+        '1': 'zh-CN-XiaoyiNeural',
+        '2': 'zh-CN-XiaoxiaoNeural',
+        '3': 'zh-CN-liaoning-XiaobeiNeural',
+        '4': 'zh-HK-HiuGaaiNeural',
+        '5': 'zh-CN-YunxiNeural'
+      };
+      const voiceAns = await rl.question(`${c.green}? 请选择音色编号 [1-5] (默认: 1 晓伊): ${c.reset}`);
+      msedgeVoice = voiceMap[voiceAns.trim()] || 'zh-CN-XiaoyiNeural';
+      console.log(`👉 伴语音色选定为: ${c.cyan}${c.bold}${msedgeVoice}${c.reset}\n`);
+    } else if (trimmedTts === '2' || (!trimmedTts && defTtsIndex === 2)) {
+      ttsEngine = 'onnx';
+      console.log(`\n${c.cyan}${c.bold}⚙️ [本地 ONNX 离线推理参数配置]${c.reset}`);
+      const modelInput = await rl.question(`${c.green}? ONNX 模型路径 (默认: ${onnxModelPath}): ${c.reset}`);
+      onnxModelPath = modelInput.trim() || onnxModelPath;
+      const speedInput = await rl.question(`${c.green}? 合成语速倍率 (0.5~2.0, 默认: ${onnxSpeed}): ${c.reset}`);
+      onnxSpeed = speedInput.trim() || onnxSpeed;
+      console.log(`👉 ONNX 离线模型路径: ${c.cyan}${onnxModelPath}${c.reset}, 语速: ${onnxSpeed}x\n`);
+    } else if (trimmedTts === '3' || (!trimmedTts && defTtsIndex === 3)) {
+      ttsEngine = 'api';
+      console.log(`\n${c.cyan}${c.bold}🌐 [自定义 Cloud TTS API 配置 (OpenAI 协议兼容)]${c.reset}`);
+      const urlInput = await rl.question(`${c.green}? TTS API Base URL (默认: ${ttsApiUrl}): ${c.reset}`);
+      ttsApiUrl = urlInput.trim() || ttsApiUrl;
+      const keyInput = await rl.question(`${c.green}? TTS API Key (可选): ${c.reset}`);
+      ttsApiKey = keyInput.trim() || ttsApiKey;
+      const modelInput = await rl.question(`${c.green}? 模型名称 (默认: ${ttsApiModel}): ${c.reset}`);
+      ttsApiModel = modelInput.trim() || ttsApiModel;
+      const voiceInput = await rl.question(`${c.green}? 发音人角色 (默认: ${ttsApiVoice}): ${c.reset}`);
+      ttsApiVoice = voiceInput.trim() || ttsApiVoice;
+      console.log(`👉 Cloud TTS 端点: ${c.cyan}${ttsApiUrl}${c.reset}, 模型: ${ttsApiModel}, 发音人: ${ttsApiVoice}\n`);
+    }
+
+    // =============================================================
     // SAVE CONFIGURATION
     // =============================================================
     const configResult = {
@@ -694,10 +791,31 @@ async function runInit() {
       mailFrom,
       mailFromName,
       smtpSecureEnabled,
-      providerPool
+      providerPool,
+      ttsEngine,
+      msedgeVoice,
+      onnxModelPath,
+      onnxSpeed,
+      ttsApiUrl,
+      ttsApiKey,
+      ttsApiModel,
+      ttsApiVoice
     };
 
     saveEnvFile(configResult);
+
+    // Also persist directly into data/tts_config.json
+    try {
+      const ttsJsonPath = path.join(dataDir, 'tts_config.json');
+      if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
+      fs.writeFileSync(ttsJsonPath, JSON.stringify({
+        engine: ttsEngine,
+        msedge: { voice: msedgeVoice, rate: '+0%', pitch: '+0Hz', volume: '+0%' },
+        onnx: { modelPath: onnxModelPath, speed: Number(onnxSpeed) || 1.0, noiseScale: 0.667, noiseScaleW: 0.8, threads: 4 },
+        api: { apiUrl: ttsApiUrl, apiKey: ttsApiKey, model: ttsApiModel, voice: ttsApiVoice, speed: 1.0 },
+        updatedAt: new Date().toISOString()
+      }, null, 2), 'utf8');
+    } catch {}
 
     console.log(`
 ${c.green}${c.bold}===============================================================
@@ -709,6 +827,7 @@ ${c.green}${c.bold}=============================================================
   ${c.bold}快速处理模型 (FAST):${c.reset}   ${c.magenta}${fastModel}${c.reset} 【${fastProv?.name || '默认'}】
   ${c.bold}联网搜索引擎:${c.reset}          ${c.green}${searchProvider.toUpperCase()}${c.reset}
   ${c.bold}考生注册与登录模式:${c.reset}    ${c.bold}${authModeNames[authRegistrationMode] || authRegistrationMode}${c.reset}
+  ${c.bold}语音伴游 TTS 引擎:${c.reset}     ${c.magenta}${ttsEngine.toUpperCase()} (${ttsEngine === 'msedge' ? msedgeVoice : ttsEngine})${c.reset}
   ${c.bold}环境配置文件路径:${c.reset}      ${path.relative(process.cwd(), envFilePath)} / .env.local
 
 ${c.dim}您可以随时运行 ${c.cyan}npm run dev${c.dim} 启动智能招生问答平台，或在后台管理页面的【系统配置】实时调整！${c.reset}

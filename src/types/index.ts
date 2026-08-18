@@ -34,6 +34,38 @@ export interface AgentConfigData {
     updatedAt?: string;
 }
 
+export interface TTSPresetVoice {
+    id: string;
+    name: string;
+    desc: string;
+    gender: string;
+}
+
+export interface TTSConfigData {
+    engine: 'msedge' | 'onnx' | 'api' | 'web-speech';
+    msedge: {
+        voice: string;
+        rate: string;
+        pitch: string;
+        volume: string;
+    };
+    onnx: {
+        modelPath: string;
+        speed: number;
+        noiseScale: number;
+        noiseScaleW: number;
+        threads: number;
+    };
+    api: {
+        apiUrl: string;
+        apiKey: string;
+        model: string;
+        voice: string;
+        speed: number;
+    };
+    updatedAt?: string;
+}
+
 // --- Chat & Message Types ---
 export interface ChatMessage {
     id: number | string;

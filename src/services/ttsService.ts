@@ -1,15 +1,21 @@
-// Local Web Speech Synthesis TTS Service for Campus Guide "丽丽 (Lili)"
+// Multi-engine TTS Player for Campus Guide "丽丽 (Lili)"
+// Supports: Server-side Edge Neural TTS / Cloud API / Local ONNX / Browser Web Speech fallback
+
+import { API_BASE } from '../api/config';
 
 export interface TTSState {
     isPlaying: boolean;
     isPaused: boolean;
     currentText: string;
     voiceName: string;
+    engine: string;
 }
 
 type TTSCallback = (state: TTSState) => void;
 
 class TTSService {
+    private audioElement: HTMLAudioElement | null = null;
+    private audioUrl: string | null = null;
     private synth: SpeechSynthesis | null = null;
     private currentUtterance: SpeechSynthesisUtterance | null = null;
     private listeners: Set<TTSCallback> = new Set();
@@ -20,15 +26,26 @@ class TTSService {
         isPlaying: false,
         isPaused: false,
         currentText: '',
-        voiceName: ''
+        voiceName: '微软晓伊 (Neural 活泼女大)',
+        engine: 'msedge'
     };
 
     constructor() {
-        if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-            this.synth = window.speechSynthesis;
-            this.loadVoices();
-            if (this.synth.onvoiceschanged !== undefined) {
-                this.synth.onvoiceschanged = () => this.loadVoices();
+        if (typeof window !== 'undefined') {
+            this.audioElement = new Audio();
+            this.audioElement.onended = () => {
+                this.handleEnded();
+            };
+            this.audioElement.onerror = () => {
+                this.handleEnded();
+            };
+
+            if ('speechSynthesis' in window) {
+                this.synth = window.speechSynthesis;
+                this.loadVoices();
+                if (this.synth.onvoiceschanged !== undefined) {
+                    this.synth.onvoiceschanged = () => this.loadVoices();
+                }
             }
         }
     }
@@ -36,33 +53,16 @@ class TTSService {
     private loadVoices() {
         if (!this.synth) return;
         this.voices = this.synth.getVoices();
-        
-        // Find best Chinese female natural voice (e.g. Xiaoxiao, Xiaoyi, Tingting, Huihui, Yaoyao, Google 普通话)
         const zhVoices = this.voices.filter(v => v.lang.includes('zh') || v.lang.includes('cmn') || v.lang.includes('CN'));
-        
-        const preferredNames = [
-            'xiaoxiao', 'xiaoyi', 'tingting', 'huihui', 'yaoyao', 'kangkang',
-            'chinese', 'mandarin', '普通话', 'google', 'microsoft'
-        ];
+        const preferredNames = ['xiaoxiao', 'xiaoyi', 'tingting', 'huihui', 'yaoyao', 'chinese', '普通话', 'google', 'microsoft'];
 
         let chosen: SpeechSynthesisVoice | null = null;
-
         for (const pref of preferredNames) {
             const match = zhVoices.find(v => v.name.toLowerCase().includes(pref) && (v.name.includes('Female') || !v.name.includes('Male')));
-            if (match) {
-                chosen = match;
-                break;
-            }
+            if (match) { chosen = match; break; }
         }
-
-        if (!chosen && zhVoices.length > 0) {
-            chosen = zhVoices[0];
-        }
-
+        if (!chosen && zhVoices.length > 0) chosen = zhVoices[0];
         this.preferredVoice = chosen;
-        if (chosen) {
-            this.state.voiceName = chosen.name;
-        }
     }
 
     public subscribe(callback: TTSCallback): () => void {
@@ -77,77 +77,107 @@ class TTSService {
         }
     }
 
-    public speak(text: string, onEnd?: () => void) {
-        if (!this.synth) {
-            console.warn('SpeechSynthesis is not supported in this browser.');
-            return;
+    private handleEnded(onEnd?: () => void) {
+        if (this.audioUrl) {
+            URL.revokeObjectURL(this.audioUrl);
+            this.audioUrl = null;
         }
+        this.state = {
+            ...this.state,
+            isPlaying: false,
+            isPaused: false,
+            currentText: ''
+        };
+        this.notify();
+        if (onEnd) onEnd();
+    }
 
-        // Clean text: strip markdown symbols for natural speech
+    public async speak(text: string, onEnd?: () => void) {
         const cleanText = text
             .replace(/[#*`_~\[\]()!>]/g, '')
             .replace(/https?:\/\/\S+/g, '')
             .trim();
 
         if (!cleanText) return;
-
-        // Cancel previous speech
         this.stop();
 
-        // Reload voices if empty
-        if (!this.preferredVoice || this.voices.length === 0) {
-            this.loadVoices();
+        // 1. Try Server-side Synthesis first (Edge Neural / Cloud API / ONNX)
+        try {
+            const res = await fetch(`${API_BASE}/api/tts/synthesize`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text: cleanText })
+            });
+
+            if (res.ok) {
+                const blob = await res.blob();
+                if (blob.size > 100) {
+                    if (this.audioUrl) URL.revokeObjectURL(this.audioUrl);
+                    this.audioUrl = URL.createObjectURL(blob);
+
+                    if (this.audioElement) {
+                        this.audioElement.src = this.audioUrl;
+                        this.audioElement.onended = () => this.handleEnded(onEnd);
+                        await this.audioElement.play();
+
+                        this.state = {
+                            isPlaying: true,
+                            isPaused: false,
+                            currentText: cleanText,
+                            voiceName: '微软晓伊 (Neural 活泼女大)',
+                            engine: 'msedge'
+                        };
+                        this.notify();
+                        return;
+                    }
+                }
+            }
+        } catch (e) {
+            console.warn('Server TTS synthesis failed, fallback to browser Web Speech API:', e);
         }
 
-        const utterance = new SpeechSynthesisUtterance(cleanText);
-        utterance.lang = 'zh-CN';
-        
-        if (this.preferredVoice) {
-            utterance.voice = this.preferredVoice;
+        // 2. Fallback to Browser native Web Speech API
+        if (this.synth) {
+            if (!this.preferredVoice || this.voices.length === 0) {
+                this.loadVoices();
+            }
+
+            const utterance = new SpeechSynthesisUtterance(cleanText);
+            utterance.lang = 'zh-CN';
+            if (this.preferredVoice) utterance.voice = this.preferredVoice;
+            utterance.rate = 1.06;
+            utterance.pitch = 1.15;
+
+            utterance.onstart = () => {
+                this.state = {
+                    isPlaying: true,
+                    isPaused: false,
+                    currentText: cleanText,
+                    voiceName: this.preferredVoice?.name || '本地系统中文女声',
+                    engine: 'web-speech'
+                };
+                this.notify();
+            };
+
+            utterance.onend = () => {
+                this.handleEnded(onEnd);
+            };
+
+            utterance.onerror = () => {
+                this.handleEnded(onEnd);
+            };
+
+            this.currentUtterance = utterance;
+            this.synth.speak(utterance);
         }
-
-        // Tuned for a sweet, energetic young female student guide (Lili)
-        utterance.rate = 1.06;   // Slightly lively speed
-        utterance.pitch = 1.15;  // Higher pleasant pitch
-
-        utterance.onstart = () => {
-            this.state = {
-                isPlaying: true,
-                isPaused: false,
-                currentText: cleanText,
-                voiceName: this.preferredVoice?.name || '系统默认中文女声'
-            };
-            this.notify();
-        };
-
-        utterance.onend = () => {
-            this.state = {
-                isPlaying: false,
-                isPaused: false,
-                currentText: '',
-                voiceName: this.preferredVoice?.name || ''
-            };
-            this.notify();
-            if (onEnd) onEnd();
-        };
-
-        utterance.onerror = (e) => {
-            console.warn('TTS playback error/interrupted:', e);
-            this.state = {
-                isPlaying: false,
-                isPaused: false,
-                currentText: '',
-                voiceName: this.preferredVoice?.name || ''
-            };
-            this.notify();
-        };
-
-        this.currentUtterance = utterance;
-        this.synth.speak(utterance);
     }
 
     public pause() {
-        if (this.synth && this.state.isPlaying && !this.state.isPaused) {
+        if (this.audioElement && this.state.isPlaying && !this.state.isPaused && !this.synth?.speaking) {
+            this.audioElement.pause();
+            this.state.isPaused = true;
+            this.notify();
+        } else if (this.synth && this.state.isPlaying && !this.state.isPaused) {
             this.synth.pause();
             this.state.isPaused = true;
             this.notify();
@@ -155,7 +185,11 @@ class TTSService {
     }
 
     public resume() {
-        if (this.synth && this.state.isPlaying && this.state.isPaused) {
+        if (this.audioElement && this.state.isPlaying && this.state.isPaused) {
+            this.audioElement.play();
+            this.state.isPaused = false;
+            this.notify();
+        } else if (this.synth && this.state.isPlaying && this.state.isPaused) {
             this.synth.resume();
             this.state.isPaused = false;
             this.notify();
@@ -163,16 +197,24 @@ class TTSService {
     }
 
     public stop() {
+        if (this.audioElement) {
+            this.audioElement.pause();
+            this.audioElement.currentTime = 0;
+        }
+        if (this.audioUrl) {
+            URL.revokeObjectURL(this.audioUrl);
+            this.audioUrl = null;
+        }
         if (this.synth) {
             this.synth.cancel();
-            this.state = {
-                isPlaying: false,
-                isPaused: false,
-                currentText: '',
-                voiceName: this.preferredVoice?.name || ''
-            };
-            this.notify();
         }
+        this.state = {
+            ...this.state,
+            isPlaying: false,
+            isPaused: false,
+            currentText: ''
+        };
+        this.notify();
     }
 
     public getState(): TTSState {

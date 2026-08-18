@@ -25,6 +25,7 @@
     "duck-duck-scrape": "^2.2.7",
     "express": "^5.1.0",
     "lucide-react": "^0.532.0",
+    "msedge-tts": "^2.0.7",
     "nodemailer": "^9.0.5",
     "openai": "^7.5.0",
     "pg": "^8.11.3",

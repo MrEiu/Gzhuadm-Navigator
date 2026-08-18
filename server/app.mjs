@@ -12,6 +12,7 @@ import chatRouter from './routes/chat.mjs';
 import userRouter from './routes/user.mjs';
 import ragRouter from './routes/rag.mjs';
 import adminRouter, { loadCampusMapData, loadAgentConfig } from './routes/admin.mjs';
+import { loadTtsConfig, synthesizeTTS, MSEDGE_PRESET_VOICES } from './services/ttsService.mjs';
 
 export const createApp = () => {
     const app = express();
@@ -63,6 +64,27 @@ export const createApp = () => {
     app.get('/api/agent-config', (_req, res) => {
         const data = loadAgentConfig();
         res.json({ ok: true, data });
+    });
+
+    app.get('/api/tts-config', (_req, res) => {
+        const data = loadTtsConfig();
+        res.json({ ok: true, data, presetVoices: MSEDGE_PRESET_VOICES });
+    });
+
+    app.post('/api/tts/synthesize', async (req, res) => {
+        try {
+            const { text, voice, rate, pitch, engine, options } = req.body || {};
+            if (!text || typeof text !== 'string') {
+                return res.status(400).json({ ok: false, error: '缺少待合成文本 (text)' });
+            }
+            const audioBuffer = await synthesizeTTS(text, { voice, rate, pitch, engine, ...(options || {}) });
+            res.setHeader('Content-Type', 'audio/mpeg');
+            res.setHeader('Content-Length', audioBuffer.length);
+            res.send(audioBuffer);
+        } catch (err) {
+            console.error('TTS Synthesize Route Error:', err);
+            res.status(500).json({ ok: false, error: err.message || '语音合成失败' });
+        }
     });
 
     // SPA fallback route

@@ -3,9 +3,10 @@ import {
     Sliders, Sparkles, KeyRound, Globe, Server, Check,
     RefreshCw, Eye, EyeOff, ShieldCheck, Mail, Smartphone,
     Bot, MessageSquare, ArrowRight, Zap, CheckCircle2,
-    Upload, Compass, Image as ImageIcon, Link as LinkIcon
+    Upload, Compass, Image as ImageIcon, Link as LinkIcon,
+    Volume2, Mic, Play, Settings, Radio
 } from 'lucide-react';
-import { SettingsConfig } from '../../types';
+import { SettingsConfig, TTSPresetVoice } from '../../types';
 import { API_BASE } from '../../api/config';
 
 interface SettingsTabProps {
@@ -53,12 +54,33 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigSaved }) => {
 
     const [systemPrompt, setSystemPrompt] = useState(DEFAULT_SYSTEM_PROMPT);
 
-    // 3. Search Engine
+    // 3. Multi-Engine TTS Configuration States
+    const [ttsEngine, setTtsEngine] = useState<'msedge' | 'onnx' | 'api' | 'web-speech'>('msedge');
+    const [msedgeVoice, setMsedgeVoice] = useState('zh-CN-XiaoyiNeural');
+    const [msedgeRate, setMsedgeRate] = useState('+0%');
+    const [msedgePitch, setMsedgePitch] = useState('+0Hz');
+    const [msedgeVolume, setMsedgeVolume] = useState('+0%');
+
+    const [onnxModelPath, setOnnxModelPath] = useState('data/models/tts_vits_zh.onnx');
+    const [onnxSpeed, setOnnxSpeed] = useState(1.0);
+    const [onnxNoiseScale, setOnnxNoiseScale] = useState(0.667);
+    const [onnxThreads, setOnnxThreads] = useState(4);
+
+    const [ttsApiUrl, setTtsApiUrl] = useState('https://api.openai.com/v1');
+    const [ttsApiKey, setTtsApiKey] = useState('');
+    const [ttsApiModel, setTtsApiModel] = useState('tts-1');
+    const [ttsApiVoice, setTtsApiVoice] = useState('nova');
+    const [ttsApiSpeed, setTtsApiSpeed] = useState(1.0);
+
+    const [testingTts, setTestingTts] = useState(false);
+    const [ttsTestPhrase, setTtsTestPhrase] = useState('同学们好呀，我是你们的导览伴游丽丽学姐，欢迎来到广州大学！');
+
+    // 4. Search Engine
     const [searchProvider, setSearchProvider] = useState<'multi' | 'bing' | 'tavily' | 'bocha' | 'duckduckgo' | 'none'>('multi');
     const [tavilyApiKey, setTavilyApiKey] = useState('');
     const [bochaApiKey, setBochaApiKey] = useState('');
 
-    // 4. Registration Mode & Security Channels
+    // 5. Registration Mode & Security Channels
     const [authMode, setAuthMode] = useState<'username' | 'phone' | 'email'>('username');
     const [tencentSmsSecretId, setTencentSmsSecretId] = useState('');
     const [tencentSmsSecretKey, setTencentSmsSecretKey] = useState('');
@@ -70,6 +92,16 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigSaved }) => {
     const [smtpPort, setSmtpPort] = useState('587');
     const [smtpUser, setSmtpUser] = useState('');
     const [smtpPass, setSmtpPass] = useState('');
+
+    const MSEDGE_PRESET_VOICES: TTSPresetVoice[] = [
+        { id: 'zh-CN-XiaoyiNeural', name: '晓伊 (Xiaoyi)', desc: '青春活泼 · 女大学生 · 推荐', gender: '女' },
+        { id: 'zh-CN-XiaoxiaoNeural', name: '晓晓 (Xiaoxiao)', desc: '亲切知性 · 温柔自然', gender: '女' },
+        { id: 'zh-CN-liaoning-XiaobeiNeural', name: '晓北 (Xiaobei)', desc: '东北风趣 · 幽默活力', gender: '女' },
+        { id: 'zh-HK-HiuGaaiNeural', name: '晓佳 (HiuGaai)', desc: '粤语自然 · 广府特色', gender: '女' },
+        { id: 'zh-CN-YunxiNeural', name: '云希 (Yunxi)', desc: '阳光少年 · 活力充沛', gender: '男' },
+        { id: 'zh-CN-YunjianNeural', name: '云健 (Yunjian)', desc: '成熟稳重 · 磁性解说', gender: '男' },
+        { id: 'zh-TW-HsiaoChenNeural', name: '晓臻 (HsiaoChen)', desc: '温婉甜美 · 台湾国语', gender: '女' }
+    ];
 
     // Fetch existing configuration
     const fetchConfig = async () => {
@@ -103,7 +135,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigSaved }) => {
                 setSmtpPass(c.smtpPass || '');
             }
 
-            // Also load Agent Avatars
+            // Load Agent Avatars
             const agentRes = await fetch(`${API_BASE}/api/agent-config`);
             const agentData = await agentRes.json();
             if (agentData.ok && agentData.data) {
@@ -118,6 +150,33 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigSaved }) => {
                     setLiliAvatar(agentData.data.lili.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=400&auto=format&fit=crop');
                 }
             }
+
+            // Load TTS Config
+            const ttsRes = await fetch(`${API_BASE}/api/tts-config`);
+            const ttsData = await ttsRes.json();
+            if (ttsData.ok && ttsData.data) {
+                const tc = ttsData.data;
+                setTtsEngine(tc.engine || 'msedge');
+                if (tc.msedge) {
+                    setMsedgeVoice(tc.msedge.voice || 'zh-CN-XiaoyiNeural');
+                    setMsedgeRate(tc.msedge.rate || '+0%');
+                    setMsedgePitch(tc.msedge.pitch || '+0Hz');
+                    setMsedgeVolume(tc.msedge.volume || '+0%');
+                }
+                if (tc.onnx) {
+                    setOnnxModelPath(tc.onnx.modelPath || 'data/models/tts_vits_zh.onnx');
+                    setOnnxSpeed(typeof tc.onnx.speed === 'number' ? tc.onnx.speed : 1.0);
+                    setOnnxNoiseScale(typeof tc.onnx.noiseScale === 'number' ? tc.onnx.noiseScale : 0.667);
+                    setOnnxThreads(typeof tc.onnx.threads === 'number' ? tc.onnx.threads : 4);
+                }
+                if (tc.api) {
+                    setTtsApiUrl(tc.api.apiUrl || 'https://api.openai.com/v1');
+                    setTtsApiKey(tc.api.apiKey || '');
+                    setTtsApiModel(tc.api.model || 'tts-1');
+                    setTtsApiVoice(tc.api.voice || 'nova');
+                    setTtsApiSpeed(typeof tc.api.speed === 'number' ? tc.api.speed : 1.0);
+                }
+            }
         } catch (err) {
             console.error('Fetch config err:', err);
         } finally {
@@ -129,7 +188,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigSaved }) => {
         fetchConfig();
     }, []);
 
-    // Presets
+    // Presets for AI Providers
     const presets = [
         {
             name: 'DeepSeek 官方',
@@ -294,6 +353,44 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigSaved }) => {
         reader.readAsDataURL(file);
     };
 
+    // Audition TTS Voice Synthesis
+    const handleAuditionTTS = async () => {
+        setTestingTts(true);
+        try {
+            const res = await fetch(`${API_BASE}/api/tts/synthesize`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    text: ttsTestPhrase,
+                    engine: ttsEngine,
+                    voice: ttsEngine === 'msedge' ? msedgeVoice : ttsApiVoice,
+                    rate: msedgeRate,
+                    pitch: msedgePitch,
+                    options: {
+                        apiUrl: ttsApiUrl,
+                        apiKey: ttsApiKey,
+                        model: ttsApiModel,
+                        modelPath: onnxModelPath,
+                        speed: ttsEngine === 'api' ? ttsApiSpeed : onnxSpeed
+                    }
+                })
+            });
+
+            if (res.ok) {
+                const blob = await res.blob();
+                const audio = new Audio(URL.createObjectURL(blob));
+                await audio.play();
+            } else {
+                const err = await res.json().catch(() => ({ error: '语音合成失败' }));
+                alert(`试听失败: ${err.error || '合成异常'}`);
+            }
+        } catch (err: any) {
+            alert(`试听请求异常: ${err.message}`);
+        } finally {
+            setTestingTts(false);
+        }
+    };
+
     const handleSave = async (e: React.FormEvent) => {
         e.preventDefault();
         setSaving(true);
@@ -336,6 +433,34 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigSaved }) => {
                 })
             });
 
+            // Save TTS Multi-Engine Config
+            await fetch(`${API_BASE}/api/admin/tts-config`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    engine: ttsEngine,
+                    msedge: {
+                        voice: msedgeVoice,
+                        rate: msedgeRate,
+                        pitch: msedgePitch,
+                        volume: msedgeVolume
+                    },
+                    onnx: {
+                        modelPath: onnxModelPath,
+                        speed: onnxSpeed,
+                        noiseScale: onnxNoiseScale,
+                        threads: onnxThreads
+                    },
+                    api: {
+                        apiUrl: ttsApiUrl,
+                        apiKey: ttsApiKey,
+                        model: ttsApiModel,
+                        voice: ttsApiVoice,
+                        speed: ttsApiSpeed
+                    }
+                })
+            });
+
             const data = await res.json();
             if (data.ok) {
                 setSaveSuccess(true);
@@ -360,14 +485,14 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigSaved }) => {
                         <Sliders size={20} className="text-[#a494e8]" /> 全局系统配置与智能体形象定制
                     </h3>
                     <p className="text-[12px] text-[#7a7398] font-medium mt-0.5">
-                        可视化管理 AI 网关、双模型协同分配、Dr 与丽丽学姐头像形象及考生验证通道
+                        可视化管理 AI 网关、双模型协同分配、TTS 语音引擎 (Edge/ONNX/API) 与伴游形象
                     </p>
                 </div>
 
                 <div className="flex items-center gap-2.5">
                     {saveSuccess && (
                         <span className="text-[12px] font-bold text-emerald-600 flex items-center gap-1 animate-in fade-in">
-                            <CheckCircle2 size={15} /> 配置已成功保存并立即生效！
+                            <CheckCircle2 size={15} /> 全部配置已成功保存并立即生效！
                         </span>
                     )}
 
@@ -382,7 +507,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigSaved }) => {
                 </div>
             </div>
 
-            {/* 1. NEW: AI Agent Personas & Avatar Customization Card */}
+            {/* 1. AI Agent Personas & Avatar Customization Card */}
             <div className="bg-white/80 backdrop-blur-xl rounded-[32px] p-6 border border-white/80 shadow-[0_8px_25px_rgba(186,175,215,0.18)] space-y-5">
                 <div className="flex items-center justify-between">
                     <div>
@@ -559,7 +684,285 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigSaved }) => {
                 </div>
             </div>
 
-            {/* 2. Model Presets Quick Bar */}
+            {/* 2. NEW: Multi-Engine TTS Voice Customization Card */}
+            <div className="bg-white/80 backdrop-blur-xl rounded-[32px] p-6 border border-white/80 shadow-[0_8px_25px_rgba(186,175,215,0.18)] space-y-5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                        <h4 className="font-black text-[#4a4365] text-[15px] flex items-center gap-2">
+                            <Volume2 size={18} className="text-pink-600" /> 🎙️ 校园伴游语音合成 (TTS) 引擎与音色定制
+                        </h4>
+                        <p className="text-[11.5px] text-[#8a84a4] mt-0.5">
+                            支持微软 Edge Neural 神经网络超拟真女声、本地 ONNX 离线模型与云端 API
+                        </p>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                        <button
+                            type="button"
+                            onClick={handleAuditionTTS}
+                            disabled={testingTts}
+                            className="px-4 py-2 rounded-2xl bg-gradient-to-r from-pink-500 to-purple-600 hover:opacity-95 text-white text-[12px] font-bold shadow-md transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                        >
+                            <Play size={13} className={testingTts ? 'animate-spin' : ''} fill="currentColor" />
+                            <span>{testingTts ? '合成试听中...' : '🔊 试听丽丽学姐发音'}</span>
+                        </button>
+                    </div>
+                </div>
+
+                {/* TTS Engine Selector (Radio Tabs) */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    {/* Option 1: msedge */}
+                    <label className={`p-4 rounded-2xl border transition-all cursor-pointer flex items-start gap-3 ${ttsEngine === 'msedge' ? 'bg-pink-50/80 border-pink-300 shadow-xs ring-2 ring-pink-400/20' : 'bg-[#fbf9fe] border-purple-50 hover:bg-white'}`}>
+                        <input
+                            type="radio"
+                            name="ttsEngine"
+                            checked={ttsEngine === 'msedge'}
+                            onChange={() => setTtsEngine('msedge')}
+                            className="mt-1 accent-pink-500 cursor-pointer"
+                        />
+                        <div>
+                            <div className="font-bold text-[#4a4365] text-[13px] flex items-center gap-1.5">
+                                微软 Edge Neural <span className="text-[10px] bg-pink-100 text-pink-700 font-bold px-1.5 py-0.5 rounded">方案 1 · 推荐</span>
+                            </div>
+                            <div className="text-[11px] text-[#8a84a4]">免 Key 高保真神经网络女声 · 媲美真人女大</div>
+                        </div>
+                    </label>
+
+                    {/* Option 2: onnx */}
+                    <label className={`p-4 rounded-2xl border transition-all cursor-pointer flex items-start gap-3 ${ttsEngine === 'onnx' ? 'bg-indigo-50/80 border-indigo-300 shadow-xs ring-2 ring-indigo-400/20' : 'bg-[#fbf9fe] border-purple-50 hover:bg-white'}`}>
+                        <input
+                            type="radio"
+                            name="ttsEngine"
+                            checked={ttsEngine === 'onnx'}
+                            onChange={() => setTtsEngine('onnx')}
+                            className="mt-1 accent-indigo-500 cursor-pointer"
+                        />
+                        <div>
+                            <div className="font-bold text-[#4a4365] text-[13px] flex items-center gap-1.5">
+                                本地 ONNX 离线模型 <span className="text-[10px] bg-indigo-100 text-indigo-700 font-bold px-1.5 py-0.5 rounded">方案 2</span>
+                            </div>
+                            <div className="text-[11px] text-[#8a84a4]">纯离线本地推理 · 0 网络外发依赖</div>
+                        </div>
+                    </label>
+
+                    {/* Option 3: api */}
+                    <label className={`p-4 rounded-2xl border transition-all cursor-pointer flex items-start gap-3 ${ttsEngine === 'api' ? 'bg-amber-50/80 border-amber-300 shadow-xs ring-2 ring-amber-400/20' : 'bg-[#fbf9fe] border-purple-50 hover:bg-white'}`}>
+                        <input
+                            type="radio"
+                            name="ttsEngine"
+                            checked={ttsEngine === 'api'}
+                            onChange={() => setTtsEngine('api')}
+                            className="mt-1 accent-amber-500 cursor-pointer"
+                        />
+                        <div>
+                            <div className="font-bold text-[#4a4365] text-[13px] flex items-center gap-1.5">
+                                自定义 Cloud TTS API <span className="text-[10px] bg-amber-100 text-amber-700 font-bold px-1.5 py-0.5 rounded">方案 4</span>
+                            </div>
+                            <div className="text-[11px] text-[#8a84a4]">OpenAI / 硅基流动 / 豆包语音网关</div>
+                        </div>
+                    </label>
+                </div>
+
+                {/* Sub-Panel 1: msedge Configuration */}
+                {ttsEngine === 'msedge' && (
+                    <div className="bg-[#fbf9fe] p-4 sm:p-5 rounded-2xl border border-pink-100 space-y-4 animate-in fade-in">
+                        <div className="text-[12px] font-bold text-pink-900 flex items-center gap-1.5">
+                            <Mic size={14} className="text-pink-600" /> 微软 Neural 音色与声调微调
+                        </div>
+
+                        {/* Voice Presets Grid */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                            {MSEDGE_PRESET_VOICES.map((v) => {
+                                const isSelected = msedgeVoice === v.id;
+                                return (
+                                    <div
+                                        key={v.id}
+                                        onClick={() => setMsedgeVoice(v.id)}
+                                        className={`p-3 rounded-xl border transition-all cursor-pointer flex items-center justify-between ${
+                                            isSelected
+                                                ? 'bg-white border-pink-400 shadow-xs ring-1 ring-pink-400 font-bold text-pink-900'
+                                                : 'bg-white/60 border-purple-50 hover:bg-white text-gray-700'
+                                        }`}
+                                    >
+                                        <div>
+                                            <div className="text-[12px] font-bold flex items-center gap-1">
+                                                <span>{v.name}</span>
+                                                <span className={`text-[9px] px-1 py-0.2 rounded font-mono ${v.gender === '女' ? 'bg-pink-100 text-pink-700' : 'bg-blue-100 text-blue-700'}`}>
+                                                    {v.gender}
+                                                </span>
+                                            </div>
+                                            <div className="text-[10px] text-gray-400 mt-0.5">{v.desc}</div>
+                                        </div>
+                                        {isSelected && <Check size={14} className="text-pink-600 shrink-0" />}
+                                    </div>
+                                );
+                            })}
+                        </div>
+
+                        {/* Pitch & Rate Controls */}
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-1">
+                            <div>
+                                <label className="text-[11.5px] font-bold text-gray-600 block mb-1">语速调整 (Rate)</label>
+                                <select
+                                    value={msedgeRate}
+                                    onChange={(e) => setMsedgeRate(e.target.value)}
+                                    className="w-full bg-white border border-pink-100 rounded-xl px-3 py-2 text-[12px] outline-none"
+                                >
+                                    <option value="-20%">较慢 (-20%)</option>
+                                    <option value="-10%">稍慢 (-10%)</option>
+                                    <option value="+0%">标准语速 (+0%) · 推荐</option>
+                                    <option value="+10%">生动稍快 (+10%)</option>
+                                    <option value="+20%">快速 (+20%)</option>
+                                </select>
+                            </div>
+
+                            <div>
+                                <label className="text-[11.5px] font-bold text-gray-600 block mb-1">音调调整 (Pitch)</label>
+                                <select
+                                    value={msedgePitch}
+                                    onChange={(e) => setMsedgePitch(e.target.value)}
+                                    className="w-full bg-white border border-pink-100 rounded-xl px-3 py-2 text-[12px] outline-none"
+                                >
+                                    <option value="-10Hz">稍低沉 (-10Hz)</option>
+                                    <option value="+0Hz">标准音调 (+0Hz)</option>
+                                    <option value="+10Hz">甜美清脆 (+10Hz) · 推荐</option>
+                                    <option value="+20Hz">高亮活力 (+20Hz)</option>
+                                </select>
+                            </div>
+
+                            <div>
+                                <label className="text-[11.5px] font-bold text-gray-600 block mb-1">音量增益 (Volume)</label>
+                                <select
+                                    value={msedgeVolume}
+                                    onChange={(e) => setMsedgeVolume(e.target.value)}
+                                    className="w-full bg-white border border-pink-100 rounded-xl px-3 py-2 text-[12px] outline-none"
+                                >
+                                    <option value="+0%">标准音量 (+0%)</option>
+                                    <option value="+15%">适度增强 (+15%)</option>
+                                    <option value="+30%">高音量广播 (+30%)</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Sub-Panel 2: ONNX Configuration */}
+                {ttsEngine === 'onnx' && (
+                    <div className="bg-[#fbf9fe] p-4 sm:p-5 rounded-2xl border border-indigo-100 space-y-4 animate-in fade-in">
+                        <div className="text-[12px] font-bold text-indigo-900 flex items-center gap-1.5">
+                            <Settings size={14} className="text-indigo-600" /> 本地 ONNX 离线推理模型参数
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                                <label className="text-[11.5px] font-bold text-gray-600 block mb-1">ONNX 模型文件存放路径</label>
+                                <input
+                                    type="text"
+                                    value={onnxModelPath}
+                                    onChange={(e) => setOnnxModelPath(e.target.value)}
+                                    placeholder="如：data/models/tts_vits_zh.onnx"
+                                    className="w-full bg-white border border-indigo-100 rounded-xl px-3.5 py-2 text-[12px] font-mono outline-none"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="text-[11.5px] font-bold text-gray-600 block mb-1">语速倍率 (Speed)</label>
+                                <input
+                                    type="number"
+                                    step="0.1"
+                                    min="0.5"
+                                    max="2.0"
+                                    value={onnxSpeed}
+                                    onChange={(e) => setOnnxSpeed(Number(e.target.value))}
+                                    className="w-full bg-white border border-indigo-100 rounded-xl px-3.5 py-2 text-[12px] font-mono outline-none"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="text-[11.5px] font-bold text-gray-600 block mb-1">噪声因子 (Noise Scale: 0.1 ~ 1.0)</label>
+                                <input
+                                    type="number"
+                                    step="0.05"
+                                    min="0.1"
+                                    max="1.0"
+                                    value={onnxNoiseScale}
+                                    onChange={(e) => setOnnxNoiseScale(Number(e.target.value))}
+                                    className="w-full bg-white border border-indigo-100 rounded-xl px-3.5 py-2 text-[12px] font-mono outline-none"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="text-[11.5px] font-bold text-gray-600 block mb-1">CPU 推理线程数 (Threads)</label>
+                                <input
+                                    type="number"
+                                    min="1"
+                                    max="16"
+                                    value={onnxThreads}
+                                    onChange={(e) => setOnnxThreads(Number(e.target.value))}
+                                    className="w-full bg-white border border-indigo-100 rounded-xl px-3.5 py-2 text-[12px] font-mono outline-none"
+                                />
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Sub-Panel 3: Cloud API Configuration */}
+                {ttsEngine === 'api' && (
+                    <div className="bg-[#fbf9fe] p-4 sm:p-5 rounded-2xl border border-amber-100 space-y-4 animate-in fade-in">
+                        <div className="text-[12px] font-bold text-amber-900 flex items-center gap-1.5">
+                            <Radio size={14} className="text-amber-600" /> 第三方 Cloud TTS API 接口配置 (OpenAI 协议兼容)
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                                <label className="text-[11.5px] font-bold text-gray-600 block mb-1">API Base URL</label>
+                                <input
+                                    type="text"
+                                    value={ttsApiUrl}
+                                    onChange={(e) => setTtsApiUrl(e.target.value)}
+                                    placeholder="如：https://api.openai.com/v1 或 https://api.siliconflow.cn/v1"
+                                    className="w-full bg-white border border-amber-100 rounded-xl px-3.5 py-2 text-[12px] font-mono outline-none"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="text-[11.5px] font-bold text-gray-600 block mb-1">API Key</label>
+                                <input
+                                    type="password"
+                                    value={ttsApiKey}
+                                    onChange={(e) => setTtsApiKey(e.target.value)}
+                                    placeholder="sk-••••••••••••••••"
+                                    className="w-full bg-white border border-amber-100 rounded-xl px-3.5 py-2 text-[12px] font-mono outline-none"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="text-[11.5px] font-bold text-gray-600 block mb-1">模型名称 (Model)</label>
+                                <input
+                                    type="text"
+                                    value={ttsApiModel}
+                                    onChange={(e) => setTtsApiModel(e.target.value)}
+                                    placeholder="如：tts-1 / tts-1-hd / cosyvoice-v1"
+                                    className="w-full bg-white border border-amber-100 rounded-xl px-3.5 py-2 text-[12px] font-mono outline-none"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="text-[11.5px] font-bold text-gray-600 block mb-1">发音人角色 (Voice)</label>
+                                <input
+                                    type="text"
+                                    value={ttsApiVoice}
+                                    onChange={(e) => setTtsApiVoice(e.target.value)}
+                                    placeholder="如：nova / alloy / shimmer"
+                                    className="w-full bg-white border border-amber-100 rounded-xl px-3.5 py-2 text-[12px] font-mono outline-none"
+                                />
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {/* 3. Model Presets Quick Bar */}
             <div className="bg-white/80 backdrop-blur-xl rounded-[32px] p-6 border border-white/80 shadow-[0_8px_25px_rgba(186,175,215,0.18)] space-y-3">
                 <div className="flex items-center justify-between">
                     <h4 className="font-black text-[#4a4365] text-[15px] flex items-center gap-2">
@@ -597,7 +1000,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigSaved }) => {
                 </div>
             </div>
 
-            {/* 3. AI Gateway & Dual Model Allocation */}
+            {/* 4. AI Gateway & Dual Model Allocation */}
             <div className="bg-white/80 backdrop-blur-xl rounded-[32px] p-6 border border-white/80 shadow-[0_8px_25px_rgba(186,175,215,0.18)] space-y-4">
                 <div className="flex items-center justify-between">
                     <h4 className="font-black text-[#4a4365] text-[15px] flex items-center gap-2">
@@ -725,7 +1128,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigSaved }) => {
                 </div>
             </div>
 
-            {/* 4. Admissions AI Expert System Prompt */}
+            {/* 5. Admissions AI Expert System Prompt */}
             <div className="bg-white/80 backdrop-blur-xl rounded-[32px] p-6 border border-white/80 shadow-[0_8px_25px_rgba(186,175,215,0.18)] space-y-3">
                 <div className="flex items-center justify-between">
                     <h4 className="font-black text-[#4a4365] text-[15px] flex items-center gap-2">
@@ -748,7 +1151,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigSaved }) => {
                 />
             </div>
 
-            {/* 5. Web Search Engine Selection */}
+            {/* 6. Web Search Engine Selection */}
             <div className="bg-white/80 backdrop-blur-xl rounded-[32px] p-6 border border-white/80 shadow-[0_8px_25px_rgba(186,175,215,0.18)] space-y-4">
                 <div className="flex items-center justify-between">
                     <h4 className="font-black text-[#4a4365] text-[15px] flex items-center gap-2">
@@ -843,7 +1246,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigSaved }) => {
                 )}
             </div>
 
-            {/* 6. Registration Mode & Security Channels */}
+            {/* 7. Registration Mode & Security Channels */}
             <div className="bg-white/80 backdrop-blur-xl rounded-[32px] p-6 border border-white/80 shadow-[0_8px_25px_rgba(186,175,215,0.18)] space-y-4">
                 <h4 className="font-black text-[#4a4365] text-[15px] flex items-center gap-2">
                     <ShieldCheck size={16} className="text-emerald-600" /> 考生注册方式与安全通道
