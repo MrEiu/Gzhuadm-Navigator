@@ -1775,6 +1775,32 @@ const saveUserPersonalMemory = async (username, content, title = '对话偏好�
   return newItem;
 };
 
+
+app.post('/api/user/change-password', (req, res) => {
+  const { username, currentPassword, newPassword } = req.body || {};
+  if (!username || !currentPassword || !newPassword) {
+    return res.status(400).json({ ok: false, error: '所有字段均为必填' });
+  }
+
+  const users = loadUserAccounts();
+  const userIdx = users.findIndex(u => u.username === username);
+  if (userIdx === -1) {
+    return res.status(404).json({ ok: false, error: '账号不存在' });
+  }
+
+  const user = users[userIdx];
+  const isValid = verifyPassword(currentPassword, user.passwordHash || user.password);
+  if (!isValid) {
+    return res.status(400).json({ ok: false, error: '原密码输入错误' });
+  }
+
+  user.passwordHash = hashPassword(newPassword.trim());
+  delete user.password;
+  saveUserAccounts(users);
+
+  res.json({ ok: true, message: '密码修改成功，新密码已通过 Bcrypt 加密保存！' });
+});
+
 // --- Profile APIs ---
 app.get('/api/user/profile', async (req, res) => {
   const username = req.query.username;
