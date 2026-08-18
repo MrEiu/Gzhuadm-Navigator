@@ -1076,6 +1076,17 @@ app.get('/api/admin/dashboard-stats', async (_req, res) => {
 });
 
 // ==========================================
+
+// --- Multi-Model Providers Pool Storage ---
+const providersFilePath = path.join(dataDir, 'system_providers.json');
+const loadSystemProviders = () => {
+  if (!fs.existsSync(providersFilePath)) return [];
+  try { return JSON.parse(fs.readFileSync(providersFilePath, 'utf8')); } catch { return []; }
+};
+const saveSystemProviders = (data) => {
+  try { fs.writeFileSync(providersFilePath, JSON.stringify(data, null, 2), 'utf8'); } catch (e) { console.error('Failed to save providers pool:', e); }
+};
+
 // User Accounts & Password Security (Bcrypt) Layer
 // ==========================================
 const userAccountsFilePath = path.join(dataDir, 'users_accounts.json');
