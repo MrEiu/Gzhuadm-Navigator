@@ -400,13 +400,20 @@ const initRedis = async () => {
 // initRedis will be called asynchronously after app.listen
 
 
+const withTimeout = (promise, ms = 250) => {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error('Redis operation timed out')), ms))
+  ]);
+};
+
 const getCache = async (key) => {
   if (useRedis && redisClient?.isOpen) {
     try {
-      const val = await redisClient.get(key);
+      const val = await withTimeout(redisClient.get(key), 250);
       return val ? JSON.parse(val) : null;
     } catch {
-      return null;
+      // fallback to memory cache seamlessly
     }
   }
   const mem = memoryCache.get(key);
@@ -417,8 +424,7 @@ const getCache = async (key) => {
 const setCache = async (key, val, ttlSeconds = 600) => {
   if (useRedis && redisClient?.isOpen) {
     try {
-      await redisClient.set(key, JSON.stringify(val), { EX: ttlSeconds });
-      return;
+      await withTimeout(redisClient.set(key, JSON.stringify(val), { EX: ttlSeconds }), 250);
     } catch {}
   }
   memoryCache.set(key, { value: val, expire: Date.now() + ttlSeconds * 1000 });
@@ -427,47 +433,139 @@ const setCache = async (key, val, ttlSeconds = 600) => {
 const invalidateRagCache = async () => {
   if (useRedis && redisClient?.isOpen) {
     try {
-      const keys = await redisClient.keys('rag:*');
-      if (keys.length) await redisClient.del(keys);
+      const keys = await withTimeout(redisClient.keys('rag:*'), 250);
+      if (keys && keys.length) await withTimeout(redisClient.del(keys), 250);
     } catch {}
   }
   memoryCache.clear();
 };
 
 // ==========================================
-// 4. Dense Vector + Hybrid Search Engine
+// 4. Dense Vector + Token-Weighted Hybrid Search Engine (with Adaptive Cutoff)
 // ==========================================
+
+const PROVINCES = ['浙江', '江苏', '广东', '四川', '湖北', '湖南', '山东', '河南', '河北', '安徽', '福建', '江西', '陕西', '山西', '辽宁', '吉林', '黑龙江', '广西', '海南', '贵州', '云南', '重庆', '北京', '上海', '天津'];
+
+const CATEGORY_KEYWORDS = {
+  '录取分数': ['分数', '录取', '排位', '位次', '投档', '省控', '分数线', '切线'],
+  '宿舍环境': ['宿舍', '四人间', '4人间', '六人间', '6人间', '独卫', '空调', '热水', '住宿', '上床下桌', '公寓', '宿舍图', '环境'],
+  '学费奖学金': ['学费', '奖学金', '助学金', '资助', '补贴', '多少钱', '费用', '减免', '国家奖学金'],
+  '专业介绍': ['专业', '计算机', '人工智能', '设计', '自动化', '工科', '理科', '文科', '实验班']
+};
+
+const extractMeaningfulTokens = (text = '') => {
+  if (!text) return [];
+  const cleaned = String(text).toLowerCase();
+  
+  // 1. Extract alphanumeric/Chinese words of 2 or more characters, numbers with units
+  const tokens = cleaned.match(/[\u4e00-\u9fa5a-z0-9]{2,}|\d+[分人名本硕博]/g) || [];
+  
+  // 2. Extract 2-gram bigrams from contiguous Chinese characters
+  const chineseChunks = cleaned.match(/[\u4e00-\u9fa5]+/g) || [];
+  chineseChunks.forEach(chunk => {
+    if (chunk.length >= 2) {
+      for (let i = 0; i < chunk.length - 1; i++) {
+        const bi = chunk.slice(i, i + 2);
+        if (!tokens.includes(bi)) tokens.push(bi);
+      }
+    }
+  });
+
+  return tokens.filter(t => t.length >= 2);
+};
+
 const searchRagEngine = async (query = '', topK = 3) => {
-  const queryHash = crypto.createHash('md5').update(query).digest('hex');
-  const cacheKey = `rag:search:${queryHash}`;
+  if (!query || !query.trim()) return [];
+  console.log(`🔎 [searchRagEngine] Starting search for query: "${query}" (topK=${topK})`);
+  const queryHash = crypto.createHash('md5').update(query.trim()).digest('hex');
+  const cacheKey = `rag:search:v3:${queryHash}`;
 
   const cached = await getCache(cacheKey);
-  if (cached) return cached;
+  if (cached) {
+    console.log(`⚡ [searchRagEngine] Cache HIT for: "${query}" (${cached.length} results)`);
+    return cached;
+  }
 
   const queryVector = await getEmbedding(query);
   const ragStore = await getRagStore();
+  const qTokens = extractMeaningfulTokens(query);
+  const qLower = query.toLowerCase();
+
+  // Detect specific province entities in query
+  const queryProvinces = PROVINCES.filter(p => qLower.includes(p));
 
   const scored = ragStore.map((item) => {
     let score = 0;
+    const docTitle = (item.title || '').toLowerCase();
+    const docCategory = (item.category || '').toLowerCase();
+    const docContent = (item.content || '').toLowerCase();
+    const docTags = (item.tags || []).map(t => String(t).toLowerCase());
+    const docText = `${docTitle} ${docCategory} ${docContent} ${docTags.join(' ')}`;
+    const docTokens = extractMeaningfulTokens(docText);
 
-    // 1. Local BGE 512-dim Dense Vector Similarity (0 to 1)
+    // 1. Calibrated Dense Vector Cosine Similarity (Threshold >= 0.50)
     if (queryVector && item.embedding) {
       const vecSim = cosineSimilarity(queryVector, item.embedding);
-      score += vecSim * 10;
+      if (vecSim >= 0.50) {
+        // Linear scale mapping [0.50, 1.0] -> [0, 8.0]
+        score += ((vecSim - 0.50) / 0.50) * 8.0;
+      }
     }
 
-    // 2. Keyword Match Boost for Title, Tags, Image Names
-    const qLower = query.toLowerCase();
-    if (item.title.toLowerCase().includes(qLower)) score += 4;
-    if ((item.tags || []).some(t => qLower.includes(String(t).toLowerCase()))) score += 5;
-    if ((item.imageAttachments || []).some(img => qLower.includes(img.name.toLowerCase()))) score += 5;
+    // 2. High-precision Token Overlap (Length >= 2, no single-character false positives)
+    let matchedTokenCount = 0;
+    for (const qt of qTokens) {
+      if (docTokens.includes(qt) || docTitle.includes(qt)) {
+        matchedTokenCount++;
+      }
+    }
+    score += matchedTokenCount * 2.5;
 
-    return { item, score };
+    // 3. Exact Title or Category alignment
+    if (docTitle.includes(qLower) || qLower.includes(docTitle)) {
+      score += 4.0;
+    }
+    if (qLower.includes(docCategory)) {
+      score += 3.5;
+    }
+
+    // 4. Entity Specificity & Conflict Check
+    if (queryProvinces.length > 0) {
+      const docHasQueriedProvince = queryProvinces.some(p => docText.includes(p));
+      if (docHasQueriedProvince) {
+        score += 6.0; // High reward for matching specified province
+      } else if (item.category === '录取分数') {
+        score -= 4.0; // Suppress scores of other non-queried provinces
+      }
+    }
+
+    // 5. Category Keyword Match Boost
+    for (const [catName, keywords] of Object.entries(CATEGORY_KEYWORDS)) {
+      const queryHasKw = keywords.some(kw => qLower.includes(kw));
+      const docIsCat = docCategory.includes(catName) || docText.includes(catName);
+      if (queryHasKw && docIsCat) {
+        score += 3.0;
+      }
+    }
+
+    return { item, score: Math.max(0, score) };
   });
 
-  const results = scored
-    .filter(s => s.score > 0.5)
-    .sort((a, b) => b.score - a.score)
+  // Dynamic Adaptive Cutoff:
+  const MIN_ABSOLUTE_THRESHOLD = 5.0; // Must have reliable semantic and/or token match
+  const validMatches = scored
+    .filter(s => s.score >= MIN_ABSOLUTE_THRESHOLD)
+    .sort((a, b) => b.score - a.score);
+
+  if (validMatches.length === 0) {
+    await setCache(cacheKey, [], 1800);
+    return [];
+  }
+
+  const maxScore = validMatches[0].score;
+  // Retain only results whose score is at least 70% of the top match (drops sharp drop-offs)
+  const results = validMatches
+    .filter(s => s.score >= maxScore * 0.70)
     .slice(0, topK);
 
   await setCache(cacheKey, results, 1800);
@@ -892,8 +990,10 @@ app.delete('/api/admin/rag/:id', async (req, res) => {
 });
 
 app.post('/api/admin/rag/search', async (req, res) => {
-  const query = req.body.query || '';
+  const query = req.body?.query || '';
+  console.log(`🌐 [/api/admin/rag/search] Received search query: "${query}"`);
   const matches = await searchRagEngine(query, 5);
+  console.log(`📤 [/api/admin/rag/search] Returning ${matches.length} matches`);
   res.json({ ok: true, matches });
 });
 
@@ -1104,8 +1204,9 @@ const getUserProfile = async (username) => {
 };
 
 const searchUserPersonalRagEngine = async (username, query = '', topK = 3) => {
-  if (!username) return [];
+  if (!username || !query || !query.trim()) return [];
   const queryVector = await getEmbedding(query);
+  const qTokens = extractMeaningfulTokens(query);
   
   let personalStore = [];
   if (usePostgres) {
@@ -1136,16 +1237,31 @@ const searchUserPersonalRagEngine = async (username, query = '', topK = 3) => {
   const scored = personalStore.map(item => {
     let score = 0;
     if (queryVector && item.embedding) {
-      score += cosineSimilarity(queryVector, item.embedding) * 10;
+      const vecSim = cosineSimilarity(queryVector, item.embedding);
+      if (vecSim >= 0.50) {
+        score += ((vecSim - 0.50) / 0.50) * 8.0;
+      }
     }
-    const qLower = query.toLowerCase();
-    if (item.title.toLowerCase().includes(qLower)) score += 4;
-    if (item.content.toLowerCase().includes(qLower)) score += 3;
-    return { item, score };
+    const docTokens = extractMeaningfulTokens(`${item.title} ${item.content}`);
+    let matchedTokenCount = 0;
+    for (const qt of qTokens) {
+      if (docTokens.includes(qt)) matchedTokenCount++;
+    }
+    score += matchedTokenCount * 2.5;
+
+    return { item, score: Math.max(0, score) };
   });
 
-  return scored
-    .sort((a, b) => b.score - a.score)
+  const MIN_ABSOLUTE_SCORE = 4.5;
+  const validMatches = scored
+    .filter(s => s.score >= MIN_ABSOLUTE_SCORE)
+    .sort((a, b) => b.score - a.score);
+
+  if (validMatches.length === 0) return [];
+
+  const maxScore = validMatches[0].score;
+  return validMatches
+    .filter(s => s.score >= maxScore * 0.70)
     .slice(0, topK);
 };
 
@@ -1265,7 +1381,7 @@ const searchCampusKnowledgeTool = tool({
   name: 'searchCampusKnowledge',
   description: '查询广州大学及校方权威事实数据库（RAG）。当考生或家长询问具体省份的历年高考录取分数线、排位对照、各专业特色与要求、宿舍环境配置与实景图片、学费标准及“奖助贷勤补”资助政策等校方权威事实数据时，必须调用此工具获取准确数据。日常寒暄、问候、常规通识分析切勿调用此工具。',
   parameters: z.object({
-    query: z.string().describe('检索校方知识库的搜索词或问题，如“录取分数线”、“计算机科学与技术”、“宿舍环境 实景图”、“学费奖学金”'),
+    query: z.string().describe('用于校方知识库检索的高密度核心关键词。请去除用户口语中的废话（如“我想了解”、“请问”），提取精准实体与属性词，例如：“浙江 计算机 录取分数线”、“四人间宿舍配置 空调 独卫”、“工科 学费 奖学金”'),
   }),
   execute: async ({ query }) => {
     console.log(`🔍 [Agent Tool Call] searchCampusKnowledge with query: "${query}"`);
@@ -1464,7 +1580,7 @@ if (fs.existsSync(distDir)) {
 
 
 const port = Number(process.env.PORT || 3001);
-app.listen(port, '0.0.0.0', () => {
+app.listen(port, () => {
   console.log(`🚀 Gzadm Navigator Admissions AI Engine listening instantly on http://localhost:${port} & http://127.0.0.1:${port}`);
 
   // Asynchronous background initializations so port 3001 is open IMMEDIATELY (< 50ms)
