@@ -10,6 +10,8 @@ import { env, pipeline } from '@xenova/transformers';
 import { Agent, tool, run, setDefaultOpenAIClient, setOpenAIAPI, user, assistant, setTracingDisabled } from '@openai/agents';
 import { z } from 'zod';
 import OpenAI from 'openai';
+import { tavily } from '@tavily/core';
+import { search as ddgSearch, SafeSearchType } from 'duck-duck-scrape';
 
 process.on('unhandledRejection', (reason, promise) => {
   console.error('⚠️ [Unhandled Rejection]:', reason);
@@ -1440,6 +1442,124 @@ const saveUserPreferenceTool = tool({
   },
 });
 
+// ==========================================
+// 4. Multi-Source Web Search Engine & Tool
+// ==========================================
+const searchProvider = process.env.SEARCH_PROVIDER || (process.env.TAVILY_API_KEY ? 'tavily' : (process.env.BOCHA_API_KEY ? 'bocha' : 'duckduckgo'));
+const tavilyApiKey = process.env.TAVILY_API_KEY;
+const bochaApiKey = process.env.BOCHA_API_KEY;
+
+let tavilyClient = null;
+if (tavilyApiKey) {
+  try {
+    tavilyClient = tavily({ apiKey: tavilyApiKey });
+  } catch (e) {
+    console.warn('⚠️ [Tavily Init Warning]:', e.message);
+  }
+}
+
+const performWebSearch = async (query = '', maxResults = 3) => {
+  if (!query || !query.trim()) return [];
+  const cleanQuery = query.trim();
+
+  // 1. Tavily AI Search (Preferred if configured)
+  if ((searchProvider === 'tavily' || tavilyApiKey) && tavilyClient) {
+    try {
+      console.log(`🌐 [WebSearch: Tavily] Querying "${cleanQuery}"...`);
+      const res = await tavilyClient.search(cleanQuery, {
+        maxResults,
+        searchDepth: 'basic',
+        includeAnswer: false
+      });
+      if (res?.results && res.results.length > 0) {
+        return res.results.slice(0, maxResults).map(r => ({
+          title: r.title || '网页搜索结果',
+          url: r.url,
+          snippet: r.content || r.snippet || '',
+          source: 'tavily'
+        }));
+      }
+    } catch (err) {
+      console.warn(`⚠️ [Tavily Search Error, fallback to DuckDuckGo]:`, err.message);
+    }
+  }
+
+  // 2. Bocha AI Search (Chinese mainland optimized)
+  if ((searchProvider === 'bocha' || bochaApiKey) && bochaApiKey) {
+    try {
+      console.log(`🌐 [WebSearch: Bocha AI] Querying "${cleanQuery}"...`);
+      const res = await fetch('https://api.bochaai.com/v1/web-search', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${bochaApiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          query: cleanQuery,
+          freshness: 'noLimit',
+          summary: true,
+          count: maxResults
+        })
+      });
+      if (res.ok) {
+        const json = await res.json();
+        const pages = json.data?.webPages?.value || [];
+        if (pages.length > 0) {
+          return pages.slice(0, maxResults).map(p => ({
+            title: p.name || p.title || '网页搜索结果',
+            url: p.url,
+            snippet: p.snippet || p.summary || '',
+            source: 'bocha'
+          }));
+        }
+      }
+    } catch (err) {
+      console.warn(`⚠️ [Bocha Search Error, fallback to DuckDuckGo]:`, err.message);
+    }
+  }
+
+  // 3. DuckDuckGo Scrape (Free Zero-Config Fallback)
+  try {
+    console.log(`🌐 [WebSearch: DuckDuckGo Fallback] Querying "${cleanQuery}"...`);
+    const ddgRes = await ddgSearch(cleanQuery, { safeSearch: SafeSearchType.STRICT });
+    if (ddgRes?.results && ddgRes.results.length > 0) {
+      return ddgRes.results.slice(0, maxResults).map(r => ({
+        title: r.title || '网页搜索结果',
+        url: r.url,
+        snippet: r.description || r.snippet || '',
+        source: 'duckduckgo'
+      }));
+    }
+  } catch (err) {
+    console.warn(`⚠️ [DuckDuckGo Fallback Error]:`, err.message);
+  }
+
+  return [];
+};
+
+// 4. Web Search Tool Definition for Agent
+const webSearchTool = tool({
+  name: 'webSearch',
+  description: '当校方内部数据库中未收录相关信息，或者考生/家长询问全国性高考宏观政策、教育部新规、全国其他高校专业对比、各行业最新就业薪资中位数、考研趋势等实时互联网资讯时，调用此工具进行全网搜索。',
+  parameters: z.object({
+    query: z.string().describe('用于联网检索的高密度核心关键词，例如“2025 计算机专业就业薪资 中位数”、“广东省高考选科最新限制政策”、“人工智能与软件工程 就业前景对比”'),
+  }),
+  execute: async ({ query }) => {
+    console.log(`🌐 [Agent Tool Call] webSearch with query: "${query}"`);
+    const results = await performWebSearch(query, 3);
+    if (!results || results.length === 0) {
+      return '全网搜索暂未获取到高相关的网页结果，请根据通用行业常识进行解答。';
+    }
+    let text = `【互联网实时检索结果】：\n\n`;
+    results.forEach((r, idx) => {
+      text += `${idx + 1}. **[${r.title}](${r.url})**\n`;
+      if (r.snippet) text += `   摘要：${r.snippet}\n`;
+      text += `\n`;
+    });
+    return text;
+  },
+});
+
 const defaultAgentModel = defaultModel;
 
 const createAdmissionsAgent = (userProfile, username) => {
@@ -1458,20 +1578,22 @@ ${userProfile.isVip || (typeof userProfile.score === 'number' && userProfile.sco
   }
 
   instructions += `\n\n【智能体自主决策与工具调用指引】：
-1. **按需 RAG 检索（核心原则）**：
-   - 遇到询问具体省份录取分数线、排位比对、特定专业详情、宿舍环境配置与实景图片、学费标准与奖助学金政策等具体事实时，**必须主动调用 searchCampusKnowledge 工具**查询校方真实数据，严禁凭空编造事实或数据。
-2. **日常对话零工具**：
-   - 遇到打招呼（如“你好”、“在吗”）、礼貌问候、或者通识性选专业方法论（如张雪峰式实用分析方法、冷热门专业宏观趋势）等通用咨询时，**直接依据知识储备进行解答，绝不调用 searchCampusKnowledge 工具**。
-3. **偏好沉淀**：
+1. **按需 RAG 检索（校内事实与校方数据）**：
+   - 遇到询问广州大学具体省份录取分数线、排位比对、特定专业详情、宿舍环境配置与实景图片、学费标准与奖助学金政策等具体事实时，**必须主动调用 searchCampusKnowledge 工具**查询校方真实数据，严禁凭空编造事实或数据。
+2. **按需联网搜索（全网资讯与宏观动态）**：
+   - 遇到询问全国性高考政策新规、其他高校对比、各行业最新中位数薪资与考研就业趋势等外部资讯时，**调用 webSearch 工具**获取互联网实时数据并在回复中引用来源。
+3. **日常对话零工具**：
+   - 遇到打招呼（如“你好”、“在吗”）、礼貌问候、或者通识性选专业方法论等通用咨询时，**直接依据知识储备进行解答，不滥用工具**。
+4. **偏好沉淀**：
    - 考生在对话中表明了明确的报考诉求或家庭情况（例如“我只想去广州读大学”、“以后想考公或者进国企”），可主动调用 saveUserPreference 工具沉淀记录。
-4. **图片展示规范**：
-   - 若知识检索工具返回中包含 Markdown 图片链接（\`![caption](url)\`），请在回复中原样保留并自然展现给用户。`;
+5. **图片与链接规范**：
+   - 若知识检索或搜索结果中包含 Markdown 图片链接（\`![caption](url)\`）或网页链接（\`[标题](url)\`），请在回复中自然展现给用户。`;
 
   return new Agent({
     name: 'Dr. Elena - Admissions Advisor',
     instructions,
     model: defaultAgentModel,
-    tools: [searchCampusKnowledgeTool, searchPersonalMemoryTool, saveUserPreferenceTool],
+    tools: [searchCampusKnowledgeTool, webSearchTool, searchPersonalMemoryTool, saveUserPreferenceTool],
   });
 };
 

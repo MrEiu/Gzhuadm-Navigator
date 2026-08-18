@@ -3,6 +3,8 @@ import fs from 'fs';
 import path from 'path';
 import readline from 'readline/promises';
 import { fileURLToPath } from 'url';
+import { tavily } from '@tavily/core';
+import { search as ddgSearch, SafeSearchType } from 'duck-duck-scrape';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -157,6 +159,38 @@ const testChatConnectivity = async (baseUrl, apiKey, model) => {
   }
 };
 
+// Helper for testing web search
+const testSearchConnectivity = async (provider, key) => {
+  if (provider === 'tavily' && key) {
+    try {
+      const tvly = tavily({ apiKey: key });
+      const res = await tvly.search('2026 高考招生', { maxResults: 1 });
+      return { ok: res?.results?.length > 0 };
+    } catch (e) {
+      return { ok: false, error: e.message };
+    }
+  } else if (provider === 'bocha' && key) {
+    try {
+      const res = await fetch('https://api.bochaai.com/v1/web-search', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: '2026 高考招生', count: 1 })
+      });
+      return { ok: res.ok };
+    } catch (e) {
+      return { ok: false, error: e.message };
+    }
+  } else if (provider === 'duckduckgo') {
+    try {
+      const res = await ddgSearch('2026 高考招生', { safeSearch: SafeSearchType.STRICT });
+      return { ok: res?.results?.length > 0 };
+    } catch (e) {
+      return { ok: false, error: e.message };
+    }
+  }
+  return { ok: true };
+};
+
 // Read existing .env into Map
 const loadExistingEnv = () => {
   const map = new Map();
@@ -180,11 +214,22 @@ const loadExistingEnv = () => {
 const saveEnvFile = (config) => {
   const envMap = loadExistingEnv();
 
-  // Set new keys
+  // Set AI Model configuration
   envMap.set('AI_BASE_URL', config.baseUrl);
   envMap.set('AI_API_KEY', config.apiKey);
   envMap.set('DEFAULT_MODEL', config.defaultModel);
   envMap.set('FAST_MODEL', config.fastModel);
+
+  // Set Web Search configuration
+  if (config.searchProvider) {
+    envMap.set('SEARCH_PROVIDER', config.searchProvider);
+  }
+  if (config.tavilyApiKey) {
+    envMap.set('TAVILY_API_KEY', config.tavilyApiKey);
+  }
+  if (config.bochaApiKey) {
+    envMap.set('BOCHA_API_KEY', config.bochaApiKey);
+  }
 
   // Maintain backward compatibility
   if (config.providerId === 'deepseek') {
@@ -197,7 +242,6 @@ const saveEnvFile = (config) => {
     envMap.set('OPENAI_MODEL', config.defaultModel);
   }
 
-  // Preserve PORT if not present
   if (!envMap.has('PORT')) {
     envMap.set('PORT', '3001');
   }
@@ -231,7 +275,10 @@ async function runInit() {
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
 
   try {
-    console.log(`${c.bold}请选择您要接入的大模型服务商：${c.reset}\n`);
+    // -------------------------------------------------------------
+    // STEP 1: Select AI Model Provider
+    // -------------------------------------------------------------
+    console.log(`${c.bold}【步骤 1/2】请选择大语言模型服务商：${c.reset}\n`);
     PRESET_PROVIDERS.forEach((p, idx) => {
       const num = `${c.cyan}[${idx + 1}]${c.reset}`;
       const name = `${c.bold}${p.name}${c.reset}`;
@@ -264,11 +311,9 @@ async function runInit() {
     let baseUrl = provider.url;
     if (provider.isCustom) {
       while (!baseUrl) {
-        const inputUrl = await rl.question(`${c.green}? 请输入 OpenAI 兼容的 Base URL (例如 https://api.openai.com/v1 或 http://localhost:11434/v1): ${c.reset}`);
+        const inputUrl = await rl.question(`${c.green}? 请输入 OpenAI 兼容的 Base URL (例如 https://api.openai.com/v1): ${c.reset}`);
         baseUrl = inputUrl.trim();
-        if (!baseUrl) {
-          console.log(`${c.red}⚠️ Base URL 不能为空${c.reset}`);
-        }
+        if (!baseUrl) console.log(`${c.red}⚠️ Base URL 不能为空${c.reset}`);
       }
     } else {
       console.log(`  👉 接口地址 (Base URL): ${c.dim}${baseUrl}${c.reset}`);
@@ -278,12 +323,10 @@ async function runInit() {
     while (!apiKey) {
       const inputKey = await rl.question(`${c.green}? 请输入 ${provider.name} 的 API Key: ${c.reset}`);
       apiKey = inputKey.trim();
-      if (!apiKey) {
-        console.log(`${c.red}⚠️ API Key 不能为空${c.reset}`);
-      }
+      if (!apiKey) console.log(`${c.red}⚠️ API Key 不能为空${c.reset}`);
     }
 
-    // Step 2: Auto-fetch model list
+    // Step 1.2: Auto-fetch model list
     console.log(`\n⏳ 正在连接服务商 (${baseUrl}) 获取模型列表...`);
     const modelFetchRes = await fetchRemoteModels(baseUrl, apiKey);
 
@@ -294,7 +337,6 @@ async function runInit() {
       const models = modelFetchRes.models;
       console.log(`${c.green}✅ 成功获取到 ${models.length} 个可用模型：${c.reset}\n`);
 
-      // Print models with indices
       models.forEach((m, idx) => {
         const idxStr = String(idx + 1).padStart(3, ' ');
         console.log(`   ${c.dim}${idxStr}.${c.reset} ${c.bold}${m}${c.reset}`);
@@ -302,7 +344,7 @@ async function runInit() {
       console.log('');
 
       // Pick Default Model
-      console.log(`${c.cyan}💬 【默认模型 (DEFAULT_MODEL)】${c.reset} 用于回复考生与家长消息（智能体主对话、录取分析、志愿填报）。`);
+      console.log(`${c.cyan}💬 【默认模型 (DEFAULT_MODEL)】${c.reset} 用于回复考生与家长消息（智能体主对话、录取分析）。`);
       const defAns = await rl.question(`${c.green}? 请输入编号或模型名称 (默认: ${defaultModel}): ${c.reset}`);
       const defTrimmed = defAns.trim();
       if (defTrimmed) {
@@ -317,7 +359,7 @@ async function runInit() {
       }
 
       // Pick Fast Model
-      console.log(`\n${c.cyan}⚡ 【快速模型 (FAST_MODEL)】${c.reset} 用于后端处理轻量任务（文档智能切片、意图识别、偏好抽取）。`);
+      console.log(`\n${c.cyan}⚡ 【快速模型 (FAST_MODEL)】${c.reset} 用于后端处理轻量任务（文档智能切片、意图识别）。`);
       const fastAns = await rl.question(`${c.green}? 请输入编号或模型名称 (默认: ${defaultModel}): ${c.reset}`);
       const fastTrimmed = fastAns.trim();
       if (fastTrimmed) {
@@ -331,9 +373,7 @@ async function runInit() {
         fastModel = defaultModel;
       }
     } else {
-      console.log(`${c.yellow}ℹ️ 未能从 /models 接口自动拉取到模型列表 (部分中转商或代理不支持该端点)。${c.reset}`);
-      console.log(`${c.dim}转为手动指定模型名称：${c.reset}\n`);
-
+      console.log(`${c.yellow}ℹ️ 未能从 /models 接口自动拉取模型列表，转为手动指定：${c.reset}\n`);
       const defAns = await rl.question(`${c.green}? 请输入 默认对话模型 (DEFAULT_MODEL) (默认: ${defaultModel}): ${c.reset}`);
       if (defAns.trim()) defaultModel = defAns.trim();
 
@@ -341,14 +381,58 @@ async function runInit() {
       if (fastAns.trim()) fastModel = fastAns.trim();
     }
 
-    // Step 3: Test Connectivity
+    // Connectivity Test
     console.log(`\n⏳ 正在验证模型连通性 [${defaultModel}]...`);
     const testRes = await testChatConnectivity(baseUrl, apiKey, defaultModel);
     if (testRes.ok) {
-      console.log(`${c.green}✅ 连通性测试通过！API Key 与模型有效可用。${c.reset}`);
+      console.log(`${c.green}✅ 大语言模型连通性测试通过！${c.reset}`);
     } else {
       console.log(`${c.yellow}⚠️ 连通性提示: ${testRes.error}${c.reset}`);
-      console.log(`${c.dim}(配置文件仍将正常写入，请确保网络及模型名称无误)${c.reset}`);
+    }
+
+    // -------------------------------------------------------------
+    // STEP 2: Configure Web Search Engine
+    // -------------------------------------------------------------
+    console.log(`\n${c.bold}===============================================================${c.reset}`);
+    console.log(`${c.bold}【步骤 2/2】请选择联网搜索引擎 (用于查询全国政策、外部高校对比与实时资讯)：${c.reset}\n`);
+
+    console.log(`  ${c.cyan}[1]${c.reset} ${c.bold}Tavily${c.reset}          ${c.dim}(推荐 · AI 原生搜索 · 需填 API Key)${c.reset}`);
+    console.log(`  ${c.cyan}[2]${c.reset} ${c.bold}博查 AI (Bocha)${c.reset}  ${c.dim}(国内中文政策深度优化 · 需填 API Key)${c.reset}`);
+    console.log(`  ${c.cyan}[3]${c.reset} ${c.bold}DuckDuckGo${c.reset}       ${c.green}(免 Key · 免费开箱即用 · 自动兜底)${c.reset}`);
+    console.log(`  ${c.cyan}[4]${c.reset} ${c.dim}暂不启用联网搜索${c.reset}`);
+    console.log('');
+
+    let searchChoice = 3;
+    const searchAns = await rl.question(`${c.green}? 请输入选项编号 [1-4] (默认 3 - DuckDuckGo 免Key): ${c.reset}`);
+    if (searchAns.trim()) {
+      const parsed = parseInt(searchAns.trim(), 10);
+      if (!isNaN(parsed) && parsed >= 1 && parsed <= 4) searchChoice = parsed;
+    }
+
+    let searchProvider = 'duckduckgo';
+    let tavilyApiKey = '';
+    let bochaApiKey = '';
+
+    if (searchChoice === 1) {
+      searchProvider = 'tavily';
+      while (!tavilyApiKey) {
+        const inputKey = await rl.question(`${c.green}? 请输入 Tavily API Key (tvly-...): ${c.reset}`);
+        tavilyApiKey = inputKey.trim();
+        if (!tavilyApiKey) console.log(`${c.red}⚠️ Key 不能为空${c.reset}`);
+      }
+    } else if (searchChoice === 2) {
+      searchProvider = 'bocha';
+      while (!bochaApiKey) {
+        const inputKey = await rl.question(`${c.green}? 请输入 博查 (Bocha) API Key: ${c.reset}`);
+        bochaApiKey = inputKey.trim();
+        if (!bochaApiKey) console.log(`${c.red}⚠️ Key 不能为空${c.reset}`);
+      }
+    } else if (searchChoice === 3) {
+      searchProvider = 'duckduckgo';
+      console.log(`  👉 已启用 ${c.green}DuckDuckGo 免 Key 搜索引擎${c.reset}`);
+    } else {
+      searchProvider = 'none';
+      console.log(`  👉 已禁用联网搜索`);
     }
 
     // Step 4: Write .env
@@ -357,24 +441,27 @@ async function runInit() {
       baseUrl,
       apiKey,
       defaultModel,
-      fastModel
+      fastModel,
+      searchProvider,
+      tavilyApiKey,
+      bochaApiKey
     };
 
     saveEnvFile(configResult);
 
     console.log(`
 ${c.green}${c.bold}===============================================================
-🎉 Gzadm Navigator 配置初始化成功！
+🎉 Gzadm Navigator 全部配置初始化成功！
 ===============================================================${c.reset}
 
-  ${c.bold}服务商:${c.reset}       ${provider.name}
+  ${c.bold}模型服务商:${c.reset}   ${provider.name}
   ${c.bold}Base URL:${c.reset}     ${baseUrl}
-  ${c.bold}API Key:${c.reset}      ${apiKey.slice(0, 7)}...${apiKey.slice(-4)}
   ${c.bold}默认模型:${c.reset}     ${c.cyan}${defaultModel}${c.reset} (用于回复用户咨询)
   ${c.bold}快速模型:${c.reset}     ${c.magenta}${fastModel}${c.reset} (用于后端文档切片/分析)
+  ${c.bold}联网搜索:${c.reset}     ${c.green}${searchProvider.toUpperCase()}${c.reset} (未配置/故障时自动由 DuckDuckGo 兜底)
   ${c.bold}配置文件:${c.reset}     ${path.relative(process.cwd(), envFilePath)}
 
-${c.dim}您现在可以运行 ${c.cyan}npm run dev${c.dim} 启动系统服务！${c.reset}
+${c.dim}您现在可以运行 ${c.cyan}npm run dev${c.dim} 启动智能入学咨询系统！${c.reset}
 `);
   } catch (err) {
     console.error(`\n${c.red}❌ 初始化出错: ${err.message}${c.reset}`);
@@ -406,13 +493,30 @@ if (command === 'init') {
       }
     });
   }
+} else if (command === 'search') {
+  const query = args.slice(1).join(' ') || '2026 计算机专业就业趋势';
+  console.log(`⏳ 正在联网搜索: "${query}"...`);
+  ddgSearch(query, { safeSearch: SafeSearchType.STRICT }).then(res => {
+    if (res?.results?.length) {
+      console.log(`${c.green}✅ 搜索成功 (前 3 条结果)：${c.reset}\n`);
+      res.results.slice(0, 3).forEach((r, i) => {
+        console.log(`${c.bold}${i+1}. [${r.title}](${r.url})${c.reset}`);
+        console.log(`   ${c.dim}${r.description}${c.reset}\n`);
+      });
+    } else {
+      console.log(`${c.yellow}未找到搜索结果${c.reset}`);
+    }
+  }).catch(err => {
+    console.error(`${c.red}搜索失败: ${err.message}${c.reset}`);
+  });
 } else if (command === '--help' || command === '-h' || command === 'help') {
   console.log(`
 ${c.cyan}${c.bold}Gzadm Navigator CLI (gzhu)${c.reset}
 
 ${c.bold}用法:${c.reset}
-  gzhu init           交互式配置 API Key、网关地址、一键获取模型并设置双模型
+  gzhu init           交互式配置 API Key、网关地址、获取模型并配置搜索引擎
   gzhu models         一键列出当前配置服务商的所有可用模型
+  gzhu search <词>    测试联网搜索功能
   gzhu --help         查看帮助信息
 `);
 } else {
