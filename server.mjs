@@ -1012,6 +1012,157 @@ app.get('/api/admin/models', async (_req, res) => {
   }
 });
 
+// Dashboard Analytics Aggregate API
+app.get('/api/admin/dashboard-stats', async (_req, res) => {
+  try {
+    const ragStore = await getRagStore();
+    const categoriesMap = {};
+    ragStore.forEach(item => {
+      const cat = item.category || '通用';
+      categoriesMap[cat] = (categoriesMap[cat] || 0) + 1;
+    });
+
+    let usersCount = 0;
+    let vipCount = 0;
+    if (usePostgres) {
+      try {
+        const uRes = await pgPool.query('SELECT username, profile FROM users');
+        usersCount = uRes.rows.length;
+        vipCount = uRes.rows.filter(u => u.profile?.isVip || (u.profile?.score && Number(u.profile.score) > 580)).length;
+      } catch {
+        const profiles = loadJsonProfiles();
+        const entries = Object.values(profiles);
+        usersCount = entries.length;
+        vipCount = entries.filter(p => p.isVip || (p.score && Number(p.score) > 580)).length;
+      }
+    } else {
+      const profiles = loadJsonProfiles();
+      const entries = Object.values(profiles);
+      usersCount = entries.length;
+      vipCount = entries.filter(p => p.isVip || (p.score && Number(p.score) > 580)).length;
+    }
+
+    res.json({
+      ok: true,
+      stats: {
+        totalRagItems: ragStore.length,
+        totalUsers: usersCount,
+        vipUsers: vipCount,
+        categoryBreakdown: categoriesMap,
+        embeddingModel: embedder ? 'Local BGE-small-zh (512-dim)' : 'Fallback Keyword',
+        aiGateway: {
+          baseUrl: aiBaseUrl,
+          defaultModel,
+          fastModel,
+          provider: aiApiKey ? (aiBaseUrl.includes('deepseek') ? 'DeepSeek' : (aiBaseUrl.includes('openai') ? 'OpenAI' : 'OpenAI-Compatible')) : 'Offline'
+        },
+        searchEngine: {
+          provider: searchProvider,
+          tavilyActive: Boolean(tavilyApiKey),
+          bochaActive: Boolean(bochaApiKey),
+          duckduckgoActive: true
+        },
+        cacheStatus: {
+          type: useRedis ? 'Redis' : 'Memory Cache',
+          active: true
+        }
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// Admin System Config APIs
+app.get('/api/admin/config', (_req, res) => {
+  res.json({
+    ok: true,
+    config: {
+      aiBaseUrl,
+      defaultModel,
+      fastModel,
+      searchProvider,
+      hasApiKey: Boolean(aiApiKey),
+      apiKeyMasked: aiApiKey ? `${aiApiKey.slice(0, 4)}••••${aiApiKey.slice(-4)}` : '',
+      hasTavilyKey: Boolean(tavilyApiKey),
+      tavilyKeyMasked: tavilyApiKey ? `${tavilyApiKey.slice(0, 4)}••••${tavilyApiKey.slice(-4)}` : '',
+      hasBochaKey: Boolean(bochaApiKey),
+      bochaKeyMasked: bochaApiKey ? `${bochaApiKey.slice(0, 4)}••••${bochaApiKey.slice(-4)}` : ''
+    }
+  });
+});
+
+app.post('/api/admin/config', async (req, res) => {
+  const { baseUrl, apiKey, defaultModel: newDefModel, fastModel: newFastModel, searchProvider: newSearchProvider, tavilyApiKey: newTavilyKey, bochaApiKey: newBochaKey } = req.body || {};
+  
+  try {
+    const envMap = new Map();
+    if (fs.existsSync(envMainPath)) {
+      const content = fs.readFileSync(envMainPath, 'utf8');
+      content.split(/\r?\n/).forEach(line => {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith('#')) return;
+        const idx = trimmed.indexOf('=');
+        if (idx > 0) envMap.set(trimmed.slice(0, idx).trim(), trimmed.slice(idx + 1).trim());
+      });
+    }
+
+    if (baseUrl) envMap.set('AI_BASE_URL', baseUrl);
+    if (apiKey) envMap.set('AI_API_KEY', apiKey);
+    if (newDefModel) envMap.set('DEFAULT_MODEL', newDefModel);
+    if (newFastModel) envMap.set('FAST_MODEL', newFastModel);
+    if (newSearchProvider) envMap.set('SEARCH_PROVIDER', newSearchProvider);
+    if (newTavilyKey) envMap.set('TAVILY_API_KEY', newTavilyKey);
+    if (newBochaKey) envMap.set('BOCHA_API_KEY', newBochaKey);
+
+    let lines = [
+      '# ===================================================',
+      '# Gzadm Navigator AI Configuration (Saved from Web Admin)',
+      `# Updated At: ${new Date().toISOString()}`,
+      '# ===================================================',
+      ''
+    ];
+    for (const [k, v] of envMap.entries()) {
+      lines.push(`${k}=${v}`);
+    }
+    fs.writeFileSync(envMainPath, lines.join('\n') + '\n', 'utf8');
+
+    // Update in-memory process.env
+    if (baseUrl) process.env.AI_BASE_URL = baseUrl;
+    if (apiKey) process.env.AI_API_KEY = apiKey;
+    if (newDefModel) process.env.DEFAULT_MODEL = newDefModel;
+    if (newFastModel) process.env.FAST_MODEL = newFastModel;
+    if (newSearchProvider) process.env.SEARCH_PROVIDER = newSearchProvider;
+    if (newTavilyKey) process.env.TAVILY_API_KEY = newTavilyKey;
+    if (newBochaKey) process.env.BOCHA_API_KEY = newBochaKey;
+
+    res.json({ ok: true, message: '配置已成功保存并立即生效！' });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// Admin Web Search Testing API
+app.post('/api/admin/web-search', async (req, res) => {
+  const query = req.body?.query || '';
+  const count = Number(req.body?.count || 4);
+  const startTime = Date.now();
+  try {
+    const results = await performWebSearch(query, count);
+    const elapsedMs = Date.now() - startTime;
+    res.json({
+      ok: true,
+      query,
+      count: results.length,
+      elapsedMs,
+      provider: searchProvider,
+      results
+    });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
 app.post('/api/admin/upload-image', (req, res) => {
   const { base64Data, filename } = req.body || {};
   if (!base64Data || !filename) {

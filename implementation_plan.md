@@ -1,99 +1,101 @@
-# 多源联网搜索引擎与智能体集成实施方案
+# 后台管理系统 UI 深度优化与功能重构实施方案
 
-本方案为智能体（Dr. Elena）集成统一的**多源联网搜索（Web Search）引擎**，支持 **Tavily**、**博查 AI (Bocha)** 与 **DuckDuckGo (免 Key 自动兜底)**，并在 `gzhu init` 中提供可视化配置。
+本方案为 **Gzadm Navigator 后台管理系统** 进行全新设计与升级，打造现代化、高颜值的全功能管理控制台（Admin Management Console）。
 
 ---
 
-## 1. 搜索引擎架构与自动降级机制
+## 1. 整体布局与视觉架构
 
 ```mermaid
 graph TD
-    UserQuery[考生/家长提问] --> AgentDecision{Agent 自主判断}
-    AgentDecision -->|本校专属事实| CampusRAG[校方 RAG 检索]
-    AgentDecision -->|全国政策/跨校对比/行业就业| WebTool[webSearch 联网搜索工具]
-    
-    WebTool --> Router{搜索提供商路由}
-    Router -->|配置了 Tavily| P1[Tavily API (@tavily/core)]
-    Router -->|配置了 博查| P2[博查 AI (Bocha REST API)]
-    Router -->|未配置或请求异常| P3[DuckDuckGo (duck-duck-scrape 自动兜底)]
-    
-    P1 --> Format[统一格式化: 标题 + 网页链接 + 正文摘要]
-    P2 --> Format
-    P3 --> Format
-    Format --> AgentResponse[Agent 综合输出带来源引用的回答]
+    subgraph AdminLayout[后台全屏管理控制台]
+        Sidebar[左侧固定侧边栏]
+        MainContent[右侧内容呈现区]
+        
+        Sidebar --> TopAdmin[顶部: 管理员头像 + 状态点 + 超管标识]
+        Sidebar --> NavMenu[功能导航: 数据大盘 / 知识库 / 考生档案 / 词频分析 / 测试中心]
+        Sidebar --> BottomConfig[左下角: 系统配置中心 + 退出登录]
+        
+        MainContent --> PageDashboard[1. 📊 数据大盘 (KPI卡片 + 状态监控 + 快捷操作)]
+        MainContent --> PageRAG[2. 📚 知识库管理 (卡片/表格/智能切片/图片管理)]
+        MainContent --> PageUsers[3. 👥 考生档案库 (高考分数/排位/偏好档案)]
+        MainContent --> PageAnalytics[4. 📈 词频与对话分析 (意向词云 + 对话记录)]
+        MainContent --> PagePlayground[5. 🧪 检索测试中心 (RAG精确打分测试 + 联网搜索实时测试)]
+        MainContent --> PageSettings[6. ⚙️ 系统配置中心 (网关/APIKey/一键拉取双模型/搜索引擎选配)]
+    end
 ```
-
-### 1.1 搜索提供商与优先级规则
-1. **Tavily (`SEARCH_PROVIDER=tavily`)**：使用 `@tavily/core`，返回针对 LLM 精准清洗的 Markdown 摘要和链接。
-2. **博查 AI (`SEARCH_PROVIDER=bocha`)**：国内中文互联网（阳光高考、高校官网、行业政策）深度检索。
-3. **DuckDuckGo (`duck-duck-scrape`)**：
-   * **免 Key 方案**：若用户未配置任何 Key，默认直接使用 DuckDuckGo；
-   * **自动故障降级**：若 Tavily 或博查调用遇到配额耗尽/网络超时，自动无缝降级到 DuckDuckGo 抓取，保障搜索永不中断。
 
 ---
 
-## 2. `gzhu init` 交互式配置升级 (`bin/gzhu.mjs`)
+## 2. 核心功能模块设计
 
-在完成模型配置后，新增 **步骤 3：联网搜索引擎配置**：
-```
-===============================================================
-🌐 请选择联网搜索引擎 (用于查询全国政策、外部高校对比与实时资讯):
-===============================================================
-
-  [1] Tavily (推荐 · AI 原生搜索 · 需填 Key)
-  [2] 博查 AI (国内中文政策优化 · 需填 Key)
-  [3] DuckDuckGo (免 Key · 免费开箱即用)
-  [4] 禁用联网搜索
-```
-- 选择 [1] 或 [2]：引导输入对应的 `TAVILY_API_KEY` 或 `BOCHA_API_KEY`；
-- 选择 [3]（或直接回车）：配置 `SEARCH_PROVIDER=duckduckgo`（无需任何 Key）；
-- 自动写入 `.env` 文件并完成一次搜索连通性验证。
+### 2.1 现代化左侧边栏 (Sidebar)
+* **顶部管理员卡片**：渐变发光管理员头像、`Admin` 名称、`● 系统超级管理员 (在线)` 状态指示灯。
+* **核心导航列表**：
+  1. `📊 数据大盘 (Dashboard)`
+  2. `📚 知识库管理 (Knowledge Base)`
+  3. `👥 考生档案库 (Student Profiles)`
+  4. `📈 词频与对话 (Analytics)`
+  5. `🧪 检索与测试中心 (Test Playground)`
+* **底部固定设置区**：
+  * `⚙️ 模型与网关配置 (Settings)`（高亮入口）
+  * `🚪 退出管理 (Logout)`
 
 ---
 
-## 3. 服务端与 Agent 工具封装 (`server.mjs`)
+### 2.2 📊 数据大盘 (Dashboard)
+* **4 大核心 KPI 统计卡片**：
+  * **知识库条目总数**（含表格/图文/图集分类标签分布）；
+  * **注册考生总数 & VIP 保障用户数**（>580分高分考生画像）；
+  * **本地 BGE 向量模型状态**（512 维 ONNX 引擎、本地模型缓存命中）；
+  * **当前 AI 网关 & 快速模型状态**（当前模型名称、Redis 缓存状态）。
+* **知识分布与分类占比卡片**（录取分数、宿舍生活、学费资助、专业介绍等）。
+* **快速操作面板**（一键新建知识、一键 AI 文档切片、进入测试中心、进入配置中心）。
 
-### 3.1 统一搜索服务函数 `performWebSearch(query, count = 3)`
-* 输入：检索关键词 `query`
-* 输出：`[{ title, url, snippet, source }]` 统一结构。
-* 具备 3 重容灾（Tavily/Bocha -> DuckDuckGo -> 空保护）。
+---
 
-### 3.2 智能体工具 `webSearchTool`
-* 注入 `createAdmissionsAgent` 的 tools 数组。
-* 明确在 System Prompt 与 Description 中指引模型：
-  * 查本校历史分数、宿舍环境配置与图片 -> 调用 `searchCampusKnowledge`；
-  * 查全国政策、教育部新规、各行业就业薪资中位数、跨校对比 -> 调用 `webSearch`。
+### 2.3 🧪 检索与测试中心 (Test Playground)
+* **Tab 1: RAG 知识库检索精测**：
+  * 输入测试查询（如“浙江 计算机”、“宿舍四人间配置”）；
+  * 实时展示：**分词 Token 拆解**、**向量余弦相似度**、**最终得分加权**、**自适应 Top-K 截断状态**；
+  * 渲染命中条目的标题、分类、表格预览与图片附件，并支持查看原始 JSON Payload。
+* **Tab 2: 联网搜索实时测试**：
+  * 输入搜索词（如“2025 全国高考报考人数趋势”、“人工智能与计算机就业中位数”）；
+  * 支持自由切换搜索引擎（Tavily / 博查 AI / DuckDuckGo）；
+  * 即时发起网络搜索，展示搜索耗时、标题、外部真实 URL 链接、清洗后正文摘要与来源标签。
+
+---
+
+### 2.4 ⚙️ 系统模型与引擎配置中心 (Settings)
+* **AI 大模型网关配置**：
+  * 服务商快捷预设（DeepSeek、OpenAI、阿里通义千问、硅基流动、智谱GLM、月之暗面Kimi、自定义 OpenAI-Compatible）；
+  * Base URL 与 API Key 输入；
+  * **一键获取模型列表按钮**：点击直接调用 `${baseUrl}/models` 动态更新模型下拉框；
+  * **默认对话模型 (`DEFAULT_MODEL`)** 与 **快速模型 (`FAST_MODEL`)** 下拉选择。
+* **联网搜索引擎配置**：
+  * 提供商选择（Tavily / 博查 Bocha / DuckDuckGo 免Key / 禁用）；
+  * 填入 `TAVILY_API_KEY` 或 `BOCHA_API_KEY`；
+* **在线一键保存**：点击保存立即持久化写入 `.env` 并即时刷新服务端内存实例。
+
+---
+
+## 3. 后端 API 扩展 (`server.mjs`)
+1. `GET /api/admin/dashboard-stats`：汇总大盘数据（知识库条目、用户统计、模型状态、分类统计）。
+2. `POST /api/admin/web-search`：提供给测试中心的即时联网搜索 API（支持指定搜索引擎调试）。
+3. `GET /api/admin/config` & `POST /api/admin/config`：读取与在线保存系统配置。
 
 ---
 
 ## Proposed Changes
 
-### 1. 依赖管理 (`package.json`)
-#### [MODIFY] [package.json](file:///c:/Users/meru6/Desktop/Gzadm%20Navigator/package.json)
-* 安装依赖：`@tavily/core`、`duck-duck-scrape`。
-
-### 2. 初始化指令升级 (`bin/gzhu.mjs`)
-#### [MODIFY] [gzhu.mjs](file:///c:/Users/meru6/Desktop/Gzadm%20Navigator/bin/gzhu.mjs)
-* 增加联网搜索引擎选择菜单（Tavily / 博查 / DuckDuckGo / 禁用）。
-* 增加 `gzhu search <query>` 快捷测试命令。
-* 更新 `.env` 保存逻辑（`SEARCH_PROVIDER`、`TAVILY_API_KEY`、`BOCHA_API_KEY`）。
-
-### 3. 后端搜索与工具注入 (`server.mjs`)
+### 后端 API 扩展
 #### [MODIFY] [server.mjs](file:///c:/Users/meru6/Desktop/Gzadm%20Navigator/server.mjs)
-* 实现 `performWebSearch` 统一聚合与降级函数。
-* 定义并导出 `webSearchTool`。
-* 将 `webSearchTool` 添加至 `createAdmissionsAgent`。
+* 增加 `/api/admin/dashboard-stats`、`/api/admin/config` (GET & POST) 与完善 `/api/admin/web-search`。
 
----
-
-## Verification Plan
-
-### 1. CLI 初始化测试
-* 运行 `node ./bin/gzhu.mjs --help` 验证新增指令；
-* 运行搜索测试：验证 DuckDuckGo / Tavily / 博查 能正常返回结构化网页信息与链接。
-
-### 2. Agent 问答多场景测试
-* 提问 1（外部实时资讯）：“2025年全国高考报名人数是多少？目前计算机专业就业中位数情况如何？”
-  * 验证：Agent 准确触发 `webSearch` 并输出包含参考来源链接的解答。
-* 提问 2（校内权威事实）：“浙江考生报广州大学计算机科学与技术，历年分数线是多少？”
-  * 验证：Agent 依然优先触发 `searchCampusKnowledge` 本地 RAG，两者互不干扰。
+### 前端 UI 重构
+#### [MODIFY] [aurasense.tsx](file:///c:/Users/meru6/Desktop/Gzadm%20Navigator/aurasense.tsx)
+* 将原有简单的 Admin Tab 模式升级为**全屏自适应现代化管理控制台**：
+  * 左侧常驻高颜值侧边栏（管理员头像、名称、状态灯、分类导航、左下角配置入口）；
+  * 实现完整的 **Dashboard 大盘组件**；
+  * 实现 **Playground 测试中心组件**（RAG 精测 + 联网搜索测试）；
+  * 实现 **Settings 配置中心组件**（可视化模型网关、一键拉取模型、双模型与搜索引擎配置）。

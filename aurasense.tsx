@@ -1485,7 +1485,7 @@ export default function App() {
 
       {/* SCENE 2: Logged In Main Application */}
       {currentUser && (
-        <div className={`w-full h-full ${currentUser.role === 'admin' ? 'sm:max-w-[860px]' : (isSidebarOpen ? 'sm:max-w-[960px]' : 'sm:max-w-[480px]')} sm:max-h-[880px] ${THEME.glass} flex flex-col sm:rounded-[48px] overflow-hidden relative sm:shadow-[0_45px_100px_rgba(186,175,215,0.4)] sm:border-[8px] border-[#fdfcff] transition-all duration-500`}>
+        <div className={`w-full h-full ${currentUser.role === 'admin' ? 'sm:max-w-[1360px] sm:max-h-[920px]' : (isSidebarOpen ? 'sm:max-w-[960px]' : 'sm:max-w-[480px]')} sm:max-h-[880px] ${THEME.glass} flex flex-col sm:rounded-[48px] overflow-hidden relative sm:shadow-[0_45px_100px_rgba(186,175,215,0.4)] sm:border-[8px] border-[#fdfcff] transition-all duration-500`}>
           
           <div className="flex flex-col h-full w-full animate-in fade-in duration-500">
             
@@ -1741,641 +1741,1320 @@ export default function App() {
               onAskQuestion={handleAskLocationQuestion}
             />
 
-            {/* VIEW B: Admin User - Management Dashboard */}
+            {/* VIEW B: Admin User - Management Dashboard & Sidebar Console */}
             {currentUser.role === 'admin' && (
-              <main className="flex-1 overflow-y-auto p-6 space-y-6 hide-scrollbar">
+              <div className="flex-1 flex overflow-hidden w-full h-full bg-white/40">
                 
-                {/* Admin Tab Switcher */}
-                <div className="flex items-center justify-between bg-white/60 backdrop-blur-md p-2 rounded-2xl border border-white shadow-xs">
-                  <div className="flex items-center gap-2">
+                {/* 1. Left Fixed Admin Sidebar */}
+                <aside className="w-56 sm:w-60 md:w-64 shrink-0 bg-white/80 backdrop-blur-xl border-r border-white/80 flex flex-col justify-between p-3.5 sm:p-4 z-20 shadow-xs">
+                  {/* Top: Admin Identity Card & Nav Menu */}
+                  <div className="space-y-4">
+                    {/* Admin Profile Header */}
+                    <div className="flex items-center gap-3 p-2.5 bg-gradient-to-r from-purple-50/70 to-pink-50/70 rounded-2xl border border-purple-100/60 shadow-xs">
+                      <div className="relative shrink-0">
+                        <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-[#b3a4ed] via-[#c7b8f9] to-[#f296b2] flex items-center justify-center text-white shadow-md font-black border-2 border-white">
+                          <ShieldCheck size={20} />
+                        </div>
+                        <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 rounded-full border-2 border-white animate-pulse" />
+                      </div>
+                      <div className="overflow-hidden min-w-0">
+                        <div className="font-black text-[#4a4365] text-[13px] leading-tight truncate">超级管理员</div>
+                        <div className="text-[10px] text-emerald-600 font-bold flex items-center gap-1 mt-0.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                          <span>系统在线 (admin)</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Navigation Menu */}
+                    <nav className="space-y-1">
+                      {[
+                        { id: 'dashboard', label: '数据大盘', icon: LayoutDashboard, desc: '指标监控与概览' },
+                        { id: 'rag', label: '知识库管理', icon: Database, desc: 'RAG 向量与数据', badge: ragItems.length },
+                        { id: 'users', label: '考生档案库', icon: User, desc: '考生画像与 VIP', badge: registeredUsersList.length },
+                        { id: 'analytics', label: '消息与词频', icon: MessageSquare, desc: '咨询意向分析' },
+                        { id: 'playground', label: '测试中心', icon: FlaskConical, desc: 'RAG 与联网诊断' },
+                      ].map(tab => {
+                        const Icon = tab.icon;
+                        const isActive = adminTab === tab.id;
+                        return (
+                          <button
+                            key={tab.id}
+                            onClick={() => setAdminTab(tab.id as any)}
+                            className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-2xl text-left transition-all cursor-pointer ${
+                              isActive
+                                ? 'bg-[#4a4365] text-white shadow-md font-bold'
+                                : 'text-[#6d648b] hover:bg-white/90 hover:text-[#4a4365] font-semibold'
+                            }`}
+                          >
+                            <Icon size={16} className={isActive ? 'text-[#c7b8f9]' : 'text-[#a494e8]'} />
+                            <div className="flex-1 min-w-0">
+                              <div className="text-[12.5px] leading-none flex items-center justify-between">
+                                <span>{tab.label}</span>
+                                {typeof tab.badge === 'number' && (
+                                  <span className={`text-[9.5px] px-1.5 py-0.5 rounded-full font-bold ${isActive ? 'bg-purple-900/60 text-purple-200' : 'bg-purple-100 text-purple-700'}`}>
+                                    {tab.badge}
+                                  </span>
+                                )}
+                              </div>
+                              <div className={`text-[10px] truncate mt-1 ${isActive ? 'text-gray-300' : 'text-gray-400'}`}>
+                                {tab.desc}
+                              </div>
+                            </div>
+                            {isActive && <ChevronRight size={13} className="text-[#c7b8f9]" />}
+                          </button>
+                        );
+                      })}
+                    </nav>
+                  </div>
+
+                  {/* Bottom: Settings & Logout */}
+                  <div className="space-y-1.5 pt-3 border-t border-purple-100/60">
                     <button
-                      onClick={() => setAdminTab('rag')}
-                      className={`px-4 py-2 rounded-xl text-[13px] font-bold transition-all flex items-center gap-1.5 ${
-                        adminTab === 'rag' 
-                          ? 'bg-[#4a4365] text-white shadow-md' 
-                          : 'text-[#6d648b] hover:bg-white/80'
+                      onClick={() => setAdminTab('settings')}
+                      className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-2xl text-left transition-all cursor-pointer ${
+                        adminTab === 'settings'
+                          ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-md font-bold'
+                          : 'bg-purple-50/70 hover:bg-purple-100/70 text-[#4a4365] font-bold border border-purple-100/60'
                       }`}
                     >
-                      <Database size={15} /> 知识库 RAG 管理
+                      <Settings size={16} className={adminTab === 'settings' ? 'text-white' : 'text-[#8b5cf6]'} />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[12.5px] leading-none">系统与模型配置</div>
+                        <div className={`text-[10px] truncate mt-1 ${adminTab === 'settings' ? 'text-purple-100' : 'text-[#8b5cf6]'}`}>
+                          API Key & 双模型网关
+                        </div>
+                      </div>
                     </button>
+
                     <button
-                      onClick={() => setAdminTab('users')}
-                      className={`px-4 py-2 rounded-xl text-[13px] font-bold transition-all flex items-center gap-1.5 ${
-                        adminTab === 'users' 
-                          ? 'bg-[#4a4365] text-white shadow-md' 
-                          : 'text-[#6d648b] hover:bg-white/80'
-                      }`}
+                      onClick={handleLogout}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-rose-500 hover:bg-rose-50 rounded-xl transition-all text-[11.5px] font-bold cursor-pointer"
                     >
-                      <User size={15} /> 用户管理与策略控制
-                    </button>
-                    <button
-                      onClick={() => setAdminTab('analytics')}
-                      className={`px-4 py-2 rounded-xl text-[13px] font-bold transition-all flex items-center gap-1.5 ${
-                        adminTab === 'analytics' 
-                          ? 'bg-[#4a4365] text-white shadow-md' 
-                          : 'text-[#6d648b] hover:bg-white/80'
-                      }`}
-                    >
-                      <MessageSquare size={15} /> 消息与咨询分析
+                      <LogOut size={14} />
+                      <span>退出管理后台</span>
                     </button>
                   </div>
-                  <span className="text-[11px] font-bold text-[#a494e8] px-3 py-1 bg-purple-50 rounded-lg">
-                    {adminTab === 'rag' ? '系统全局知识库控制台' : adminTab === 'users' ? '多维度用户与策略控制台' : '全量用户对话汇总与词频统计分析'}
-                  </span>
-                </div>
+                </aside>
 
-                {adminTab === 'rag' ? (
-                  <>
-                    {/* Top Stats Bar */}
-                    <div className="grid grid-cols-3 gap-3">
-                      <div className="bg-white/80 rounded-3xl p-4 border border-white shadow-sm flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-2xl bg-purple-100 text-[#a494e8] flex items-center justify-center font-bold">
-                          <Database size={20} />
-                        </div>
-                        <div>
-                          <div className="text-[18px] font-black text-[#4a4365]">{ragItems.length}</div>
-                          <div className="text-[11px] font-medium text-[#8a84a4]">知识库总条目</div>
-                        </div>
-                      </div>
-
-                      <div className="bg-white/80 rounded-3xl p-4 border border-white shadow-sm flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-2xl bg-blue-100 text-blue-500 flex items-center justify-center font-bold">
-                          <Table size={20} />
-                        </div>
-                        <div>
-                          <div className="text-[18px] font-black text-[#4a4365]">{ragItems.filter(i => i.type === 'table').length}</div>
-                          <div className="text-[11px] font-medium text-[#8a84a4]">结构化表格</div>
-                        </div>
-                      </div>
-
-                      <div className="bg-white/80 rounded-3xl p-4 border border-white shadow-sm flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-2xl bg-pink-100 text-pink-500 flex items-center justify-center font-bold">
-                          <ImageIcon size={20} />
-                        </div>
-                        <div>
-                          <div className="text-[18px] font-black text-[#4a4365]">
-                            {ragItems.reduce((acc, i) => acc + (i.imageAttachments?.length || 0), 0)}
-                          </div>
-                          <div className="text-[11px] font-medium text-[#8a84a4]">PNG 图片附件</div>
-                        </div>
-                      </div>
+                {/* 2. Right Main Content Area */}
+                <main className="flex-1 flex flex-col h-full overflow-hidden bg-gradient-to-br from-white/40 via-purple-50/15 to-pink-50/15">
+                  {/* Top Bar Header */}
+                  <div className="px-6 py-3.5 bg-white/70 backdrop-blur-md border-b border-white/80 flex items-center justify-between z-10 shrink-0">
+                    <div>
+                      <h2 className="text-[15px] sm:text-[16px] font-black text-[#4a4365] flex items-center gap-2">
+                        {adminTab === 'dashboard' && <><LayoutDashboard size={18} className="text-purple-500" /> 系统数据大盘 (Dashboard)</>}
+                        {adminTab === 'rag' && <><Database size={18} className="text-purple-500" /> 知识库 RAG 集中管理</>}
+                        {adminTab === 'users' && <><User size={18} className="text-purple-500" /> 考生档案与 VIP 策略</>}
+                        {adminTab === 'analytics' && <><MessageSquare size={18} className="text-purple-500" /> 咨询意向与高频词分析</>}
+                        {adminTab === 'playground' && <><FlaskConical size={18} className="text-purple-500" /> 检索与联网测试中心 (Playground)</>}
+                        {adminTab === 'settings' && <><Settings size={18} className="text-purple-500" /> 系统模型与引擎配置 (Settings)</>}
+                      </h2>
+                      <p className="text-[11px] text-gray-500 mt-0.5">
+                        {adminTab === 'dashboard' && '实时监控 RAG 知识库容量、考生画像、本地向量引擎与服务健康'}
+                        {adminTab === 'rag' && '支持录取分数线、专业介绍、宿舍环境实景图文与结构化表格切片'}
+                        {adminTab === 'users' && '查看考生高考成绩、全省位次、选科情况与个性化记忆档案'}
+                        {adminTab === 'analytics' && '自动聚合考生历史咨询对话，实时提取报考核心高频关注词汇'}
+                        {adminTab === 'playground' && '深度诊断 RAG 向量相似度打分与 Tavily/博查/DuckDuckGo 全网实时搜索'}
+                        {adminTab === 'settings' && '一键配置大模型 Base URL、API Key、默认/快速模型与搜索引擎'}
+                      </p>
                     </div>
 
-                    {/* Import Actions Bar: Single Add vs Document Batch Import & Chunking */}
-                    <div className="flex items-center justify-between gap-3 bg-gradient-to-r from-purple-100/50 via-pink-100/50 to-blue-100/50 p-4 rounded-3xl border border-white shadow-xs">
-                      <div>
-                        <h3 className="font-bold text-[#4a4365] text-[14px] flex items-center gap-1.5">
-                          <Scissors className="text-[#a494e8]" size={16} /> 知识库输入与智能切片中心
-                        </h3>
-                        <p className="text-[11px] text-[#7a7295] mt-0.5">支持 Word、Markdown、TXT 文档导入切片，CSV 表格解析，及 PNG 图片直接上传</p>
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => setIsImportModalOpen(true)}
-                          className="bg-[#4a4365] text-white px-4 py-2.5 rounded-2xl font-bold text-[12px] shadow-sm hover:bg-[#342e49] transition-all flex items-center gap-1.5"
-                        >
-                          <FileUp size={15} /> 批量导入文件/智能切片
-                        </button>
-
-                        <button
-                          onClick={() => {
-                            setEditItem({
-                              title: '',
-                              category: '专业与录取',
-                              type: 'text',
-                              content: '',
-                              tableData: { columns: ['表头1', '表头2'], rows: [['数据1', '数据2']] },
-                              imageAttachments: [],
-                              tags: ['新标签']
-                            });
-                            setIsEditing(true);
-                          }}
-                          className="bg-gradient-to-r from-[#b3a4ed] to-[#f296b2] text-white px-4 py-2.5 rounded-2xl font-bold text-[12px] shadow-sm hover:shadow-md transition-all flex items-center gap-1.5"
-                        >
-                          <Plus size={15} /> 单条添加
-                        </button>
-                      </div>
+                    {/* Live Service Status Badges */}
+                    <div className="flex items-center gap-2">
+                      <span className="hidden md:inline-flex items-center gap-1.5 px-3 py-1 bg-purple-50 border border-purple-100 text-purple-700 rounded-xl text-[11px] font-bold shadow-2xs">
+                        <Cpu size={13} className="text-purple-500" />
+                        <span>主模型: {dashboardStats?.aiGateway?.defaultModel || 'deepseek-chat'}</span>
+                      </span>
+                      <span className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1 bg-blue-50 border border-blue-100 text-blue-700 rounded-xl text-[11px] font-bold shadow-2xs">
+                        <Globe size={13} className="text-blue-500" />
+                        <span>搜索: {dashboardStats?.searchEngine?.provider || 'duckduckgo'}</span>
+                      </span>
+                      <button
+                        onClick={() => {
+                          if (adminTab === 'dashboard') fetchDashboardStats();
+                          if (adminTab === 'rag') fetchRagKnowledge();
+                          if (adminTab === 'users') fetchRegisteredUsers();
+                          if (adminTab === 'settings') { fetchSettingsConfig(); handleFetchModelsList(); }
+                        }}
+                        className="p-2 rounded-xl bg-white/80 hover:bg-white text-gray-600 hover:text-purple-600 transition-all border border-white shadow-2xs cursor-pointer"
+                        title="刷新当前数据"
+                      >
+                        <RefreshCw size={15} className={isLoadingDashboard || isLoadingModels ? 'animate-spin text-purple-500' : ''} />
+                      </button>
                     </div>
+                  </div>
 
-                    {/* RAG Search & Test Console Section */}
-                    <div className="bg-white/80 backdrop-blur-xl rounded-3xl p-5 border border-white shadow-sm space-y-4">
-                      <div className="flex items-center justify-between">
-                        <h3 className="font-bold text-[#4a4365] text-[15px] flex items-center gap-2">
-                          <Sparkles className="text-[#a494e8]" size={18} /> 本地 BGE 512维向量检索测试
-                        </h3>
-                      </div>
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          value={testQuery}
-                          onChange={(e) => setTestQuery(e.target.value)}
-                          placeholder="输入测试问题（如：浙江录取线是多少？有宿舍图吗？）"
-                          className="flex-1 bg-[#f8f6fc] border-none rounded-2xl px-4 py-2.5 text-[13px] outline-none focus:ring-2 focus:ring-[#a494e8]"
-                        />
-                        <button
-                          onClick={handleTestRagSearch}
-                          className="bg-[#4a4365] text-white px-5 py-2.5 rounded-2xl font-bold text-[13px] shadow-sm hover:bg-[#342e49] transition-all flex items-center gap-1.5"
-                        >
-                          <Search size={15} /> 语义向量比对
-                        </button>
-                      </div>
-
-                      {testResults && (
-                        <div className="mt-3 bg-[#f8f6fc] p-4 rounded-2xl space-y-3">
-                          <div className="text-[12px] font-bold text-[#a494e8]">
-                            向量与关键词匹配到 {testResults.length} 条检索切片：
-                          </div>
-                          {testResults.map(({ item, score }) => (
-                            <div key={item.id} className="bg-white p-3 rounded-xl border border-white shadow-xs">
-                              <div className="flex items-center justify-between">
-                                <span className="font-bold text-[#4a4365] text-[13px]">{item.title}</span>
-                                <span className="bg-purple-100 text-purple-700 text-[10px] px-2 py-0.5 rounded-md font-bold">
-                                  相似得分: {(score * 10).toFixed(1)}%
-                                </span>
-                              </div>
-                              <p className="text-[12px] text-[#6d648b] mt-1">{item.content}</p>
-                              {item.imageAttachments?.length > 0 && (
-                                <div className="flex gap-2 mt-2">
-                                  {item.imageAttachments.map((img, i) => (
-                                    <img key={i} src={img.url} alt={img.name} className="w-12 h-12 rounded-lg object-cover border" />
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* RAG Knowledge Items Table */}
-                    <div className="bg-white/80 backdrop-blur-xl rounded-3xl p-5 border border-white shadow-sm space-y-4">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <h3 className="font-bold text-[#4a4365] text-[15px]">知识库切片条目列表</h3>
-                          <div className="relative">
-                            <Search size={14} className="absolute left-3 top-3 text-gray-400" />
-                            <input
-                              type="text"
-                              value={searchQuery}
-                              onChange={(e) => setSearchQuery(e.target.value)}
-                              placeholder="搜索标题或标签..."
-                              className="bg-[#f8f6fc] border-none rounded-xl pl-9 pr-3 py-1.5 text-[12px] outline-none"
-                            />
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Knowledge Card Grid */}
-                      <div className="space-y-3">
-                        {filteredRagItems.map((item) => (
-                          <div key={item.id} className="bg-white/90 rounded-2xl p-4 border border-white shadow-xs flex items-start justify-between gap-4">
-                            <div className="flex-1 space-y-2">
-                              <div className="flex items-center gap-2">
-                                <span className={`text-[10px] px-2 py-0.5 rounded-md font-bold uppercase ${
-                                  item.type === 'table' ? 'bg-blue-100 text-blue-700' : item.type === 'image' ? 'bg-pink-100 text-pink-700' : 'bg-purple-100 text-purple-700'
-                                }`}>
-                                  {item.type === 'table' ? '表格型' : item.type === 'image' ? '图片附件型' : '文本型'}
-                                </span>
-                                <span className="text-[11px] font-bold text-gray-400">[{item.category}]</span>
-                                <h4 className="font-bold text-[#4a4365] text-[14px]">{item.title}</h4>
-                              </div>
-
-                              <p className="text-[13px] text-[#6d648b] leading-relaxed line-clamp-2">{item.content}</p>
-
-                              {item.tableData && item.tableData.columns && (
-                                <div className="bg-[#f8f6fc] p-2 rounded-xl text-[11px] text-[#4a4365]">
-                                  <span className="font-bold">结构化表格：</span> {item.tableData.columns.join(' | ')} ({item.tableData.rows?.length || 0} 行)
-                                </div>
-                              )}
-
-                              {item.imageAttachments && item.imageAttachments.length > 0 && (
-                                <div className="flex items-center gap-2 pt-1">
-                                  <span className="text-[11px] font-bold text-pink-500 flex items-center gap-1">
-                                    <ImageIcon size={12} /> 图片附件 ({item.imageAttachments.length}):
-                                  </span>
-                                  {item.imageAttachments.map((img, i) => (
-                                    <div key={i} className="flex items-center gap-1 bg-pink-50 text-pink-700 text-[10px] px-2 py-0.5 rounded-lg border border-pink-100">
-                                      <img src={img.url} alt={img.name} className="w-4 h-4 rounded object-cover" />
-                                      <span>{img.name}</span>
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-
-                              <div className="flex flex-wrap gap-1 pt-1">
-                                {item.tags?.map((t, i) => (
-                                  <span key={i} className="bg-[#f3eefc] text-[#a494e8] text-[10px] px-2 py-0.5 rounded-full font-medium">
-                                    #{t}
-                                  </span>
-                                ))}
-                              </div>
-                            </div>
-
-                            <div className="flex items-center gap-1">
-                              <button
-                                onClick={() => {
-                                  setEditItem({ ...item });
-                                  setIsEditing(true);
-                                }}
-                                className="p-2 rounded-xl text-[#8a84a4] hover:text-[#4a4365] hover:bg-gray-100 transition-all"
-                              >
-                                <Edit3 size={16} />
-                              </button>
-                              <button
-                                onClick={() => handleDeleteRagItem(item.id)}
-                                className="p-2 rounded-xl text-[#8a84a4] hover:text-red-500 hover:bg-red-50 transition-all"
-                              >
-                                <Trash2 size={16} />
-                              </button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </>
-                ) : adminTab === 'users' ? (
-                  /* User Management & Control Dashboard */
-                  <div className="space-y-6 animate-in fade-in duration-300">
+                  {/* Tab Contents (Scrollable Container) */}
+                  <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-6 hide-scrollbar">
                     
-                    {/* User Stats Bar */}
-                    <div className="grid grid-cols-3 gap-3">
-                      <div className="bg-white/80 rounded-3xl p-4 border border-white shadow-sm flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-2xl bg-purple-100 text-[#a494e8] flex items-center justify-center font-bold">
-                          <User size={20} />
-                        </div>
-                        <div>
-                          <div className="text-[18px] font-black text-[#4a4365]">{registeredUsersList.length}</div>
-                          <div className="text-[11px] font-medium text-[#8a84a4]">已注册用户总数</div>
-                        </div>
-                      </div>
-
-                      <div className="bg-white/80 rounded-3xl p-4 border border-white shadow-sm flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center font-bold">
-                          <Sparkles size={20} />
-                        </div>
-                        <div>
-                          <div className="text-[18px] font-black text-[#4a4365]">
-                            {registeredUsersList.filter(u => u.profile?.isVip || (Number(u.profile?.score) >= vipScoreThreshold)).length}
+                    {/* ========================================================= */}
+                    {/* TAB 1: 📊 DASHBOARD                                       */}
+                    {/* ========================================================= */}
+                    {adminTab === 'dashboard' && (
+                      <div className="space-y-6 animate-in fade-in duration-300">
+                        {/* 4 Main KPI Cards */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                          <div className="bg-white/85 backdrop-blur-md rounded-3xl p-4.5 border border-white shadow-xs hover:shadow-md transition-all flex items-center gap-4">
+                            <div className="w-12 h-12 rounded-2xl bg-purple-100 text-[#8b5cf6] flex items-center justify-center shrink-0">
+                              <Database size={24} />
+                            </div>
+                            <div className="min-w-0">
+                              <div className="text-[22px] font-black text-[#4a4365] leading-tight">
+                                {dashboardStats?.totalRagItems || ragItems.length}
+                              </div>
+                              <div className="text-[11.5px] font-medium text-gray-500">知识库总条目</div>
+                              <div className="text-[10px] text-purple-600 font-bold mt-0.5">
+                                表格 {ragItems.filter(i => i.type === 'table').length} · 图文 {ragItems.filter(i => (i.imageAttachments?.length || 0) > 0).length}
+                              </div>
+                            </div>
                           </div>
-                          <div className="text-[11px] font-medium text-[#8a84a4]">VIP 特权用户数</div>
-                        </div>
-                      </div>
 
-                      <div className="bg-white/80 rounded-3xl p-4 border border-white shadow-sm flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-2xl bg-red-100 text-red-500 flex items-center justify-center font-bold">
-                          <Clock size={20} />
-                        </div>
-                        <div>
-                          <div className="text-[18px] font-black text-[#4a4365]">
-                            {registeredUsersList.filter(u => Number(u.profile?.score) > 0 && Number(u.profile?.score) < lowScoreThreshold).length}
+                          <div className="bg-white/85 backdrop-blur-md rounded-3xl p-4.5 border border-white shadow-xs hover:shadow-md transition-all flex items-center gap-4">
+                            <div className="w-12 h-12 rounded-2xl bg-pink-100 text-pink-500 flex items-center justify-center shrink-0">
+                              <User size={24} />
+                            </div>
+                            <div className="min-w-0">
+                              <div className="text-[22px] font-black text-[#4a4365] leading-tight">
+                                {dashboardStats?.totalUsers || registeredUsersList.length || 1}
+                              </div>
+                              <div className="text-[11.5px] font-medium text-gray-500">注册考生总数</div>
+                              <div className="text-[10px] text-pink-600 font-bold mt-0.5">
+                                VIP 优先考生: {dashboardStats?.vipUsers || 0} 位
+                              </div>
+                            </div>
                           </div>
-                          <div className="text-[11px] font-medium text-[#8a84a4]">低于拦截线用户数</div>
-                        </div>
-                      </div>
-                    </div>
 
-                    {/* Low-Score Interception & VIP Rule Configuration Card */}
-                    <div className="bg-white/80 backdrop-blur-xl rounded-3xl p-5 border border-white shadow-sm space-y-4">
-                      <div className="flex items-center justify-between border-b pb-3">
-                        <h3 className="font-bold text-[#4a4365] text-[15px] flex items-center gap-2">
-                          <Lock className="text-[#a494e8]" size={18} /> 全局低分位拦截与 VIP 身份规则配置
-                        </h3>
-                        <span className={`text-[11px] px-2.5 py-0.5 rounded-full font-bold ${interceptionEnabled ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                          {interceptionEnabled ? '策略已启用' : '策略已暂停'}
-                        </span>
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                        <div className="bg-[#f8f6fc] p-4 rounded-2xl space-y-2 border border-purple-50">
-                          <div className="flex items-center justify-between">
-                            <label className="text-[12px] font-bold text-[#4a4365]">低于拦截策略开关</label>
-                            <input
-                              type="checkbox"
-                              checked={interceptionEnabled}
-                              onChange={(e) => setInterceptionEnabled(e.target.checked)}
-                              className="w-4 h-4 accent-[#a494e8] cursor-pointer"
-                            />
+                          <div className="bg-white/85 backdrop-blur-md rounded-3xl p-4.5 border border-white shadow-xs hover:shadow-md transition-all flex items-center gap-4">
+                            <div className="w-12 h-12 rounded-2xl bg-indigo-100 text-indigo-600 flex items-center justify-center shrink-0">
+                              <Zap size={24} />
+                            </div>
+                            <div className="min-w-0">
+                              <div className="text-[16px] font-black text-[#4a4365] leading-tight truncate">
+                                BGE-small-zh
+                              </div>
+                              <div className="text-[11.5px] font-medium text-gray-500">512 维向量引擎</div>
+                              <div className="text-[10px] text-indigo-600 font-bold mt-0.5 flex items-center gap-1">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> 本地 ONNX 毫秒召回
+                              </div>
+                            </div>
                           </div>
-                          <p className="text-[11px] text-[#7a7295]">开启后低分段算力控制策略生效</p>
+
+                          <div className="bg-white/85 backdrop-blur-md rounded-3xl p-4.5 border border-white shadow-xs hover:shadow-md transition-all flex items-center gap-4">
+                            <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
+                              <Cpu size={24} />
+                            </div>
+                            <div className="min-w-0">
+                              <div className="text-[15px] font-black text-[#4a4365] leading-tight truncate">
+                                {dashboardStats?.aiGateway?.defaultModel || 'deepseek-chat'}
+                              </div>
+                              <div className="text-[11.5px] font-medium text-gray-500">默认对话模型</div>
+                              <div className="text-[10px] text-emerald-600 font-bold mt-0.5">
+                                快速模型: {dashboardStats?.aiGateway?.fastModel || 'deepseek-chat'}
+                              </div>
+                            </div>
+                          </div>
                         </div>
 
-                        <div className="bg-[#f8f6fc] p-4 rounded-2xl space-y-1 border border-purple-50">
-                          <label className="text-[12px] font-bold text-[#4a4365] block">低于拦截控制分值线 (分)</label>
-                          <input
-                            type="number"
-                            value={lowScoreThreshold}
-                            onChange={(e) => setLowScoreThreshold(Number(e.target.value) || 450)}
-                            className="w-full bg-white border border-gray-200 rounded-xl px-3 py-1.5 text-[13px] font-bold text-[#4a4365] outline-none"
-                          />
-                          <p className="text-[10px] text-gray-400">高考总分低于此界限标记为拦截位次</p>
-                        </div>
+                        {/* Middle Section: Category Breakdown & Infrastructure Status */}
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+                          {/* 1. Category Breakdown */}
+                          <div className="lg:col-span-2 bg-white/85 backdrop-blur-md rounded-3xl p-5 border border-white shadow-xs space-y-4">
+                            <div className="flex items-center justify-between">
+                              <div className="font-black text-[#4a4365] text-[14px] flex items-center gap-2">
+                                <Database size={16} className="text-purple-500" />
+                                <span>知识库分类分布与覆盖度</span>
+                              </div>
+                              <span className="text-[11px] text-gray-400 font-bold">
+                                共 {Object.keys(dashboardStats?.categoryBreakdown || {}).length || 6} 个核心大类
+                              </span>
+                            </div>
 
-                        <div className="bg-[#f8f6fc] p-4 rounded-2xl space-y-1 border border-purple-50">
-                          <label className="text-[12px] font-bold text-[#4a4365] block">VIP 自动晋级分值线 (分)</label>
-                          <input
-                            type="number"
-                            value={vipScoreThreshold}
-                            onChange={(e) => setVipScoreThreshold(Number(e.target.value) || 580)}
-                            className="w-full bg-white border border-gray-200 rounded-xl px-3 py-1.5 text-[13px] font-bold text-[#4a4365] outline-none"
-                          />
-                          <p className="text-[10px] text-gray-400">成绩达到此分值自动获得 VIP 特权</p>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Registered User Management Table */}
-                    <div className="bg-white/80 backdrop-blur-xl rounded-3xl p-5 border border-white shadow-sm space-y-4">
-                      <div className="flex items-center justify-between">
-                        <h3 className="font-bold text-[#4a4365] text-[15px] flex items-center gap-2">
-                          <User size={18} className="text-[#a494e8]" /> 已注册用户及背景 RAG 档案列表
-                        </h3>
-                        <div className="relative">
-                          <Search size={14} className="absolute left-3 top-3 text-gray-400" />
-                          <input
-                            type="text"
-                            value={adminUserSearch}
-                            onChange={(e) => setAdminUserSearch(e.target.value)}
-                            placeholder="搜索账号、姓名、省份..."
-                            className="bg-[#f8f6fc] border-none rounded-xl pl-9 pr-3 py-1.5 text-[12px] outline-none w-[200px]"
-                          />
-                        </div>
-                      </div>
-
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-left text-[12px]">
-                          <thead>
-                            <tr className="border-b border-gray-100 text-[#8a84a4] font-bold pb-2">
-                              <th className="pb-3 px-2">账号名</th>
-                              <th className="pb-3 px-2">姓名 / 性别</th>
-                              <th className="pb-3 px-2">高考省份</th>
-                              <th className="pb-3 px-2">成绩 / 位次</th>
-                              <th className="pb-3 px-2">选科情况</th>
-                              <th className="pb-3 px-2">VIP 身份</th>
-                              <th className="pb-3 px-2">低于拦截状态</th>
-                              <th className="pb-3 px-2 text-right">管理操作</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-gray-50">
-                            {registeredUsersList
-                              .filter(u => 
-                                !adminUserSearch || 
-                                u.username?.toLowerCase().includes(adminUserSearch.toLowerCase()) ||
-                                u.profile?.name?.includes(adminUserSearch) ||
-                                u.profile?.province?.includes(adminUserSearch)
-                              )
-                              .map((user) => {
-                                const scoreNum = Number(user.profile?.score) || 0;
-                                const isUserVip = user.profile?.isVip || scoreNum >= vipScoreThreshold;
-                                const isUserLow = scoreNum > 0 && scoreNum < lowScoreThreshold;
+                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                              {Object.entries(dashboardStats?.categoryBreakdown || {
+                                '录取分数': 4,
+                                '专业特色': 5,
+                                '宿舍环境': 3,
+                                '学费与资助': 2,
+                                '生活设施': 2,
+                                '常规问答': 2
+                              }).map(([cat, count]: any, idx) => {
+                                const total = dashboardStats?.totalRagItems || ragItems.length || 1;
+                                const pct = Math.round((Number(count) / total) * 100);
+                                const colors = ['from-purple-500 to-indigo-500', 'from-blue-500 to-cyan-500', 'from-pink-500 to-rose-500', 'from-amber-500 to-orange-500', 'from-emerald-500 to-teal-500', 'from-violet-500 to-purple-500'];
+                                const barColor = colors[idx % colors.length];
 
                                 return (
-                                  <tr key={user.username} className="hover:bg-[#fcfaff] transition-colors">
-                                    <td className="py-3 px-2 font-bold text-[#4a4365]">{user.username}</td>
-                                    <td className="py-3 px-2">
-                                      {user.profile?.name ? (
-                                        <span>{user.profile.name} ({user.profile.gender || '未知'})</span>
-                                      ) : (
-                                        <span className="text-gray-400 italic">未填资料</span>
+                                  <div key={cat} className="p-3 bg-[#fbf9fe] rounded-2xl border border-purple-50/80 space-y-2">
+                                    <div className="flex items-center justify-between text-[12px] font-bold text-[#4a4365]">
+                                      <span>{cat}</span>
+                                      <span className="text-purple-600">{count} 条</span>
+                                    </div>
+                                    <div className="w-full h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                                      <div className={`h-full bg-gradient-to-r ${barColor} rounded-full`} style={{ width: `${Math.min(pct * 3, 100)}%` }} />
+                                    </div>
+                                    <div className="text-[10px] text-gray-400 font-medium text-right">占比 {pct}%</div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+
+                          {/* 2. Infrastructure Health Status */}
+                          <div className="bg-white/85 backdrop-blur-md rounded-3xl p-5 border border-white shadow-xs space-y-4">
+                            <div className="font-black text-[#4a4365] text-[14px] flex items-center gap-2">
+                              <Activity size={16} className="text-emerald-500" />
+                              <span>系统基础设施运行状态</span>
+                            </div>
+
+                            <div className="space-y-2.5">
+                              {[
+                                { name: 'PostgreSQL 向量库', desc: 'pgvector 扩展 (Port 35432)', status: '已连接 · 活跃', isOk: true },
+                                { name: 'Redis 高速缓存', desc: 'RAG 与文档切片二级缓存', status: '已就绪 (TTL 30m)', isOk: true },
+                                { name: '本地 BGE 向量模型', desc: 'ONNX Runtime (512-dim)', status: '已加载 (0.1s)', isOk: true },
+                                { name: '多源联网搜索', desc: `${dashboardStats?.searchEngine?.provider || 'DuckDuckGo'} 引擎就绪`, status: '自动容灾兜底', isOk: true },
+                              ].map((item, i) => (
+                                <div key={i} className="p-2.5 bg-[#fbf9fe] rounded-2xl border border-purple-50/80 flex items-center justify-between">
+                                  <div className="min-w-0">
+                                    <div className="text-[12px] font-bold text-[#4a4365]">{item.name}</div>
+                                    <div className="text-[10px] text-gray-400 truncate">{item.desc}</div>
+                                  </div>
+                                  <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-emerald-100 text-emerald-700 flex items-center gap-1 shrink-0">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                                    {item.status}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Bottom Section: Quick Action Shortcuts */}
+                        <div className="bg-white/85 backdrop-blur-md rounded-3xl p-5 border border-white shadow-xs space-y-3">
+                          <div className="font-black text-[#4a4365] text-[14px] flex items-center gap-2">
+                            <Sparkles size={16} className="text-purple-500" />
+                            <span>常用管理与测试快捷入口</span>
+                          </div>
+
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                            <button
+                              onClick={() => { setAdminTab('rag'); setIsAddModalOpen(true); }}
+                              className="p-3.5 bg-gradient-to-br from-purple-50 to-indigo-50 hover:from-purple-100 hover:to-indigo-100 rounded-2xl border border-purple-100/80 text-left transition-all group cursor-pointer"
+                            >
+                              <Plus size={18} className="text-purple-600 mb-1 group-hover:scale-110 transition-transform" />
+                              <div className="font-bold text-[13px] text-[#4a4365]">添加知识条目</div>
+                              <div className="text-[10.5px] text-gray-400 mt-0.5">录入文本或表格数据</div>
+                            </button>
+
+                            <button
+                              onClick={() => { setAdminTab('rag'); setIsDocumentChunkModalOpen(true); }}
+                              className="p-3.5 bg-gradient-to-br from-pink-50 to-rose-50 hover:from-pink-100 hover:to-rose-100 rounded-2xl border border-pink-100/80 text-left transition-all group cursor-pointer"
+                            >
+                              <FileUp size={18} className="text-pink-600 mb-1 group-hover:scale-110 transition-transform" />
+                              <div className="font-bold text-[13px] text-[#4a4365]">AI 文档智能切片</div>
+                              <div className="text-[10.5px] text-gray-400 mt-0.5">由快速模型驱动切分</div>
+                            </button>
+
+                            <button
+                              onClick={() => setAdminTab('playground')}
+                              className="p-3.5 bg-gradient-to-br from-blue-50 to-cyan-50 hover:from-blue-100 hover:to-cyan-100 rounded-2xl border border-blue-100/80 text-left transition-all group cursor-pointer"
+                            >
+                              <FlaskConical size={18} className="text-blue-600 mb-1 group-hover:scale-110 transition-transform" />
+                              <div className="font-bold text-[13px] text-[#4a4365]">检索与测试中心</div>
+                              <div className="text-[10.5px] text-gray-400 mt-0.5">RAG精测与联网诊断</div>
+                            </button>
+
+                            <button
+                              onClick={() => setAdminTab('settings')}
+                              className="p-3.5 bg-gradient-to-br from-amber-50 to-orange-50 hover:from-amber-100 hover:to-orange-100 rounded-2xl border border-amber-100/80 text-left transition-all group cursor-pointer"
+                            >
+                              <Settings size={18} className="text-amber-600 mb-1 group-hover:scale-110 transition-transform" />
+                              <div className="font-bold text-[13px] text-[#4a4365]">系统模型配置</div>
+                              <div className="text-[10.5px] text-gray-400 mt-0.5">API Key 与搜索引擎</div>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* ========================================================= */}
+                    {/* TAB 2: 📚 KNOWLEDGE BASE (RAG)                            */}
+                    {/* ========================================================= */}
+                    {adminTab === 'rag' && (
+                      <div className="space-y-6 animate-in fade-in duration-300">
+                        {/* Top Stats Bar */}
+                        <div className="grid grid-cols-3 gap-3">
+                          <div className="bg-white/80 rounded-3xl p-4 border border-white shadow-xs flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-2xl bg-purple-100 text-[#a494e8] flex items-center justify-center font-bold">
+                              <Database size={20} />
+                            </div>
+                            <div>
+                              <div className="text-[18px] font-black text-[#4a4365]">{ragItems.length}</div>
+                              <div className="text-[11px] font-medium text-[#8a84a4]">知识库总条目</div>
+                            </div>
+                          </div>
+
+                          <div className="bg-white/80 rounded-3xl p-4 border border-white shadow-xs flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-2xl bg-blue-100 text-blue-500 flex items-center justify-center font-bold">
+                              <Table size={20} />
+                            </div>
+                            <div>
+                              <div className="text-[18px] font-black text-[#4a4365]">{ragItems.filter(i => i.type === 'table').length}</div>
+                              <div className="text-[11px] font-medium text-[#8a84a4]">结构化表格</div>
+                            </div>
+                          </div>
+
+                          <div className="bg-white/80 rounded-3xl p-4 border border-white shadow-xs flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-2xl bg-pink-100 text-pink-500 flex items-center justify-center font-bold">
+                              <ImageIcon size={20} />
+                            </div>
+                            <div>
+                              <div className="text-[18px] font-black text-[#4a4365]">
+                                {ragItems.reduce((acc, i) => acc + (i.imageAttachments?.length || 0), 0)}
+                              </div>
+                              <div className="text-[11px] font-medium text-[#8a84a4]">PNG 图片附件</div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Search & Actions Bar */}
+                        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-white/80 p-3 rounded-2xl border border-white shadow-xs">
+                          <div className="flex items-center gap-2 w-full sm:w-auto">
+                            <div className="relative flex-1 sm:w-64">
+                              <Search size={16} className="absolute left-3 top-2.5 text-gray-400" />
+                              <input
+                                type="text"
+                                value={ragSearchQuery}
+                                onChange={(e) => setRagSearchQuery(e.target.value)}
+                                placeholder="搜索知识库标题/标签..."
+                                className="w-full bg-[#f8f6fc] pl-9 pr-4 py-2 rounded-xl text-[12px] outline-none focus:ring-2 focus:ring-[#a494e8]"
+                              />
+                            </div>
+                            
+                            <select
+                              value={ragCategoryFilter}
+                              onChange={(e) => setRagCategoryFilter(e.target.value)}
+                              className="bg-[#f8f6fc] text-[#4a4365] px-3 py-2 rounded-xl text-[12px] font-bold outline-none cursor-pointer"
+                            >
+                              <option value="ALL">全部分类 ({ragItems.length})</option>
+                              {Array.from(new Set(ragItems.map(i => i.category))).map(cat => (
+                                <option key={cat} value={cat}>{cat}</option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                            <div className="flex bg-[#f8f6fc] p-1 rounded-xl">
+                              <button
+                                onClick={() => setChunkPreviewMode('list')}
+                                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                                  chunkPreviewMode === 'list' ? 'bg-white text-[#4a4365] shadow-xs' : 'text-gray-400'
+                                }`}
+                              >
+                                卡片
+                              </button>
+                              <button
+                                onClick={() => setChunkPreviewMode('table')}
+                                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                                  chunkPreviewMode === 'table' ? 'bg-white text-[#4a4365] shadow-xs' : 'text-gray-400'
+                                }`}
+                              >
+                                表格
+                              </button>
+                            </div>
+
+                            <button
+                              onClick={() => setIsDocumentChunkModalOpen(true)}
+                              className="bg-gradient-to-r from-pink-500 to-rose-400 text-white px-3 py-2 rounded-xl text-[12px] font-bold flex items-center gap-1.5 shadow-sm hover:opacity-90 active:scale-95 transition-all cursor-pointer"
+                            >
+                              <FileUp size={14} /> AI智能切片
+                            </button>
+
+                            <button
+                              onClick={() => setIsTableParserModalOpen(true)}
+                              className="bg-gradient-to-r from-blue-500 to-cyan-400 text-white px-3 py-2 rounded-xl text-[12px] font-bold flex items-center gap-1.5 shadow-sm hover:opacity-90 active:scale-95 transition-all cursor-pointer"
+                            >
+                              <Table size={14} /> 表格解析
+                            </button>
+
+                            <button
+                              onClick={() => {
+                                setEditingItem(null);
+                                setIsAddModalOpen(true);
+                              }}
+                              className="bg-[#4a4365] text-white px-3.5 py-2 rounded-xl text-[12px] font-bold flex items-center gap-1.5 shadow-sm hover:bg-[#342e49] active:scale-95 transition-all cursor-pointer"
+                            >
+                              <Plus size={14} /> 添加知识
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Knowledge Items Grid / Table View */}
+                        {filteredRagItems.length === 0 ? (
+                          <div className="bg-white/60 rounded-3xl p-12 text-center text-gray-400 font-bold border border-white">
+                            未检索到符合条件的知识库条目
+                          </div>
+                        ) : chunkPreviewMode === 'list' ? (
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {filteredRagItems.map(item => (
+                              <div key={item.id} className="bg-white/80 rounded-3xl p-5 border border-white shadow-xs hover:shadow-md transition-all flex flex-col justify-between group">
+                                <div className="space-y-2.5">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-lg bg-purple-100 text-[#7a64c8]">
+                                      {item.category}
+                                    </span>
+                                    <div className="flex items-center gap-1">
+                                      {item.type === 'table' && (
+                                        <span className="text-[10px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded-md font-bold flex items-center gap-1">
+                                          <Table size={10} /> 表格
+                                        </span>
                                       )}
+                                      {(item.imageAttachments?.length || 0) > 0 && (
+                                        <span className="text-[10px] bg-pink-50 text-pink-600 px-2 py-0.5 rounded-md font-bold flex items-center gap-1">
+                                          <ImageIcon size={10} /> {item.imageAttachments?.length} 张
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  <h3 className="font-bold text-[#4a4365] text-[14px] leading-snug">
+                                    {item.title}
+                                  </h3>
+
+                                  <p className="text-[12px] text-gray-500 line-clamp-3 leading-relaxed">
+                                    {item.content}
+                                  </p>
+
+                                  {(item.imageAttachments?.length || 0) > 0 && (
+                                    <div className="flex items-center gap-2 overflow-x-auto py-1 hide-scrollbar">
+                                      {item.imageAttachments?.map((img: any, idx: number) => (
+                                        <div key={idx} className="relative group/img shrink-0">
+                                          <img
+                                            src={img.url}
+                                            alt={img.caption || '知识库配图'}
+                                            className="w-14 h-14 object-cover rounded-xl border border-white shadow-2xs"
+                                          />
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+
+                                <div className="flex items-center justify-between pt-3 mt-3 border-t border-gray-100">
+                                  <div className="flex items-center gap-1 flex-wrap">
+                                    {(item.tags || []).slice(0, 3).map((tag: string, tIdx: number) => (
+                                      <span key={tIdx} className="text-[9px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-md">
+                                        #{tag}
+                                      </span>
+                                    ))}
+                                  </div>
+                                  <div className="flex items-center gap-1">
+                                    <button
+                                      onClick={() => {
+                                        setEditingItem(item);
+                                        setIsAddModalOpen(true);
+                                      }}
+                                      className="p-1.5 rounded-lg text-gray-400 hover:text-purple-600 hover:bg-purple-50 transition-all cursor-pointer"
+                                      title="编辑此条目"
+                                    >
+                                      <Edit3 size={14} />
+                                    </button>
+                                    <button
+                                      onClick={() => handleDeleteKnowledge(item.id)}
+                                      className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-all cursor-pointer"
+                                      title="删除此条目"
+                                    >
+                                      <Trash2 size={14} />
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="bg-white/80 rounded-3xl overflow-hidden border border-white shadow-xs">
+                            <table className="w-full text-left border-collapse">
+                              <thead>
+                                <tr className="border-b border-gray-100 bg-[#f8f6fc] text-[11px] font-bold text-[#8a84a4]">
+                                  <th className="p-3.5 pl-6">标题</th>
+                                  <th className="p-3.5">分类</th>
+                                  <th className="p-3.5">类型</th>
+                                  <th className="p-3.5">附件</th>
+                                  <th className="p-3.5">标签</th>
+                                  <th className="p-3.5 pr-6 text-right">操作</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-gray-100 text-[12px]">
+                                {filteredRagItems.map(item => (
+                                  <tr key={item.id} className="hover:bg-purple-50/30 transition-colors">
+                                    <td className="p-3.5 pl-6 font-bold text-[#4a4365] max-w-[200px] truncate">
+                                      {item.title}
                                     </td>
-                                    <td className="py-3 px-2">{user.profile?.province || '未选择'}</td>
-                                    <td className="py-3 px-2 font-bold text-[#4a4365]">
-                                      {scoreNum > 0 ? `${scoreNum}分` : '未填'}
-                                      {user.profile?.rank && <span className="text-[10px] text-gray-400 block font-normal">位次: {user.profile.rank}</span>}
+                                    <td className="p-3.5 text-gray-500">
+                                      <span className="px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 font-bold text-[10px]">
+                                        {item.category}
+                                      </span>
                                     </td>
-                                    <td className="py-3 px-2 text-gray-600">{user.profile?.subjects || '未填写'}</td>
-                                    <td className="py-3 px-2">
+                                    <td className="p-3.5 text-gray-500">
+                                      {item.type === 'table' ? '结构化表格' : '普通文本'}
+                                    </td>
+                                    <td className="p-3.5 text-gray-500">
+                                      {(item.imageAttachments?.length || 0) > 0 ? `${item.imageAttachments?.length} 张图` : '-'}
+                                    </td>
+                                    <td className="p-3.5 text-gray-400 text-[10px] max-w-[150px] truncate">
+                                      {(item.tags || []).join(', ')}
+                                    </td>
+                                    <td className="p-3.5 pr-6 text-right space-x-1">
                                       <button
-                                        onClick={() => handleToggleUserVip(user.username)}
-                                        className={`px-2.5 py-1 rounded-xl text-[11px] font-bold transition-all ${
-                                          isUserVip
-                                            ? 'bg-amber-100 text-amber-900 border border-amber-300 shadow-xs'
-                                            : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-                                        }`}
+                                        onClick={() => {
+                                          setEditingItem(item);
+                                          setIsAddModalOpen(true);
+                                        }}
+                                        className="p-1 rounded-md text-gray-400 hover:text-purple-600 hover:bg-purple-50 cursor-pointer"
                                       >
-                                        {isUserVip ? '✨ VIP 用户' : '普通用户'}
+                                        <Edit3 size={13} />
                                       </button>
-                                    </td>
-                                    <td className="py-3 px-2">
-                                      {isUserLow ? (
-                                        <span className="bg-red-50 text-red-600 px-2 py-0.5 rounded-md font-bold text-[10px]">
-                                          低于拦截段 (&lt;{lowScoreThreshold}分)
-                                        </span>
-                                      ) : (
-                                        <span className="bg-green-50 text-green-700 px-2 py-0.5 rounded-md font-bold text-[10px]">
-                                          正常咨询段
-                                        </span>
-                                      )}
-                                    </td>
-                                    <td className="py-3 px-2 text-right">
                                       <button
-                                        onClick={() => handleOpenUserPersonalRag(user.username)}
-                                        className="bg-[#f3eefc] hover:bg-[#a494e8] text-[#a494e8] hover:text-white px-3 py-1.5 rounded-xl font-bold text-[11px] transition-all flex items-center gap-1 ml-auto shadow-xs"
+                                        onClick={() => handleDeleteKnowledge(item.id)}
+                                        className="p-1 rounded-md text-gray-400 hover:text-red-600 hover:bg-red-50 cursor-pointer"
                                       >
-                                        <Sparkles size={13} />
-                                        <span>查看个人 RAG</span>
+                                        <Trash2 size={13} />
                                       </button>
                                     </td>
                                   </tr>
-                                );
-                              })}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-
-                  </div>
-                ) : (
-                  /* Message Analysis & High-Frequency Word Statistics Dashboard */
-                  <div className="space-y-6 animate-in fade-in duration-300">
-                    
-                    {/* Analytics Top Stats Bar */}
-                    <div className="grid grid-cols-3 gap-3">
-                      <div className="bg-white/80 rounded-3xl p-4 border border-white shadow-sm flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-2xl bg-purple-100 text-[#a494e8] flex items-center justify-center font-bold">
-                          <MessageSquare size={20} />
-                        </div>
-                        <div>
-                          <div className="text-[18px] font-black text-[#4a4365]">{allUserDialogues.length}</div>
-                          <div className="text-[11px] font-medium text-[#8a84a4]">全网问答对总数</div>
-                        </div>
-                      </div>
-
-                      <div className="bg-white/80 rounded-3xl p-4 border border-white shadow-sm flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-2xl bg-blue-100 text-blue-500 flex items-center justify-center font-bold">
-                          <User size={20} />
-                        </div>
-                        <div>
-                          <div className="text-[18px] font-black text-[#4a4365]">
-                            {new Set(allUserDialogues.map(d => d.username)).size}
+                                ))}
+                              </tbody>
+                            </table>
                           </div>
-                          <div className="text-[11px] font-medium text-[#8a84a4]">涉及咨询用户数</div>
-                        </div>
-                      </div>
-
-                      <div className="bg-white/80 rounded-3xl p-4 border border-white shadow-sm flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center font-bold">
-                          <Sparkles size={20} />
-                        </div>
-                        <div>
-                          <div className="text-[18px] font-black text-[#4a4365]">{highFrequencyWords.length}</div>
-                          <div className="text-[11px] font-medium text-[#8a84a4]">提炼核心高频热词</div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Global High-Frequency Words / Keywords Statistics Card */}
-                    <div className="bg-white/80 backdrop-blur-xl rounded-3xl p-5 border border-white shadow-sm space-y-4">
-                      <div className="flex items-center justify-between border-b pb-3 border-gray-100">
-                        <div>
-                          <h3 className="font-bold text-[#4a4365] text-[15px] flex items-center gap-2">
-                            <Sparkles className="text-[#a494e8]" size={18} /> 全网增量高频词统计数据库 (Top 15)
-                          </h3>
-                          <p className="text-[11px] text-[#8a84a4] mt-0.5">
-                            ⚡ 仅分析新消息（已归档累计 {wordAnalyticsDb.totalAnalyzedCount || 0} 条消息
-                            {newlyAnalyzedCount > 0 ? `，本次新增分析 ${newlyAnalyzedCount} 条` : '，当前暂无新增待分析消息'}，结果已持久化保存至数据库）
-                          </p>
-                        </div>
-                        {adminMessageSearch && (
-                          <button
-                            onClick={() => setAdminMessageSearch('')}
-                            className="text-[11px] font-bold text-[#a494e8] hover:text-[#4a4365] bg-purple-50 px-3 py-1 rounded-xl transition-all"
-                          >
-                            重置关键词筛选
-                          </button>
                         )}
                       </div>
+                    )}
 
-                      <div className="flex flex-wrap gap-2.5 pt-1">
-                        {highFrequencyWords.map((item, index) => {
-                          const isSelected = adminMessageSearch === item.word;
-
-                          return (
+                    {/* ========================================================= */}
+                    {/* TAB 3: 👥 USER PROFILES & VIP STRATEGY                    */}
+                    {/* ========================================================= */}
+                    {adminTab === 'users' && (
+                      <div className="space-y-6 animate-in fade-in duration-300">
+                        {/* Threshold Control Card */}
+                        <div className="bg-white/80 rounded-3xl p-5 border border-white shadow-xs space-y-4">
+                          <div className="flex items-center justify-between border-b pb-3 border-gray-100">
+                            <div>
+                              <h3 className="font-black text-[#4a4365] text-[14px]">
+                                高考分数分流与个性化策略阈值
+                              </h3>
+                              <p className="text-[11px] text-[#8a84a4]">
+                                控制咨询过程中针对不同分段考生的智能策略介入与 VIP 记忆通道
+                              </p>
+                            </div>
                             <button
-                              key={item.word}
-                              onClick={() => setAdminMessageSearch(isSelected ? '' : item.word)}
-                              className={`group relative px-3.5 py-2 rounded-2xl text-[12px] font-bold transition-all border flex items-center gap-2 active:scale-95 shadow-xs ${
-                                isSelected
-                                  ? 'bg-[#4a4365] text-white border-[#4a4365] shadow-md ring-2 ring-purple-200'
-                                  : 'bg-[#f8f6fc] hover:bg-white text-[#4a4365] border-purple-100 hover:border-purple-200'
+                              onClick={() => setInterceptionEnabled(!interceptionEnabled)}
+                              className={`px-3 py-1 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${
+                                interceptionEnabled
+                                  ? 'bg-emerald-100 text-emerald-700'
+                                  : 'bg-gray-100 text-gray-500'
                               }`}
                             >
-                              <span className={`text-[10px] w-4 h-4 rounded-full flex items-center justify-center font-black ${
-                                index === 0 ? 'bg-amber-400 text-white' : index === 1 ? 'bg-gray-300 text-gray-700' : index === 2 ? 'bg-amber-600 text-white' : 'bg-purple-100 text-purple-700'
-                              }`}>
-                                {index + 1}
-                              </span>
-                              <span>{item.word}</span>
-                              <span className={`text-[10px] px-1.5 py-0.2 rounded-md font-extrabold ${
-                                isSelected ? 'bg-white/20 text-white' : 'bg-purple-100 text-purple-700'
-                              }`}>
-                                {item.count}次
-                              </span>
+                              {interceptionEnabled ? '分流策略已启用' : '策略已暂停'}
                             </button>
-                          );
-                        })}
-                      </div>
-                    </div>
+                          </div>
 
-                    {/* Global Dialogue Search & Inspection Table / List */}
-                    <div className="bg-white/80 backdrop-blur-xl rounded-3xl p-5 border border-white shadow-sm space-y-4">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <h3 className="font-bold text-[#4a4365] text-[15px] flex items-center gap-2">
-                            <MessageSquare size={18} className="text-[#a494e8]" /> 全局用户对话汇总与检索
-                          </h3>
-                          <span className="text-[11px] font-bold text-gray-400">
-                            (共 {
-                              allUserDialogues.filter(d => 
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div className="bg-[#f8f6fc] p-3.5 rounded-2xl space-y-2">
+                              <div className="flex items-center justify-between">
+                                <span className="text-[12px] font-bold text-[#4a4365]">压线风险拦截阈值</span>
+                                <span className="text-[13px] font-black text-rose-500">{lowScoreThreshold} 分</span>
+                              </div>
+                              <input
+                                type="range"
+                                min="300"
+                                max="600"
+                                value={lowScoreThreshold}
+                                onChange={(e) => setLowScoreThreshold(Number(e.target.value))}
+                                className="w-full accent-rose-500 cursor-pointer"
+                              />
+                              <p className="text-[10px] text-gray-400">高考分数低于此值的考生，系统将自动强化保底方案推荐</p>
+                            </div>
+
+                            <div className="bg-[#f8f6fc] p-3.5 rounded-2xl space-y-2">
+                              <div className="flex items-center justify-between">
+                                <span className="text-[12px] font-bold text-[#4a4365]">VIP 专属定制通道阈值</span>
+                                <span className="text-[13px] font-black text-purple-600">{vipScoreThreshold} 分</span>
+                              </div>
+                              <input
+                                type="range"
+                                min="500"
+                                max="700"
+                                value={vipScoreThreshold}
+                                onChange={(e) => setVipScoreThreshold(Number(e.target.value))}
+                                className="w-full accent-purple-600 cursor-pointer"
+                              />
+                              <p className="text-[10px] text-gray-400">高考分数高于此值的考生，自动开启高分位次精细化分析</p>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* User List Header & Search */}
+                        <div className="flex items-center justify-between bg-white/80 p-3 rounded-2xl border border-white shadow-xs">
+                          <div className="relative flex-1 sm:w-64">
+                            <Search size={15} className="absolute left-3 top-2.5 text-gray-400" />
+                            <input
+                              type="text"
+                              value={adminUserSearch}
+                              onChange={(e) => setAdminUserSearch(e.target.value)}
+                              placeholder="搜索用户名、姓名、高考省份..."
+                              className="w-full bg-[#f8f6fc] pl-9 pr-4 py-2 rounded-xl text-[12px] outline-none focus:ring-2 focus:ring-[#a494e8]"
+                            />
+                          </div>
+                          <span className="text-[11px] font-bold text-[#a494e8] px-3">
+                            共 {registeredUsersList.length} 位注册考生
+                          </span>
+                        </div>
+
+                        {/* Registered User Cards Grid */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {registeredUsersList
+                            .filter(u => 
+                              !adminUserSearch || 
+                              u.username?.toLowerCase().includes(adminUserSearch.toLowerCase()) ||
+                              u.profile?.name?.includes(adminUserSearch) ||
+                              u.profile?.province?.includes(adminUserSearch)
+                            )
+                            .map(u => {
+                              const isVip = u.profile?.isVip || (typeof u.profile?.score === 'number' && u.profile.score >= vipScoreThreshold);
+                              return (
+                                <div key={u.username} className="bg-white/80 rounded-3xl p-5 border border-white shadow-xs hover:shadow-md transition-all flex flex-col justify-between space-y-4">
+                                  <div className="space-y-2.5">
+                                    <div className="flex items-center justify-between">
+                                      <div className="flex items-center gap-2">
+                                        <div className="w-8 h-8 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center font-bold text-[12px]">
+                                          {u.profile?.name ? u.profile.name[0] : u.username[0].toUpperCase()}
+                                        </div>
+                                        <div>
+                                          <div className="font-bold text-[#4a4365] text-[13px]">{u.profile?.name || u.username}</div>
+                                          <div className="text-[10px] text-gray-400">账号: {u.username}</div>
+                                        </div>
+                                      </div>
+                                      
+                                      <button
+                                        onClick={() => handleToggleUserVip(u.username)}
+                                        className={`px-2.5 py-1 rounded-xl text-[10.5px] font-bold transition-all flex items-center gap-1 cursor-pointer ${
+                                          isVip ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-500 hover:bg-purple-50'
+                                        }`}
+                                      >
+                                        <Sparkles size={12} /> {isVip ? 'VIP 考生' : '设为 VIP'}
+                                      </button>
+                                    </div>
+
+                                    {u.profile && Object.keys(u.profile).length > 0 ? (
+                                      <div className="grid grid-cols-2 gap-2 text-[11px] bg-[#f8f6fc] p-3 rounded-2xl">
+                                        <div>高考省份: <span className="font-bold text-[#4a4365]">{u.profile.province || '-'}</span></div>
+                                        <div>高考成绩: <span className="font-bold text-purple-600">{u.profile.score ? `${u.profile.score} 分` : '-'}</span></div>
+                                        <div>全省排名: <span className="font-bold text-[#4a4365]">{u.profile.rank ? `第 ${u.profile.rank} 名` : '-'}</span></div>
+                                        <div>选科组合: <span className="font-bold text-[#4a4365]">{u.profile.subjects || '-'}</span></div>
+                                      </div>
+                                    ) : (
+                                      <div className="text-[11px] text-gray-400 bg-[#f8f6fc] p-3 rounded-2xl text-center">
+                                        该考生尚未填写高考背景资料
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+                                    <span className="text-[10px] text-gray-400">
+                                      注册时间: {u.registeredAt ? new Date(u.registeredAt).toLocaleDateString() : '预设'}
+                                    </span>
+                                    <button
+                                      onClick={() => handleOpenUserPersonalRag(u.username)}
+                                      className="text-purple-600 hover:text-purple-800 text-[11px] font-bold flex items-center gap-1 cursor-pointer"
+                                    >
+                                      查看考生偏好记忆 <ChevronRight size={12} />
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* ========================================================= */}
+                    {/* TAB 4: 📈 ANALYTICS & DIALOGUES                           */}
+                    {/* ========================================================= */}
+                    {adminTab === 'analytics' && (
+                      <div className="space-y-6 animate-in fade-in duration-300">
+                        {/* Word Frequency Analytics Card */}
+                        <div className="bg-white/80 rounded-3xl p-5 border border-white shadow-xs space-y-4">
+                          <div className="flex items-center justify-between border-b pb-3 border-gray-100">
+                            <div>
+                              <h3 className="font-black text-[#4a4365] text-[14px]">
+                                考生咨询高频关键词意向分析
+                              </h3>
+                              <p className="text-[11px] text-[#8a84a4]">
+                                基于全部历史对话记录自动增量提取的核心关注热词
+                              </p>
+                            </div>
+                            <span className="text-[11px] font-bold text-purple-600 bg-purple-50 px-2.5 py-1 rounded-lg">
+                              已分析 {wordAnalyticsDb.totalAnalyzedCount} 条对话
+                            </span>
+                          </div>
+
+                          <div className="flex flex-wrap gap-2">
+                            {highFrequencyWords.length === 0 ? (
+                              <div className="text-gray-400 text-[12px] py-4">暂无高频词统计数据</div>
+                            ) : (
+                              highFrequencyWords.map((item, idx) => {
+                                const isSelected = adminMessageSearch === item.word;
+                                return (
+                                  <button
+                                    key={idx}
+                                    onClick={() => setAdminMessageSearch(isSelected ? '' : item.word)}
+                                    className={`px-3 py-1.5 rounded-xl text-[12px] font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                                      isSelected
+                                        ? 'bg-[#4a4365] text-white shadow-sm'
+                                        : 'bg-[#f8f6fc] text-[#4a4365] hover:bg-purple-100'
+                                    }`}
+                                  >
+                                    <span>#{item.word}</span>
+                                    <span className="text-[10px] px-1.5 py-0.2 rounded-md bg-white/60 text-purple-700">
+                                      {item.count}次
+                                    </span>
+                                  </button>
+                                );
+                              })
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Dialogue Records View */}
+                        <div className="bg-white/80 rounded-3xl p-5 border border-white shadow-xs space-y-4">
+                          <div className="flex items-center justify-between border-b pb-3 border-gray-100">
+                            <h3 className="font-black text-[#4a4365] text-[14px]">
+                              全网考生咨询问答记录明细
+                            </h3>
+                            <div className="relative w-56">
+                              <Search size={14} className="absolute left-3 top-2.5 text-gray-400" />
+                              <input
+                                type="text"
+                                value={adminMessageSearch}
+                                onChange={(e) => setAdminMessageSearch(e.target.value)}
+                                placeholder="搜索问答内容..."
+                                className="w-full bg-[#f8f6fc] pl-8 pr-4 py-1.5 rounded-xl text-[11.5px] outline-none focus:ring-2 focus:ring-[#a494e8]"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1 hide-scrollbar">
+                            {allUserDialogues
+                              .filter(d => 
                                 !adminMessageSearch ||
                                 d.question.toLowerCase().includes(adminMessageSearch.toLowerCase()) ||
                                 d.reply.toLowerCase().includes(adminMessageSearch.toLowerCase()) ||
                                 d.username.toLowerCase().includes(adminMessageSearch.toLowerCase())
-                              ).length
-                            } 条)
-                          </span>
+                              )
+                              .map(d => (
+                                <div key={d.id} className="bg-white/90 rounded-2xl p-4 border border-white shadow-2xs space-y-2.5 hover:border-purple-200 transition-all">
+                                  <div className="flex items-center justify-between border-b pb-1.5 border-gray-100">
+                                    <div className="flex items-center gap-2">
+                                      <span className="bg-purple-100 text-purple-700 text-[10.5px] px-2 py-0.5 rounded-md font-bold">
+                                        {d.username}
+                                      </span>
+                                      <span className="text-gray-400 text-[10px]">会话: {d.sessionTitle}</span>
+                                    </div>
+                                    <span className="text-[10px] text-gray-400">
+                                      {new Date(d.timestamp).toLocaleString()}
+                                    </span>
+                                  </div>
+                                  <div className="text-[12.5px] font-bold text-[#4a4365]">
+                                    问: {d.question}
+                                  </div>
+                                  {d.reply && (
+                                    <div className="text-[12px] text-gray-600 bg-purple-50/40 p-2.5 rounded-xl leading-relaxed">
+                                      答: {d.reply}
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* ========================================================= */}
+                    {/* TAB 5: 🧪 PLAYGROUND & SEARCH TESTING                      */}
+                    {/* ========================================================= */}
+                    {adminTab === 'playground' && (
+                      <div className="space-y-5 animate-in fade-in duration-300">
+                        {/* Sub-tab switcher */}
+                        <div className="flex items-center gap-2 bg-white/80 p-1.5 rounded-2xl border border-white shadow-2xs w-fit">
+                          <button
+                            onClick={() => setPlaygroundTab('rag')}
+                            className={`px-4 py-2 rounded-xl text-[12.5px] font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                              playgroundTab === 'rag'
+                                ? 'bg-[#4a4365] text-white shadow-sm'
+                                : 'text-[#6d648b] hover:bg-white'
+                            }`}
+                          >
+                            <Database size={15} /> 1. 校方 RAG 知识库检索诊断
+                          </button>
+                          <button
+                            onClick={() => setPlaygroundTab('web')}
+                            className={`px-4 py-2 rounded-xl text-[12.5px] font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                              playgroundTab === 'web'
+                                ? 'bg-[#4a4365] text-white shadow-sm'
+                                : 'text-[#6d648b] hover:bg-white'
+                            }`}
+                          >
+                            <Globe size={15} /> 2. 全网多源联网搜索实时测试
+                          </button>
                         </div>
 
-                        <div className="relative">
-                          <Search size={14} className="absolute left-3 top-3 text-gray-400" />
-                          <input
-                            type="text"
-                            value={adminMessageSearch}
-                            onChange={(e) => setAdminMessageSearch(e.target.value)}
-                            placeholder="全局搜索问题、回复或账号..."
-                            className="bg-[#f8f6fc] border-none rounded-xl pl-9 pr-8 py-1.5 text-[12px] outline-none w-[240px] focus:ring-2 focus:ring-[#a494e8]"
-                          />
-                          {adminMessageSearch && (
+                        {/* Sub-view A: RAG Diagnostic Testing */}
+                        {playgroundTab === 'rag' && (
+                          <div className="space-y-5">
+                            <div className="bg-white/85 backdrop-blur-md rounded-3xl p-5 border border-white shadow-xs space-y-4">
+                              <div>
+                                <h3 className="font-black text-[#4a4365] text-[14px]">校方 RAG 检索精准度与自适应截断诊断</h3>
+                                <p className="text-[11px] text-gray-500 mt-0.5">
+                                  测试分词 Token 拆解、512 维向量余弦相似度门槛（≥0.50）以及相对最高分差（≥70%）动态截断
+                                </p>
+                              </div>
+
+                              {/* Quick Search Chips */}
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-[11px] text-gray-400 font-bold">推荐测试查询:</span>
+                                {['浙江 计算机 分数线', '宿舍四人间 空调 独卫', '工科 学费 奖学金', '计算机 选科要求', '转专业 政策'].map(q => (
+                                  <button
+                                    key={q}
+                                    onClick={() => { setRagTestQuery(q); }}
+                                    className="px-2.5 py-1 bg-purple-50 hover:bg-purple-100 text-purple-700 text-[11px] font-bold rounded-lg transition-all cursor-pointer"
+                                  >
+                                    {q}
+                                  </button>
+                                ))}
+                              </div>
+
+                              {/* Search Bar Input */}
+                              <div className="flex items-center gap-2">
+                                <div className="relative flex-1">
+                                  <Search size={16} className="absolute left-3.5 top-3 text-gray-400" />
+                                  <input
+                                    type="text"
+                                    value={ragTestQuery}
+                                    onChange={(e) => setRagTestQuery(e.target.value)}
+                                    onKeyDown={(e) => e.key === 'Enter' && handleRunRagTest()}
+                                    placeholder="输入要测试的知识库查询词，例如“浙江 计算机 录取分数”..."
+                                    className="w-full bg-[#f8f6fc] pl-10 pr-4 py-2.5 rounded-2xl text-[13px] font-bold text-[#4a4365] outline-none focus:ring-2 focus:ring-[#a494e8]"
+                                  />
+                                </div>
+                                <button
+                                  onClick={handleRunRagTest}
+                                  disabled={isRagTesting}
+                                  className="bg-gradient-to-r from-[#b3a4ed] to-[#c7b8f9] text-white px-5 py-2.5 rounded-2xl font-bold text-[13px] shadow-sm hover:opacity-90 active:scale-95 transition-all flex items-center gap-1.5 shrink-0 cursor-pointer"
+                                >
+                                  {isRagTesting ? <RefreshCw size={15} className="animate-spin" /> : <Play size={15} />}
+                                  <span>{isRagTesting ? '正在诊断...' : '执行诊断'}</span>
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* RAG Test Results */}
+                            {ragTestResults && (
+                              <div className="space-y-4">
+                                <div className="flex items-center justify-between px-2">
+                                  <span className="text-[12px] font-bold text-[#4a4365]">
+                                    检索命中结果 ({ragTestResults.length} 条高相关项)
+                                  </span>
+                                  <span className="text-[11px] text-purple-600 font-bold">
+                                    {ragTestResults.length > 0 ? '✅ 顺利通过绝对阈值与自适应截断' : '⚠️ 未命中高相关条目 (自适应过滤生效)'}
+                                  </span>
+                                </div>
+
+                                {ragTestResults.length === 0 ? (
+                                  <div className="bg-white/80 rounded-3xl p-8 text-center text-gray-400 font-bold border border-white">
+                                    未检索到匹配的校方知识条目（已自动过滤弱相关与无关内容，防止大模型幻觉污染）。
+                                  </div>
+                                ) : (
+                                  <div className="space-y-3">
+                                    {ragTestResults.map((match, idx) => (
+                                      <div key={idx} className="bg-white/90 rounded-3xl p-5 border border-white shadow-xs space-y-3">
+                                        <div className="flex items-center justify-between">
+                                          <div className="flex items-center gap-2">
+                                            <span className="w-6 h-6 rounded-full bg-purple-600 text-white font-black text-[11px] flex items-center justify-center">
+                                              #{idx + 1}
+                                            </span>
+                                            <span className="font-bold text-[#4a4365] text-[14px]">
+                                              {match.item.title}
+                                            </span>
+                                            <span className="text-[10px] bg-purple-100 text-purple-700 px-2 py-0.5 rounded-md font-bold">
+                                              {match.item.category}
+                                            </span>
+                                          </div>
+                                          <span className="text-[12px] font-black text-purple-700 bg-purple-50 px-2.5 py-1 rounded-xl border border-purple-100">
+                                            综合得分: {match.score?.toFixed ? match.score.toFixed(2) : match.score}
+                                          </span>
+                                        </div>
+
+                                        <p className="text-[12px] text-gray-600 leading-relaxed bg-[#fbf9fe] p-3 rounded-2xl border border-purple-50/60">
+                                          {match.item.content}
+                                        </p>
+
+                                        {(match.item.imageAttachments?.length || 0) > 0 && (
+                                          <div className="flex items-center gap-2 pt-1">
+                                            {match.item.imageAttachments.map((img: any, i: number) => (
+                                              <img key={i} src={img.url} alt={img.caption} className="w-16 h-16 object-cover rounded-xl border" />
+                                            ))}
+                                          </div>
+                                        )}
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Sub-view B: Live Web Search Testing */}
+                        {playgroundTab === 'web' && (
+                          <div className="space-y-5">
+                            <div className="bg-white/85 backdrop-blur-md rounded-3xl p-5 border border-white shadow-xs space-y-4">
+                              <div>
+                                <h3 className="font-black text-[#4a4365] text-[14px]">全网多源搜索引擎实时测试</h3>
+                                <p className="text-[11px] text-gray-500 mt-0.5">
+                                  测试 Tavily、博查 AI 与 DuckDuckGo（免 Key 自动容灾兜底）的实时互联网抓取与内容清洗
+                                </p>
+                              </div>
+
+                              {/* Quick Search Chips */}
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-[11px] text-gray-400 font-bold">推荐热搜词:</span>
+                                {['2025 全国高考报考人数', '计算机专业最新就业薪资中位数', '大湾区 高校 优势专业', '教育部 选科 新政策'].map(q => (
+                                  <button
+                                    key={q}
+                                    onClick={() => { setWebTestQuery(q); }}
+                                    className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 text-[11px] font-bold rounded-lg transition-all cursor-pointer"
+                                  >
+                                    {q}
+                                  </button>
+                                ))}
+                              </div>
+
+                              {/* Engine Provider & Input Bar */}
+                              <div className="flex flex-col sm:flex-row items-center gap-2">
+                                <select
+                                  value={webTestProvider}
+                                  onChange={(e) => setWebTestProvider(e.target.value)}
+                                  className="bg-[#f8f6fc] text-[#4a4365] px-3.5 py-2.5 rounded-2xl text-[12.5px] font-bold outline-none cursor-pointer border border-purple-50 w-full sm:w-auto"
+                                >
+                                  <option value="duckduckgo">DuckDuckGo (免 Key 默认兜底)</option>
+                                  <option value="tavily">Tavily (AI 原生深度搜索)</option>
+                                  <option value="bocha">博查 AI (国内中文政策优化)</option>
+                                </select>
+
+                                <div className="relative flex-1 w-full">
+                                  <Search size={16} className="absolute left-3.5 top-3 text-gray-400" />
+                                  <input
+                                    type="text"
+                                    value={webTestQuery}
+                                    onChange={(e) => setWebTestQuery(e.target.value)}
+                                    onKeyDown={(e) => e.key === 'Enter' && handleRunWebSearchTest()}
+                                    placeholder="输入要联网搜索的关键词..."
+                                    className="w-full bg-[#f8f6fc] pl-10 pr-4 py-2.5 rounded-2xl text-[13px] font-bold text-[#4a4365] outline-none focus:ring-2 focus:ring-[#a494e8]"
+                                  />
+                                </div>
+
+                                <button
+                                  onClick={handleRunWebSearchTest}
+                                  disabled={isWebTesting}
+                                  className="bg-gradient-to-r from-blue-500 to-indigo-500 text-white px-5 py-2.5 rounded-2xl font-bold text-[13px] shadow-sm hover:opacity-90 active:scale-95 transition-all flex items-center gap-1.5 shrink-0 w-full sm:w-auto justify-center cursor-pointer"
+                                >
+                                  {isWebTesting ? <RefreshCw size={15} className="animate-spin" /> : <Globe size={15} />}
+                                  <span>{isWebTesting ? '正在全网搜索...' : '发起搜索'}</span>
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Web Search Results */}
+                            {webTestResults && (
+                              <div className="space-y-4">
+                                <div className="flex items-center justify-between px-2">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-[12px] font-bold text-[#4a4365]">
+                                      搜索结果 ({webTestResults.count || (webTestResults.results || []).length} 条)
+                                    </span>
+                                    <span className="text-[10.5px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-md font-bold">
+                                      引擎: {webTestResults.provider}
+                                    </span>
+                                  </div>
+                                  <span className="text-[11px] text-gray-400 font-bold">
+                                    耗时: {webTestResults.elapsedMs} ms
+                                  </span>
+                                </div>
+
+                                <div className="space-y-3">
+                                  {(webTestResults.results || []).map((res: any, idx: number) => (
+                                    <div key={idx} className="bg-white/90 rounded-3xl p-4.5 border border-white shadow-xs space-y-2 hover:border-blue-200 transition-all">
+                                      <div className="flex items-start justify-between gap-3">
+                                        <a
+                                          href={res.url}
+                                          target="_blank"
+                                          rel="noreferrer"
+                                          className="font-bold text-[#4a4365] text-[13.5px] hover:text-blue-600 transition-colors flex items-center gap-1.5"
+                                        >
+                                          <span>{idx + 1}. {res.title}</span>
+                                          <ExternalLink size={13} className="text-gray-400 shrink-0" />
+                                        </a>
+                                        <span className="text-[10px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded-md shrink-0 font-medium">
+                                          {res.source || 'web'}
+                                        </span>
+                                      </div>
+
+                                      <p className="text-[12px] text-gray-600 leading-relaxed bg-[#f8faff] p-3 rounded-2xl border border-blue-50/60">
+                                        {res.snippet || '暂无摘要'}
+                                      </p>
+
+                                      <div className="text-[10px] text-blue-500 truncate">
+                                        {res.url}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* ========================================================= */}
+                    {/* TAB 6: ⚙️ SETTINGS & MODEL GATEWAY                        */}
+                    {/* ========================================================= */}
+                    {adminTab === 'settings' && (
+                      <div className="space-y-6 animate-in fade-in duration-300 max-w-4xl">
+                        {/* Status Alert Message */}
+                        {settingsSaveMsg && (
+                          <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-3xl text-emerald-800 text-[13px] font-bold flex items-center gap-2 animate-in fade-in shadow-xs">
+                            <CheckCircle2 size={18} className="text-emerald-600 shrink-0" />
+                            <span>{settingsSaveMsg}</span>
+                          </div>
+                        )}
+
+                        {/* Section 1: AI Provider Presets */}
+                        <div className="bg-white/85 backdrop-blur-md rounded-3xl p-5 border border-white shadow-xs space-y-4">
+                          <div>
+                            <h3 className="font-black text-[#4a4365] text-[14px]">1. 快捷选择大模型服务商预设</h3>
+                            <p className="text-[11px] text-gray-500 mt-0.5">
+                              点击厂商将自动填充标准 Base URL 与推荐模型，仅需输入对应的 API Key 即可
+                            </p>
+                          </div>
+
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                            {[
+                              { name: 'DeepSeek (深度求索)', url: 'https://api.deepseek.com', model: 'deepseek-chat' },
+                              { name: 'OpenAI (Official)', url: 'https://api.openai.com/v1', model: 'gpt-4o' },
+                              { name: '阿里通义千问', url: 'https://dashscope.aliyuncs.com/compatible-mode/v1', model: 'qwen-max' },
+                              { name: '硅基流动', url: 'https://api.siliconflow.cn/v1', model: 'deepseek-ai/DeepSeek-V3' },
+                              { name: '智谱清言 GLM', url: 'https://open.bigmodel.cn/api/paas/v4', model: 'glm-4-plus' },
+                              { name: '月之暗面 Kimi', url: 'https://api.moonshot.cn/v1', model: 'moonshot-v1-8k' },
+                              { name: 'OpenAI 兼容 (自定义)', url: 'http://localhost:11434/v1', model: 'gpt-4o' }
+                            ].map((preset, idx) => (
+                              <button
+                                key={idx}
+                                onClick={() => {
+                                  setSettingsConfig((prev: any) => ({
+                                    ...prev,
+                                    baseUrl: preset.url,
+                                    defaultModel: preset.model,
+                                    fastModel: preset.model
+                                  }));
+                                }}
+                                className="p-3 bg-[#fbf9fe] hover:bg-purple-50 border border-purple-50/80 rounded-2xl text-left transition-all group cursor-pointer"
+                              >
+                                <div className="font-bold text-[12px] text-[#4a4365] group-hover:text-purple-700">{preset.name}</div>
+                                <div className="text-[9.5px] text-gray-400 truncate mt-0.5">{preset.model}</div>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Section 2: AI Gateway & Models */}
+                        <div className="bg-white/85 backdrop-blur-md rounded-3xl p-5 border border-white shadow-xs space-y-4">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <h3 className="font-black text-[#4a4365] text-[14px]">2. AI 模型网关与双模型分配</h3>
+                              <p className="text-[11px] text-gray-500 mt-0.5">
+                                配置主对话模型（回复考生）与轻量快速模型（文档智能切片与后台分析）
+                              </p>
+                            </div>
                             <button
-                              onClick={() => setAdminMessageSearch('')}
-                              className="absolute right-2.5 top-2.5 text-gray-400 hover:text-gray-600"
+                              onClick={handleFetchModelsList}
+                              disabled={isLoadingModels}
+                              className="px-3.5 py-1.5 bg-purple-50 hover:bg-purple-100 text-purple-700 rounded-xl text-[11.5px] font-bold transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer"
                             >
-                              <X size={13} />
+                              <RefreshCw size={13} className={isLoadingModels ? 'animate-spin' : ''} />
+                              <span>一键拉取可用模型</span>
                             </button>
+                          </div>
+
+                          <div className="space-y-3.5">
+                            <div>
+                              <label className="text-[12px] font-bold text-[#4a4365] block mb-1">接口地址 (Base URL)</label>
+                              <input
+                                type="text"
+                                value={settingsConfig.baseUrl}
+                                onChange={(e) => setSettingsConfig({ ...settingsConfig, baseUrl: e.target.value })}
+                                placeholder="例如 https://api.deepseek.com 或 https://api.openai.com/v1"
+                                className="w-full bg-[#f8f6fc] px-4 py-2.5 rounded-2xl text-[12.5px] font-bold text-[#4a4365] outline-none focus:ring-2 focus:ring-[#a494e8]"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="text-[12px] font-bold text-[#4a4365] block mb-1">API Key (留空表示不修改)</label>
+                              <input
+                                type="password"
+                                value={settingsConfig.apiKey}
+                                onChange={(e) => setSettingsConfig({ ...settingsConfig, apiKey: e.target.value })}
+                                placeholder="sk-••••••••••••••••"
+                                className="w-full bg-[#f8f6fc] px-4 py-2.5 rounded-2xl text-[12.5px] font-bold text-[#4a4365] outline-none focus:ring-2 focus:ring-[#a494e8]"
+                              />
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-1">
+                              <div>
+                                <label className="text-[12px] font-bold text-[#4a4365] block mb-1">
+                                  💬 默认主对话模型 (DEFAULT_MODEL)
+                                </label>
+                                {availableModels.length > 0 ? (
+                                  <select
+                                    value={settingsConfig.defaultModel}
+                                    onChange={(e) => setSettingsConfig({ ...settingsConfig, defaultModel: e.target.value })}
+                                    className="w-full bg-[#f8f6fc] px-3.5 py-2.5 rounded-2xl text-[12.5px] font-bold text-[#4a4365] outline-none focus:ring-2 focus:ring-[#a494e8]"
+                                  >
+                                    {availableModels.map(m => (
+                                      <option key={m} value={m}>{m}</option>
+                                    ))}
+                                  </select>
+                                ) : (
+                                  <input
+                                    type="text"
+                                    value={settingsConfig.defaultModel}
+                                    onChange={(e) => setSettingsConfig({ ...settingsConfig, defaultModel: e.target.value })}
+                                    placeholder="deepseek-chat"
+                                    className="w-full bg-[#f8f6fc] px-4 py-2.5 rounded-2xl text-[12.5px] font-bold text-[#4a4365] outline-none"
+                                  />
+                                )}
+                              </div>
+
+                              <div>
+                                <label className="text-[12px] font-bold text-[#4a4365] block mb-1">
+                                  ⚡ 快速处理模型 (FAST_MODEL)
+                                </label>
+                                {availableModels.length > 0 ? (
+                                  <select
+                                    value={settingsConfig.fastModel}
+                                    onChange={(e) => setSettingsConfig({ ...settingsConfig, fastModel: e.target.value })}
+                                    className="w-full bg-[#f8f6fc] px-3.5 py-2.5 rounded-2xl text-[12.5px] font-bold text-[#4a4365] outline-none focus:ring-2 focus:ring-[#a494e8]"
+                                  >
+                                    {availableModels.map(m => (
+                                      <option key={m} value={m}>{m}</option>
+                                    ))}
+                                  </select>
+                                ) : (
+                                  <input
+                                    type="text"
+                                    value={settingsConfig.fastModel}
+                                    onChange={(e) => setSettingsConfig({ ...settingsConfig, fastModel: e.target.value })}
+                                    placeholder="deepseek-chat"
+                                    className="w-full bg-[#f8f6fc] px-4 py-2.5 rounded-2xl text-[12.5px] font-bold text-[#4a4365] outline-none"
+                                  />
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Section 3: Web Search Engine Configuration */}
+                        <div className="bg-white/85 backdrop-blur-md rounded-3xl p-5 border border-white shadow-xs space-y-4">
+                          <div>
+                            <h3 className="font-black text-[#4a4365] text-[14px]">3. 联网搜索引擎选配</h3>
+                            <p className="text-[11px] text-gray-500 mt-0.5">
+                              选配宏观高考政策与全网资讯搜索引擎（未配置或异常时自动由 DuckDuckGo 免Key 兜底）
+                            </p>
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            {[
+                              { id: 'duckduckgo', name: 'DuckDuckGo', note: '免 Key 免费开箱即用 · 默认' },
+                              { id: 'tavily', name: 'Tavily', note: 'AI 原生搜索 · 需填 Key' },
+                              { id: 'bocha', name: '博查 AI', note: '国内政策深度优化 · 需填 Key' },
+                            ].map(eng => {
+                              const isSelected = settingsConfig.searchProvider === eng.id;
+                              return (
+                                <button
+                                  key={eng.id}
+                                  onClick={() => setSettingsConfig({ ...settingsConfig, searchProvider: eng.id })}
+                                  className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer ${
+                                    isSelected
+                                      ? 'bg-purple-50/80 border-purple-300 shadow-2xs'
+                                      : 'bg-[#fbf9fe] border-purple-50/60 hover:bg-purple-50/40'
+                                  }`}
+                                >
+                                  <div className="font-bold text-[13px] text-[#4a4365] flex items-center justify-between">
+                                    <span>{eng.name}</span>
+                                    {isSelected && <span className="w-2 h-2 rounded-full bg-purple-600" />}
+                                  </div>
+                                  <div className="text-[10px] text-gray-400 mt-1">{eng.note}</div>
+                                </button>
+                              );
+                            })}
+                          </div>
+
+                          {settingsConfig.searchProvider === 'tavily' && (
+                            <div className="pt-2 animate-in fade-in">
+                              <label className="text-[12px] font-bold text-[#4a4365] block mb-1">Tavily API Key (tvly-...)</label>
+                              <input
+                                type="password"
+                                value={settingsConfig.tavilyApiKey}
+                                onChange={(e) => setSettingsConfig({ ...settingsConfig, tavilyApiKey: e.target.value })}
+                                placeholder="tvly-••••••••••••••••"
+                                className="w-full bg-[#f8f6fc] px-4 py-2.5 rounded-2xl text-[12.5px] font-bold text-[#4a4365] outline-none"
+                              />
+                            </div>
+                          )}
+
+                          {settingsConfig.searchProvider === 'bocha' && (
+                            <div className="pt-2 animate-in fade-in">
+                              <label className="text-[12px] font-bold text-[#4a4365] block mb-1">博查 (Bocha) API Key</label>
+                              <input
+                                type="password"
+                                value={settingsConfig.bochaApiKey}
+                                onChange={(e) => setSettingsConfig({ ...settingsConfig, bochaApiKey: e.target.value })}
+                                placeholder="bocha-key-••••••••••••••••"
+                                className="w-full bg-[#f8f6fc] px-4 py-2.5 rounded-2xl text-[12.5px] font-bold text-[#4a4365] outline-none"
+                              />
+                            </div>
                           )}
                         </div>
+
+                        {/* Save Button Bar */}
+                        <div className="flex items-center justify-end gap-3 pt-2">
+                          <button
+                            onClick={handleSaveSettings}
+                            disabled={isSavingSettings}
+                            className="bg-[#4a4365] hover:bg-[#342e49] text-white px-7 py-3 rounded-2xl font-bold text-[14px] shadow-lg active:scale-95 transition-all flex items-center gap-2 cursor-pointer"
+                          >
+                            {isSavingSettings ? <RefreshCw size={16} className="animate-spin" /> : <Check size={16} />}
+                            <span>{isSavingSettings ? '正在保存...' : '保存配置并立即生效'}</span>
+                          </button>
+                        </div>
                       </div>
-
-                      {/* Dialogue Pairs List */}
-                      <div className="space-y-4">
-                        {allUserDialogues
-                          .filter(d => 
-                            !adminMessageSearch ||
-                            d.question.toLowerCase().includes(adminMessageSearch.toLowerCase()) ||
-                            d.reply.toLowerCase().includes(adminMessageSearch.toLowerCase()) ||
-                            d.username.toLowerCase().includes(adminMessageSearch.toLowerCase())
-                          )
-                          .map((d) => (
-                            <div key={d.id} className="bg-white/90 rounded-2xl p-4 border border-white shadow-xs space-y-3 hover:border-purple-200 transition-all">
-                              {/* Header Meta */}
-                              <div className="flex items-center justify-between border-b pb-2 border-gray-100">
-                                <div className="flex items-center gap-2">
-                                  <span className="bg-purple-100 text-purple-700 text-[11px] px-2.5 py-0.5 rounded-lg font-bold flex items-center gap-1">
-                                    <User size={12} /> {d.username}
-                                  </span>
-                                  <span className="bg-gray-100 text-gray-600 text-[10px] px-2 py-0.5 rounded-md font-medium">
-                                    会话: {d.sessionTitle}
-                                  </span>
-                                </div>
-                                <span className="text-[10px] text-gray-400 flex items-center gap-1">
-                                  <Clock size={11} /> {new Date(d.timestamp).toLocaleString()}
-                                </span>
-                              </div>
-
-                              {/* Question Block */}
-                              <div className="flex items-start gap-2.5 bg-[#f8f6fc] p-3 rounded-2xl border border-purple-50">
-                                <div className="w-6 h-6 rounded-lg bg-[#b3a4ed] text-white flex items-center justify-center shrink-0 font-bold text-[10px]">
-                                  问
-                                </div>
-                                <div className="flex-1 text-[13px] font-bold text-[#4a4365] leading-relaxed">
-                                  {d.question}
-                                </div>
-                              </div>
-
-                              {/* Reply Block */}
-                              {d.reply && (
-                                <div className="flex items-start gap-2.5 bg-gradient-to-r from-purple-50/50 to-pink-50/50 p-3 rounded-2xl border border-purple-100/50">
-                                  <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-[#b3a4ed] to-[#f296b2] text-white flex items-center justify-center shrink-0 font-bold text-[10px]">
-                                    答
-                                  </div>
-                                  <div className="flex-1 text-[12px] text-[#5c5478] leading-relaxed">
-                                    {d.reply}
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          ))}
-                      </div>
-
-                    </div>
+                    )}
 
                   </div>
-                )}
+                </main>
 
-              </main>
+              </div>
             )}
-
           </div>
         </div>
       )}
