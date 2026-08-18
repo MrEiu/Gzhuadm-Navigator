@@ -51,27 +51,25 @@ const loadEnvFile = (filePath) => {
 loadEnvFile(envPath);
 loadEnvFile(envMainPath);
 
-// Initialize @openai/agents client configuration
-const deepseekKey = process.env.DEEPSEEK_API_KEY;
-const openaiKey = process.env.OPENAI_API_KEY;
-if (deepseekKey && !openaiKey) {
-  const customClient = new OpenAI({
-    baseURL: process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com',
-    apiKey: deepseekKey,
+// Initialize OpenAI-Compatible client configuration (DeepSeek, OpenAI, DashScope, SiliconFlow, GLM, Moonshot, Custom Gateway)
+const aiBaseUrl = process.env.AI_BASE_URL || process.env.DEEPSEEK_BASE_URL || process.env.OPENAI_BASE_URL || 'https://api.deepseek.com';
+const aiApiKey = process.env.AI_API_KEY || process.env.DEEPSEEK_API_KEY || process.env.OPENAI_API_KEY;
+const defaultModel = process.env.DEFAULT_MODEL || process.env.DEEPSEEK_MODEL || process.env.OPENAI_MODEL || 'deepseek-chat';
+const fastModel = process.env.FAST_MODEL || defaultModel;
+
+let globalOpenAIClient = null;
+if (aiApiKey) {
+  globalOpenAIClient = new OpenAI({
+    baseURL: aiBaseUrl,
+    apiKey: aiApiKey,
   });
-  setDefaultOpenAIClient(customClient);
+  setDefaultOpenAIClient(globalOpenAIClient);
   setOpenAIAPI('chat_completions');
-  console.log('🤖 [OpenAI Agents SDK] Configured with DeepSeek API Client (chat_completions mode)');
-} else if (openaiKey) {
-  const customClient = new OpenAI({
-    baseURL: process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1',
-    apiKey: openaiKey,
-  });
-  setDefaultOpenAIClient(customClient);
-  setOpenAIAPI('chat_completions');
-  console.log('🤖 [OpenAI Agents SDK] Configured with OpenAI API Client');
+  console.log(`🤖 [AI Gateway Ready] Connected to: ${aiBaseUrl}`);
+  console.log(`  👉 Default Model (DEFAULT_MODEL): ${defaultModel} (for student advisory dialogs)`);
+  console.log(`  👉 Fast Model (FAST_MODEL):       ${fastModel} (for document parsing & background tasks)`);
 } else {
-  console.log('ℹ️ [OpenAI Agents SDK] No remote API Key detected. Local BGE RAG offline fallback active.');
+  console.log('ℹ️ [AI Gateway] No remote API Key detected. Local BGE RAG offline fallback active.');
 }
 
 fs.mkdirSync(dataDir, { recursive: true });
@@ -660,10 +658,9 @@ app.post('/api/admin/parse-document', async (req, res) => {
 
   let sections = [];
   if (mode === 'ai') {
-    const apiKey = process.env.DEEPSEEK_API_KEY;
-    if (apiKey) {
+    if (globalOpenAIClient) {
       try {
-        console.log('🤖 Sending document to DeepSeek LLM for AI Smart Semantic Chunking...');
+        console.log(`🤖 [Fast Model: ${fastModel}] Sending document for AI Smart Semantic Chunking...`);
         const prompt = `你是一位专业的 RAG 知识库构建与语义切片专家。请将以下文档内容拆分为 3~15 个逻辑独立、语义连贯的知识切片。
 
 对于每一个切片，必须提取：
@@ -687,41 +684,31 @@ app.post('/api/admin/parse-document', async (req, res) => {
 文档内容：
 ${rawText.slice(0, 4500)}`;
 
-        const response = await fetch('https://api.deepseek.com/chat/completions', {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${apiKey}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            model: process.env.DEEPSEEK_MODEL || 'deepseek-chat',
-            messages: [{ role: 'user', content: prompt }],
-            temperature: 0.3
-          })
+        const completion = await globalOpenAIClient.chat.completions.create({
+          model: fastModel,
+          messages: [{ role: 'user', content: prompt }],
+          temperature: 0.3
         });
 
-        if (response.ok) {
-          const payload = await response.json();
-          const replyText = payload?.choices?.[0]?.message?.content?.trim() || '';
-          const jsonMatch = replyText.match(/\[[\s\S]*\]/);
-          if (jsonMatch) {
-            const aiChunks = JSON.parse(jsonMatch[0]);
-            if (Array.isArray(aiChunks) && aiChunks.length > 0) {
-              aiChunks.forEach((c, i) => {
-                chunks.push({
-                  id: `chunk-ai-${Date.now()}-${i}-${Math.floor(Math.random()*1000)}`,
-                  title: c.title || `${titlePrefix} - AI切片 ${i+1}`,
-                  category: c.category || 'AI切片',
-                  type: c.type || 'text',
-                  content: c.content || '',
-                  tableData: c.tableData || null,
-                  imageAttachments: [],
-                  tags: Array.isArray(c.tags) ? c.tags : [titlePrefix, 'AI切片']
-                });
+        const replyText = completion?.choices?.[0]?.message?.content?.trim() || '';
+        const jsonMatch = replyText.match(/\[[\s\S]*\]/);
+        if (jsonMatch) {
+          const aiChunks = JSON.parse(jsonMatch[0]);
+          if (Array.isArray(aiChunks) && aiChunks.length > 0) {
+            aiChunks.forEach((c, i) => {
+              chunks.push({
+                id: `chunk-ai-${Date.now()}-${i}-${Math.floor(Math.random()*1000)}`,
+                title: c.title || `${titlePrefix} - AI切片 ${i+1}`,
+                category: c.category || 'AI切片',
+                type: c.type || 'text',
+                content: c.content || '',
+                tableData: c.tableData || null,
+                imageAttachments: [],
+                tags: Array.isArray(c.tags) ? c.tags : [titlePrefix, 'AI切片']
               });
+            });
 
-              return res.json({ ok: true, count: chunks.length, chunks, source: 'deepseek-ai' });
-            }
+            return res.json({ ok: true, count: chunks.length, chunks, source: 'ai-gateway' });
           }
         }
       } catch (err) {
@@ -995,6 +982,32 @@ app.post('/api/admin/rag/search', async (req, res) => {
   const matches = await searchRagEngine(query, 5);
   console.log(`📤 [/api/admin/rag/search] Returning ${matches.length} matches`);
   res.json({ ok: true, matches });
+});
+
+app.get('/api/admin/models', async (_req, res) => {
+  if (!globalOpenAIClient) {
+    return res.json({ ok: false, error: 'No API Key configured', models: [] });
+  }
+  try {
+    const list = await globalOpenAIClient.models.list();
+    const models = (list.data || []).map(m => m.id).sort();
+    res.json({
+      ok: true,
+      baseUrl: aiBaseUrl,
+      currentDefaultModel: defaultModel,
+      currentFastModel: fastModel,
+      models
+    });
+  } catch (err) {
+    res.json({
+      ok: false,
+      baseUrl: aiBaseUrl,
+      currentDefaultModel: defaultModel,
+      currentFastModel: fastModel,
+      error: err.message,
+      models: [defaultModel, fastModel]
+    });
+  }
 });
 
 app.post('/api/admin/upload-image', (req, res) => {
@@ -1427,9 +1440,7 @@ const saveUserPreferenceTool = tool({
   },
 });
 
-const defaultAgentModel = process.env.DEEPSEEK_API_KEY
-  ? (process.env.DEEPSEEK_MODEL || 'deepseek-chat')
-  : (process.env.OPENAI_MODEL || 'gpt-4o');
+const defaultAgentModel = defaultModel;
 
 const createAdmissionsAgent = (userProfile, username) => {
   let instructions = ADMISSIONS_SYSTEM_PROMPT;

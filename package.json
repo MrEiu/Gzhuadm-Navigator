@@ -3,7 +3,12 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "bin": {
+    "gzhu": "./bin/gzhu.mjs"
+  },
   "scripts": {
+    "init": "node ./bin/gzhu.mjs init",
+    "gzhu": "node ./bin/gzhu.mjs",
     "dev:client": "vite --host --port 4173",
     "dev:server": "node server.mjs",
     "dev": "concurrently -k \"npm run dev:server\" \"npm run dev:client\"",
