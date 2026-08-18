@@ -97,7 +97,12 @@ export const RagItemModal: React.FC<RagItemModalProps> = ({ item, onClose, onSav
                     </div>
 
                     <div>
-                        <label className="text-[12px] font-bold text-[#4a4365] block mb-1">描述与详细文本</label>
+                        <div className="flex items-center justify-between mb-1">
+                            <label className="text-[12px] font-bold text-[#4a4365]">描述与详细文本</label>
+                            <span className="text-[10.5px] font-mono text-purple-600 font-bold bg-purple-50 px-2 py-0.5 rounded-lg">
+                                {(formData.content || '').length} 字 · ~{Math.round((formData.content || '').length * 0.7)} Tokens
+                            </span>
+                        </div>
                         <textarea
                             rows={3}
                             value={formData.content || ''}

@@ -82,7 +82,8 @@ export const webSearchTool = tool({
 
 export const createAdmissionsAgent = (userProfile, username) => {
     const { defaultModel } = getAiConfig();
-    let instructions = ADMISSIONS_SYSTEM_PROMPT;
+    const customPrompt = process.env.CUSTOM_SYSTEM_PROMPT;
+    let instructions = customPrompt && customPrompt.trim() ? customPrompt.trim() : ADMISSIONS_SYSTEM_PROMPT;
     if (userProfile) {
         instructions += `\n\n【当前咨询学生背景资料】：
 - 姓名：${userProfile.name || username || '未填'}

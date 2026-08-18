@@ -114,22 +114,58 @@ export interface SettingsConfig {
     tavilyApiKey?: string;
     bochaApiKey?: string;
     advancedAuthEnabled?: boolean;
-    authRegistrationMode?: 'email' | 'phone' | 'none';
+    authRegistrationMode?: 'email' | 'phone' | 'none' | 'username';
+    systemPrompt?: string;
     tencentSmsSecretId?: string;
     smtpHost?: string;
     smtpUser?: string;
 }
 
+export interface ProvinceDistributionItem {
+    province: string;
+    count: number;
+    percentage: number;
+}
+
+export interface PopularMajorItem {
+    major: string;
+    count: number;
+}
+
 export interface DashboardStats {
-    totalRagItems?: number;
-    totalUsers?: number;
-    vipUsers?: number;
-    categoryBreakdown?: { [key: string]: number };
-    aiGateway?: {
+    totalUsers: number;
+    vipUsers: number;
+    todayQueriesCount: number;
+    totalMessagesCount: number;
+    provinceDistribution: ProvinceDistributionItem[];
+    popularMajors: PopularMajorItem[];
+    embeddingModel: string;
+    aiGateway: {
+        baseUrl: string;
         defaultModel: string;
         fastModel: string;
-    };
-    searchEngine?: {
         provider: string;
     };
+    searchEngine: {
+        provider: string;
+        tavilyActive?: boolean;
+        bochaActive?: boolean;
+        duckduckgoActive?: boolean;
+    };
+    systemHealth?: {
+        postgres?: { status: string; latencyMs: number };
+        redis?: { status: string; type: string };
+        onnx?: { status: string; latencyMs: number };
+        aiGateway?: { status: string; defaultModel: string };
+    };
+    categoryBreakdown?: { [key: string]: number };
+    totalRagItems?: number;
+}
+
+export interface RagScoreBreakdown {
+    totalScore: number;
+    vectorScore: number;
+    tokenScore: number;
+    provinceBonus: number;
+    categoryBonus: number;
 }

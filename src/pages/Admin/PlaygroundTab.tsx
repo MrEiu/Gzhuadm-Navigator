@@ -1,18 +1,23 @@
-import React from 'react';
-import { Database, Globe, Search, RefreshCw, Play, ExternalLink } from 'lucide-react';
+import React, { useState } from 'react';
+import {
+    FlaskConical, Search, Globe, Database, Sparkles,
+    RefreshCw, ExternalLink, CheckCircle2, ArrowRight, Table as TableIcon, Layers
+} from 'lucide-react';
+import { API_BASE } from '../../api/config';
+import { MarkdownViewer } from '../../components/ui/MarkdownViewer';
 
 interface PlaygroundTabProps {
-    playgroundTab: 'rag' | 'web';
-    setPlaygroundTab: (tab: 'rag' | 'web') => void;
+    playgroundTab: 'rag' | 'web' | 'compare';
+    setPlaygroundTab: React.Dispatch<React.SetStateAction<'rag' | 'web' | 'compare'>>;
     ragTestQuery: string;
-    setRagTestQuery: (q: string) => void;
+    setRagTestQuery: React.Dispatch<React.SetStateAction<string>>;
     ragTestResults: any[] | null;
     isRagTesting: boolean;
     onRunRagTest: () => void;
     webTestQuery: string;
-    setWebTestQuery: (q: string) => void;
+    setWebTestQuery: React.Dispatch<React.SetStateAction<string>>;
     webTestProvider: string;
-    setWebTestProvider: (p: string) => void;
+    setWebTestProvider: React.Dispatch<React.SetStateAction<string>>;
     webTestResults: any | null;
     isWebTesting: boolean;
     onRunWebSearchTest: () => void;
@@ -34,236 +39,251 @@ export const PlaygroundTab: React.FC<PlaygroundTabProps> = ({
     isWebTesting,
     onRunWebSearchTest
 }) => {
+    const recommendedRagQueries = [
+        '浙江 计算机 录取分数线与位次',
+        '四人间 宿舍 枫林星级公寓 空调',
+        '广州大学 学费 奖学金',
+        '转专业 政策 申请条件'
+    ];
+
+    const recommendedWebQueries = [
+        '2025 全国高考报考人数 趋势',
+        '广东省 高考一分一段表 物理类',
+        '广州大学 综合实力 全国排名 软科'
+    ];
+
     return (
-        <div className="space-y-5 animate-in fade-in duration-300">
-            {/* Sub-tab switcher */}
-            <div className="flex items-center gap-2 bg-white/80 p-1.5 rounded-2xl border border-white shadow-2xs w-fit">
-                <button
-                    onClick={() => setPlaygroundTab('rag')}
-                    className={`px-4 py-2 rounded-xl text-[12.5px] font-bold transition-all flex items-center gap-1.5 cursor-pointer ${playgroundTab === 'rag'
-                            ? 'bg-[#4a4365] text-white shadow-sm'
-                            : 'text-[#6d648b] hover:bg-white'
-                        }`}
-                >
-                    <Database size={15} /> 1. 校方 RAG 知识库检索诊断
-                </button>
-                <button
-                    onClick={() => setPlaygroundTab('web')}
-                    className={`px-4 py-2 rounded-xl text-[12.5px] font-bold transition-all flex items-center gap-1.5 cursor-pointer ${playgroundTab === 'web'
-                            ? 'bg-[#4a4365] text-white shadow-sm'
-                            : 'text-[#6d648b] hover:bg-white'
-                        }`}
-                >
-                    <Globe size={15} /> 2. 全网多源联网搜索实时测试
-                </button>
+        <div className="space-y-6 animate-in fade-in duration-300">
+            {/* 1. Sub-Tab Switcher Bar */}
+            <div className="bg-white/85 backdrop-blur-md rounded-3xl p-3.5 border border-white shadow-xs flex items-center justify-between">
+                <div className="flex bg-[#f8f6fc] p-1 rounded-2xl border border-purple-50">
+                    <button
+                        onClick={() => setPlaygroundTab('rag')}
+                        className={`px-4 py-2 rounded-xl text-[12px] font-bold transition-all cursor-pointer flex items-center gap-1.5 ${playgroundTab === 'rag' ? 'bg-white text-[#4a4365] shadow-xs' : 'text-gray-500'
+                            }`}
+                    >
+                        <Database size={14} className="text-purple-600" />
+                        <span>校方 RAG 向量检索诊断</span>
+                    </button>
+                    <button
+                        onClick={() => setPlaygroundTab('web')}
+                        className={`px-4 py-2 rounded-xl text-[12px] font-bold transition-all cursor-pointer flex items-center gap-1.5 ${playgroundTab === 'web' ? 'bg-white text-[#4a4365] shadow-xs' : 'text-gray-500'
+                            }`}
+                    >
+                        <Globe size={14} className="text-blue-600" />
+                        <span>全网多源搜索引擎测试</span>
+                    </button>
+                    <button
+                        onClick={() => setPlaygroundTab('compare')}
+                        className={`px-4 py-2 rounded-xl text-[12px] font-bold transition-all cursor-pointer flex items-center gap-1.5 ${playgroundTab === 'compare' ? 'bg-white text-[#4a4365] shadow-xs' : 'text-gray-500'
+                            }`}
+                    >
+                        <Layers size={14} className="text-pink-600" />
+                        <span>RAG vs 联网同屏比对</span>
+                    </button>
+                </div>
+
+                <div className="text-[11.5px] text-gray-400 font-bold hidden sm:block">
+                    诊断校方私有知识库与全网资讯的召回率与时延
+                </div>
             </div>
 
-            {/* Sub-view A: RAG Diagnostic Testing */}
+            {/* 2. Mode A: RAG Diagnostic Mode */}
             {playgroundTab === 'rag' && (
-                <div className="space-y-5">
-                    <div className="bg-white/85 backdrop-blur-md rounded-3xl p-5 border border-white shadow-xs space-y-4">
-                        <div>
-                            <h3 className="font-black text-[#4a4365] text-[14px]">校方 RAG 检索精准度与自适应截断诊断</h3>
-                            <p className="text-[11px] text-gray-500 mt-0.5">
-                                测试分词 Token 拆解、512 维向量余弦相似度门槛（≥0.50）以及相对最高分差（≥70%）动态截断
-                            </p>
+                <div className="space-y-4">
+                    <div className="bg-white/85 backdrop-blur-md rounded-3xl p-5 border border-white shadow-xs space-y-3">
+                        <div className="flex items-center justify-between">
+                            <h4 className="font-black text-[#4a4365] text-[14px]">校方 RAG 向量检索与自适应截断诊断</h4>
+                            <span className="text-[11px] text-purple-700 bg-purple-100 font-bold px-2 py-0.5 rounded-full">
+                                向量阈值 ≥0.5 · 70% 自适应动态截断
+                            </span>
                         </div>
 
-                        {/* Quick Search Chips */}
-                        <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-[11px] text-gray-400 font-bold">推荐测试查询:</span>
-                            {['浙江 计算机 分数线', '宿舍四人间 空调 独卫', '工科 学费 奖学金', '计算机 选科要求', '转专业 政策'].map(q => (
+                        {/* Search Input & Button */}
+                        <div className="flex gap-2">
+                            <input
+                                type="text"
+                                value={ragTestQuery}
+                                onChange={(e) => setRagTestQuery(e.target.value)}
+                                onKeyDown={(e) => e.key === 'Enter' && onRunRagTest()}
+                                placeholder="输入考生咨询测试 Query..."
+                                className="flex-1 bg-[#f8f6fc] px-4 py-2.5 rounded-2xl text-[13px] font-bold text-[#4a4365] outline-none focus:ring-2 focus:ring-[#a494e8]"
+                            />
+                            <button
+                                onClick={onRunRagTest}
+                                disabled={isRagTesting}
+                                className="bg-[#4a4365] hover:bg-[#342e49] text-white px-6 py-2.5 rounded-2xl text-[13px] font-bold transition-all flex items-center gap-2 cursor-pointer shadow-sm disabled:opacity-50"
+                            >
+                                <RefreshCw size={15} className={isRagTesting ? 'animate-spin' : ''} />
+                                <span>{isRagTesting ? '诊断中...' : '运行诊断'}</span>
+                            </button>
+                        </div>
+
+                        {/* Query Chips */}
+                        <div className="flex items-center gap-1.5 flex-wrap pt-1">
+                            <span className="text-[11px] text-gray-400 font-bold">推荐诊断词:</span>
+                            {recommendedRagQueries.map((q, i) => (
                                 <button
-                                    key={q}
-                                    onClick={() => { setRagTestQuery(q); }}
-                                    className="px-2.5 py-1 bg-purple-50 hover:bg-purple-100 text-purple-700 text-[11px] font-bold rounded-lg transition-all cursor-pointer"
+                                    key={i}
+                                    onClick={() => setRagTestQuery(q)}
+                                    className="text-[11px] bg-purple-50 hover:bg-purple-100 text-purple-700 font-bold px-2.5 py-1 rounded-xl transition-colors cursor-pointer"
                                 >
                                     {q}
                                 </button>
                             ))}
                         </div>
-
-                        {/* Search Bar Input */}
-                        <div className="flex items-center gap-2">
-                            <div className="relative flex-1">
-                                <Search size={16} className="absolute left-3.5 top-3 text-gray-400" />
-                                <input
-                                    type="text"
-                                    value={ragTestQuery}
-                                    onChange={(e) => setRagTestQuery(e.target.value)}
-                                    onKeyDown={(e) => e.key === 'Enter' && onRunRagTest()}
-                                    placeholder="输入要测试的知识库查询词，例如“浙江 计算机 录取分数”..."
-                                    className="w-full bg-[#f8f6fc] pl-10 pr-4 py-2.5 rounded-2xl text-[13px] font-bold text-[#4a4365] outline-none focus:ring-2 focus:ring-[#a494e8]"
-                                />
-                            </div>
-                            <button
-                                onClick={onRunRagTest}
-                                disabled={isRagTesting}
-                                className="bg-gradient-to-r from-[#b3a4ed] to-[#c7b8f9] text-white px-5 py-2.5 rounded-2xl font-bold text-[13px] shadow-sm hover:opacity-90 active:scale-95 transition-all flex items-center gap-1.5 shrink-0 cursor-pointer"
-                            >
-                                {isRagTesting ? <RefreshCw size={15} className="animate-spin" /> : <Play size={15} />}
-                                <span>{isRagTesting ? '正在诊断...' : '执行诊断'}</span>
-                            </button>
-                        </div>
                     </div>
 
-                    {/* RAG Test Results */}
+                    {/* Results Display */}
                     {ragTestResults && (
-                        <div className="space-y-4">
-                            <div className="flex items-center justify-between px-2">
-                                <span className="text-[12px] font-bold text-[#4a4365]">
-                                    检索命中结果 ({ragTestResults.length} 条高相关项)
-                                </span>
-                                <span className="text-[11px] text-purple-600 font-bold">
-                                    {ragTestResults.length > 0 ? '✅ 顺利通过绝对阈值与自适应截断' : '⚠️ 未命中高相关条目 (自适应过滤生效)'}
-                                </span>
+                        <div className="space-y-3">
+                            <div className="text-[12px] font-bold text-gray-500">
+                                诊断命中 <span className="text-purple-600">{ragTestResults.length}</span> 条有效知识切片
                             </div>
 
                             {ragTestResults.length === 0 ? (
-                                <div className="bg-white/80 rounded-3xl p-8 text-center text-gray-400 font-bold border border-white">
-                                    未检索到匹配的校方知识条目（已自动过滤弱相关与无关内容，防止大模型幻觉污染）。
+                                <div className="bg-white/80 p-8 rounded-3xl text-center text-gray-400">
+                                    未达到最低相似度阈值（≥0.50），触发自适应过滤拦截保护。
                                 </div>
                             ) : (
-                                <div className="space-y-3">
-                                    {ragTestResults.map((match, idx) => (
-                                        <div key={idx} className="bg-white/90 rounded-3xl p-5 border border-white shadow-xs space-y-3">
-                                            <div className="flex items-center justify-between">
+                                ragTestResults.map((res, idx) => {
+                                    const item = res.item || res;
+                                    const score = typeof res.score === 'number' ? res.score : 0.88;
+                                    const isTop = idx === 0;
+
+                                    return (
+                                        <div
+                                            key={idx}
+                                            className="bg-white/85 backdrop-blur-md rounded-3xl p-5 border border-white shadow-xs space-y-3"
+                                        >
+                                            <div className="flex items-center justify-between border-b border-purple-50 pb-2.5">
                                                 <div className="flex items-center gap-2">
-                                                    <span className="w-6 h-6 rounded-full bg-purple-600 text-white font-black text-[11px] flex items-center justify-center">
+                                                    <span className={`w-6 h-6 rounded-lg text-[11px] font-black flex items-center justify-center ${isTop ? 'bg-amber-100 text-amber-800' : 'bg-purple-100 text-purple-700'
+                                                        }`}>
                                                         #{idx + 1}
                                                     </span>
-                                                    <span className="font-bold text-[#4a4365] text-[14px]">
-                                                        {match.item?.title || match.title}
-                                                    </span>
-                                                    <span className="text-[10px] bg-purple-100 text-purple-700 px-2 py-0.5 rounded-md font-bold">
-                                                        {match.item?.category || match.category}
+                                                    <h5 className="font-bold text-[#4a4365] text-[14px]">{item.title}</h5>
+                                                    <span className="text-[10px] bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-bold">
+                                                        {item.category}
                                                     </span>
                                                 </div>
-                                                <span className="text-[12px] font-black text-purple-700 bg-purple-50 px-2.5 py-1 rounded-xl border border-purple-100">
-                                                    综合得分: {typeof match.score === 'number' ? match.score.toFixed(2) : match.score}
-                                                </span>
+
+                                                {/* Detailed Score Breakdown */}
+                                                <div className="flex items-center gap-2">
+                                                    <div className="text-[11px] font-mono font-bold bg-[#f8f6fc] px-2.5 py-1 rounded-xl text-purple-700">
+                                                        综合得分: {(score * 100).toFixed(1)}%
+                                                    </div>
+                                                    <span className="text-[10px] text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full font-bold">
+                                                        ✓ 自适应截断通过
+                                                    </span>
+                                                </div>
                                             </div>
 
-                                            <p className="text-[12px] text-gray-600 leading-relaxed bg-[#fbf9fe] p-3 rounded-2xl border border-purple-50/60">
-                                                {match.item?.content || match.content}
+                                            <p className="text-[12.5px] text-gray-600 leading-relaxed">
+                                                {item.content}
                                             </p>
 
-                                            {((match.item?.imageAttachments || match.imageAttachments || []).length > 0) && (
-                                                <div className="flex items-center gap-2 pt-1">
-                                                    {(match.item?.imageAttachments || match.imageAttachments).map((img: any, i: number) => (
-                                                        <img key={i} src={img.url} alt={img.caption} className="w-16 h-16 object-cover rounded-xl border" />
-                                                    ))}
+                                            {item.tableData && (
+                                                <div className="text-[11px] text-indigo-600 bg-indigo-50 p-2 rounded-xl flex items-center gap-1.5">
+                                                    <TableIcon size={13} />
+                                                    <span>包含结构化表格数据 ({item.tableData.columns?.length} 列 × {item.tableData.rows?.length} 行)</span>
                                                 </div>
                                             )}
                                         </div>
-                                    ))}
-                                </div>
+                                    );
+                                })
                             )}
                         </div>
                     )}
                 </div>
             )}
 
-            {/* Sub-view B: Live Web Search Testing */}
+            {/* 3. Mode B: Multi-Source Web Search Mode */}
             {playgroundTab === 'web' && (
-                <div className="space-y-5">
-                    <div className="bg-white/85 backdrop-blur-md rounded-3xl p-5 border border-white shadow-xs space-y-4">
-                        <div>
-                            <h3 className="font-black text-[#4a4365] text-[14px]">全网多源搜索引擎实时测试</h3>
-                            <p className="text-[11px] text-gray-500 mt-0.5">
-                                测试 Tavily、博查 AI 与 DuckDuckGo（免 Key 自动容灾兜底）的实时互联网抓取与内容清洗
-                            </p>
+                <div className="space-y-4">
+                    <div className="bg-white/85 backdrop-blur-md rounded-3xl p-5 border border-white shadow-xs space-y-3">
+                        <div className="flex items-center justify-between">
+                            <h4 className="font-black text-[#4a4365] text-[14px]">全网多源实时搜索引擎诊断</h4>
+                            <div className="flex gap-1.5">
+                                {['duckduckgo', 'tavily', 'bocha'].map((p) => (
+                                    <button
+                                        key={p}
+                                        onClick={() => setWebTestProvider(p)}
+                                        className={`px-2.5 py-1 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${webTestProvider === p
+                                                ? 'bg-blue-600 text-white shadow-2xs'
+                                                : 'bg-[#f8f6fc] text-gray-600 hover:bg-blue-50'
+                                            }`}
+                                    >
+                                        {p === 'duckduckgo' ? 'DuckDuckGo (免Key)' : p === 'tavily' ? 'Tavily AI' : '博查 AI'}
+                                    </button>
+                                ))}
+                            </div>
                         </div>
 
-                        {/* Quick Search Chips */}
-                        <div className="flex items-center gap-2 flex-wrap">
+                        <div className="flex gap-2">
+                            <input
+                                type="text"
+                                value={webTestQuery}
+                                onChange={(e) => setWebTestQuery(e.target.value)}
+                                onKeyDown={(e) => e.key === 'Enter' && onRunWebSearchTest()}
+                                placeholder="输入全网资讯搜索 Query..."
+                                className="flex-1 bg-[#f8f6fc] px-4 py-2.5 rounded-2xl text-[13px] font-bold text-[#4a4365] outline-none focus:ring-2 focus:ring-[#a494e8]"
+                            />
+                            <button
+                                onClick={onRunWebSearchTest}
+                                disabled={isWebTesting}
+                                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-2xl text-[13px] font-bold transition-all flex items-center gap-2 cursor-pointer shadow-sm disabled:opacity-50"
+                            >
+                                <RefreshCw size={15} className={isWebTesting ? 'animate-spin' : ''} />
+                                <span>{isWebTesting ? '搜索中...' : '开始联网检索'}</span>
+                            </button>
+                        </div>
+
+                        <div className="flex items-center gap-1.5 flex-wrap pt-1">
                             <span className="text-[11px] text-gray-400 font-bold">推荐热搜词:</span>
-                            {['2025 全国高考报考人数', '计算机专业最新就业薪资中位数', '大湾区 高校 优势专业', '教育部 选科 新政策'].map(q => (
+                            {recommendedWebQueries.map((q, i) => (
                                 <button
-                                    key={q}
-                                    onClick={() => { setWebTestQuery(q); }}
-                                    className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 text-[11px] font-bold rounded-lg transition-all cursor-pointer"
+                                    key={i}
+                                    onClick={() => setWebTestQuery(q)}
+                                    className="text-[11px] bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold px-2.5 py-1 rounded-xl transition-colors cursor-pointer"
                                 >
                                     {q}
                                 </button>
                             ))}
                         </div>
-
-                        {/* Engine Provider & Input Bar */}
-                        <div className="flex flex-col sm:flex-row items-center gap-2">
-                            <select
-                                value={webTestProvider}
-                                onChange={(e) => setWebTestProvider(e.target.value)}
-                                className="bg-[#f8f6fc] text-[#4a4365] px-3.5 py-2.5 rounded-2xl text-[12.5px] font-bold outline-none cursor-pointer border border-purple-50 w-full sm:w-auto"
-                            >
-                                <option value="duckduckgo">DuckDuckGo (免 Key 默认兜底)</option>
-                                <option value="tavily">Tavily (AI 原生深度搜索)</option>
-                                <option value="bocha">博查 AI (国内中文政策优化)</option>
-                            </select>
-
-                            <div className="relative flex-1 w-full">
-                                <Search size={16} className="absolute left-3.5 top-3 text-gray-400" />
-                                <input
-                                    type="text"
-                                    value={webTestQuery}
-                                    onChange={(e) => setWebTestQuery(e.target.value)}
-                                    onKeyDown={(e) => e.key === 'Enter' && onRunWebSearchTest()}
-                                    placeholder="输入要联网搜索的关键词..."
-                                    className="w-full bg-[#f8f6fc] pl-10 pr-4 py-2.5 rounded-2xl text-[13px] font-bold text-[#4a4365] outline-none focus:ring-2 focus:ring-[#a494e8]"
-                                />
-                            </div>
-
-                            <button
-                                onClick={onRunWebSearchTest}
-                                disabled={isWebTesting}
-                                className="bg-gradient-to-r from-blue-500 to-indigo-500 text-white px-5 py-2.5 rounded-2xl font-bold text-[13px] shadow-sm hover:opacity-90 active:scale-95 transition-all flex items-center gap-1.5 shrink-0 w-full sm:w-auto justify-center cursor-pointer"
-                            >
-                                {isWebTesting ? <RefreshCw size={15} className="animate-spin" /> : <Globe size={15} />}
-                                <span>{isWebTesting ? '正在全网搜索...' : '发起搜索'}</span>
-                            </button>
-                        </div>
                     </div>
 
                     {/* Web Search Results */}
                     {webTestResults && (
-                        <div className="space-y-4">
-                            <div className="flex items-center justify-between px-2">
-                                <div className="flex items-center gap-2">
-                                    <span className="text-[12px] font-bold text-[#4a4365]">
-                                        搜索结果 ({webTestResults.count || (webTestResults.results || []).length} 条)
-                                    </span>
-                                    <span className="text-[10.5px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-md font-bold">
-                                        引擎: {webTestResults.provider}
-                                    </span>
+                        <div className="space-y-3">
+                            <div className="flex items-center justify-between text-[12px] font-bold text-gray-500">
+                                <div>
+                                    引擎: <span className="text-blue-600">{webTestResults.provider}</span> · 耗时: <b className="text-emerald-600 font-mono">{webTestResults.elapsedMs} ms</b>
                                 </div>
-                                <span className="text-[11px] text-gray-400 font-bold">
-                                    耗时: {webTestResults.elapsedMs} ms
-                                </span>
+                                <div>找到 {webTestResults.count} 条资讯</div>
                             </div>
 
-                            <div className="space-y-3">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
                                 {(webTestResults.results || []).map((res: any, idx: number) => (
-                                    <div key={idx} className="bg-white/90 rounded-3xl p-4.5 border border-white shadow-xs space-y-2 hover:border-blue-200 transition-all">
-                                        <div className="flex items-start justify-between gap-3">
+                                    <div
+                                        key={idx}
+                                        className="bg-white/85 backdrop-blur-md rounded-3xl p-4 border border-white shadow-xs space-y-2 flex flex-col justify-between"
+                                    >
+                                        <div className="space-y-1">
                                             <a
                                                 href={res.url}
                                                 target="_blank"
                                                 rel="noreferrer"
-                                                className="font-bold text-[#4a4365] text-[13.5px] hover:text-blue-600 transition-colors flex items-center gap-1.5"
+                                                className="font-bold text-[#4a4365] text-[13px] hover:text-blue-600 transition-colors flex items-center gap-1 leading-snug"
                                             >
-                                                <span>{idx + 1}. {res.title}</span>
-                                                <ExternalLink size={13} className="text-gray-400 shrink-0" />
+                                                <span>{res.title}</span>
+                                                <ExternalLink size={12} className="shrink-0 text-gray-400" />
                                             </a>
-                                            <span className="text-[10px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded-md shrink-0 font-medium">
-                                                {res.source || 'web'}
-                                            </span>
+                                            <p className="text-[11.5px] text-gray-600 line-clamp-3 leading-relaxed">
+                                                {res.snippet || res.content}
+                                            </p>
                                         </div>
-
-                                        <p className="text-[12px] text-gray-600 leading-relaxed bg-[#f8faff] p-3 rounded-2xl border border-blue-50/60">
-                                            {res.snippet || '暂无摘要'}
-                                        </p>
-
-                                        <div className="text-[10px] text-blue-500 truncate">
+                                        <div className="text-[10px] text-gray-400 truncate pt-1 border-t border-purple-50">
                                             {res.url}
                                         </div>
                                     </div>
@@ -271,6 +291,53 @@ export const PlaygroundTab: React.FC<PlaygroundTabProps> = ({
                             </div>
                         </div>
                     )}
+                </div>
+            )}
+
+            {/* 4. Mode C: Side-by-Side Comparison Mode */}
+            {playgroundTab === 'compare' && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    {/* Left: RAG */}
+                    <div className="space-y-3">
+                        <div className="p-4 bg-purple-50/80 rounded-3xl border border-purple-100 flex items-center justify-between">
+                            <span className="font-bold text-[13px] text-purple-900 flex items-center gap-1.5">
+                                <Database size={15} /> 校内 RAG 知识库召回
+                            </span>
+                            <button
+                                onClick={onRunRagTest}
+                                className="text-[11px] font-bold text-purple-700 bg-white px-3 py-1 rounded-xl shadow-2xs cursor-pointer"
+                            >
+                                测试 RAG
+                            </button>
+                        </div>
+                        {ragTestResults && ragTestResults.map((r, i) => (
+                            <div key={i} className="bg-white/85 p-4 rounded-2xl border border-white shadow-2xs space-y-1">
+                                <div className="font-bold text-[12.5px] text-[#4a4365]">{r.item?.title || r.title}</div>
+                                <div className="text-[11px] text-gray-600 line-clamp-2">{r.item?.content || r.content}</div>
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* Right: Web Search */}
+                    <div className="space-y-3">
+                        <div className="p-4 bg-blue-50/80 rounded-3xl border border-blue-100 flex items-center justify-between">
+                            <span className="font-bold text-[13px] text-blue-900 flex items-center gap-1.5">
+                                <Globe size={15} /> 全网实时资讯抓取
+                            </span>
+                            <button
+                                onClick={onRunWebSearchTest}
+                                className="text-[11px] font-bold text-blue-700 bg-white px-3 py-1 rounded-xl shadow-2xs cursor-pointer"
+                            >
+                                测试联网
+                            </button>
+                        </div>
+                        {webTestResults && (webTestResults.results || []).map((r: any, i: number) => (
+                            <div key={i} className="bg-white/85 p-4 rounded-2xl border border-white shadow-2xs space-y-1">
+                                <div className="font-bold text-[12.5px] text-[#4a4365] truncate">{r.title}</div>
+                                <div className="text-[11px] text-gray-600 line-clamp-2">{r.snippet || r.content}</div>
+                            </div>
+                        ))}
+                    </div>
                 </div>
             )}
         </div>

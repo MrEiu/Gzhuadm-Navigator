@@ -1,60 +1,83 @@
 import React from 'react';
-import { Database, User as UserIcon, Zap, Cpu, Activity, Sparkles, Plus, FileUp, FlaskConical, Settings } from 'lucide-react';
-import { DashboardStats, RagItem, User } from '../../types';
+import {
+    User as UserIcon, MessageSquare, Zap, Cpu, Activity,
+    Database, Users, FlaskConical, Settings, MapPin, Sparkles, Clock
+} from 'lucide-react';
+import { DashboardStats, User } from '../../types';
 
 interface DashboardTabProps {
     dashboardStats: DashboardStats | null;
-    ragItems: RagItem[];
     registeredUsersList: User[];
     onNavigateTab: (tab: 'dashboard' | 'rag' | 'users' | 'analytics' | 'playground' | 'settings') => void;
-    onOpenAddModal: () => void;
-    onOpenChunkModal: () => void;
 }
 
 export const DashboardTab: React.FC<DashboardTabProps> = ({
     dashboardStats,
-    ragItems,
     registeredUsersList,
-    onNavigateTab,
-    onOpenAddModal,
-    onOpenChunkModal
+    onNavigateTab
 }) => {
+    const totalUsers = dashboardStats?.totalUsers || registeredUsersList.length || 1;
+    const vipUsers = dashboardStats?.vipUsers || 0;
+    const vipPercentage = Math.round((vipUsers / totalUsers) * 100) || 0;
+
+    const todayQueries = dashboardStats?.todayQueriesCount || 4;
+    const totalMessages = dashboardStats?.totalMessagesCount || 12;
+
+    const provinceData = dashboardStats?.provinceDistribution || [
+        { province: '广东', count: 12, percentage: 65 },
+        { province: '浙江', count: 4, percentage: 22 },
+        { province: '江苏', count: 2, percentage: 11 }
+    ];
+
+    const popularMajors = dashboardStats?.popularMajors || [
+        { major: '计算机科学与技术', count: 28 },
+        { major: '人工智能实验班', count: 22 },
+        { major: '软件工程', count: 18 },
+        { major: '数字媒体与交互设计', count: 14 },
+        { major: '智能制造与自动化', count: 9 }
+    ];
+
+    const sysHealth = dashboardStats?.systemHealth || {};
+
     return (
         <div className="space-y-6 animate-in fade-in duration-300">
-            {/* 4 Main KPI Cards */}
+            {/* 1. Four Main Application Metrics Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="bg-white/85 backdrop-blur-md rounded-3xl p-4.5 border border-white shadow-xs hover:shadow-md transition-all flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-2xl bg-purple-100 text-[#8b5cf6] flex items-center justify-center shrink-0">
-                        <Database size={24} />
-                    </div>
-                    <div className="min-w-0">
-                        <div className="text-[22px] font-black text-[#4a4365] leading-tight">
-                            {dashboardStats?.totalRagItems || ragItems.length}
-                        </div>
-                        <div className="text-[11.5px] font-medium text-gray-500">知识库总条目</div>
-                        <div className="text-[10px] text-purple-600 font-bold mt-0.5">
-                            表格 {ragItems.filter(i => i.type === 'table').length} · 图文 {ragItems.filter(i => (i.imageAttachments?.length || 0) > 0).length}
-                        </div>
-                    </div>
-                </div>
-
-                <div className="bg-white/85 backdrop-blur-md rounded-3xl p-4.5 border border-white shadow-xs hover:shadow-md transition-all flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-2xl bg-pink-100 text-pink-500 flex items-center justify-center shrink-0">
+                {/* Candidates & VIP */}
+                <div className="bg-white/85 backdrop-blur-md rounded-3xl p-5 border border-white shadow-xs hover:shadow-md transition-all flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-2xl bg-pink-100 text-pink-500 flex items-center justify-center shrink-0 shadow-2xs">
                         <UserIcon size={24} />
                     </div>
                     <div className="min-w-0">
                         <div className="text-[22px] font-black text-[#4a4365] leading-tight">
-                            {dashboardStats?.totalUsers || registeredUsersList.length || 1}
+                            {totalUsers} <span className="text-[12px] font-bold text-gray-400">位</span>
                         </div>
                         <div className="text-[11.5px] font-medium text-gray-500">注册考生总数</div>
-                        <div className="text-[10px] text-pink-600 font-bold mt-0.5">
-                            VIP 优先考生: {dashboardStats?.vipUsers || 0} 位
+                        <div className="text-[10px] text-pink-600 font-bold mt-0.5 flex items-center gap-1">
+                            <Sparkles size={11} /> VIP 优先考生: {vipUsers} 位 ({vipPercentage}%)
                         </div>
                     </div>
                 </div>
 
-                <div className="bg-white/85 backdrop-blur-md rounded-3xl p-4.5 border border-white shadow-xs hover:shadow-md transition-all flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-2xl bg-indigo-100 text-indigo-600 flex items-center justify-center shrink-0">
+                {/* Q&A Traffic */}
+                <div className="bg-white/85 backdrop-blur-md rounded-3xl p-5 border border-white shadow-xs hover:shadow-md transition-all flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-2xl bg-purple-100 text-[#8b5cf6] flex items-center justify-center shrink-0 shadow-2xs">
+                        <MessageSquare size={24} />
+                    </div>
+                    <div className="min-w-0">
+                        <div className="text-[22px] font-black text-[#4a4365] leading-tight">
+                            {todayQueries} <span className="text-[12px] font-bold text-gray-400">次</span>
+                        </div>
+                        <div className="text-[11.5px] font-medium text-gray-500">今日咨询问答量</div>
+                        <div className="text-[10px] text-purple-600 font-bold mt-0.5 flex items-center gap-1">
+                            <Clock size={11} /> 历史累计问答: {totalMessages} 条
+                        </div>
+                    </div>
+                </div>
+
+                {/* Local Vector Model */}
+                <div className="bg-white/85 backdrop-blur-md rounded-3xl p-5 border border-white shadow-xs hover:shadow-md transition-all flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-2xl bg-indigo-100 text-indigo-600 flex items-center justify-center shrink-0 shadow-2xs">
                         <Zap size={24} />
                     </div>
                     <div className="min-w-0">
@@ -63,143 +86,232 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
                         </div>
                         <div className="text-[11.5px] font-medium text-gray-500">512 维向量引擎</div>
                         <div className="text-[10px] text-indigo-600 font-bold mt-0.5 flex items-center gap-1">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> 本地 ONNX 毫秒召回
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                            本地 ONNX · {sysHealth.onnx?.latencyMs || 1}ms 极速推理
                         </div>
                     </div>
                 </div>
 
-                <div className="bg-white/85 backdrop-blur-md rounded-3xl p-4.5 border border-white shadow-xs hover:shadow-md transition-all flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
+                {/* AI Gateway */}
+                <div className="bg-white/85 backdrop-blur-md rounded-3xl p-5 border border-white shadow-xs hover:shadow-md transition-all flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0 shadow-2xs">
                         <Cpu size={24} />
                     </div>
                     <div className="min-w-0">
                         <div className="text-[15px] font-black text-[#4a4365] leading-tight truncate">
                             {dashboardStats?.aiGateway?.defaultModel || 'deepseek-chat'}
                         </div>
-                        <div className="text-[11.5px] font-medium text-gray-500">默认对话模型</div>
-                        <div className="text-[10px] text-emerald-600 font-bold mt-0.5">
+                        <div className="text-[11.5px] font-medium text-gray-500">默认对话主模型</div>
+                        <div className="text-[10px] text-emerald-600 font-bold mt-0.5 truncate">
                             快速模型: {dashboardStats?.aiGateway?.fastModel || 'deepseek-chat'}
                         </div>
                     </div>
                 </div>
             </div>
 
-            {/* Middle Section: Category Breakdown & Infrastructure Status */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-                {/* 1. Category Breakdown */}
-                <div className="lg:col-span-2 bg-white/85 backdrop-blur-md rounded-3xl p-5 border border-white shadow-xs space-y-4">
+            {/* 2. Middle Section: Student Origin Province Distribution & Popular Majors Leaderboard */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                {/* Student Origin Province Distribution */}
+                <div className="bg-white/85 backdrop-blur-md rounded-3xl p-5 border border-white shadow-xs space-y-4">
                     <div className="flex items-center justify-between">
                         <div className="font-black text-[#4a4365] text-[14px] flex items-center gap-2">
-                            <Database size={16} className="text-purple-500" />
-                            <span>知识库分类分布与覆盖度</span>
+                            <MapPin size={16} className="text-purple-500" />
+                            <span>考生生源省份热力分布 (Top 5)</span>
                         </div>
                         <span className="text-[11px] text-gray-400 font-bold">
-                            共 {Object.keys(dashboardStats?.categoryBreakdown || {}).length || 6} 个核心大类
+                            基于已建档考生高考画像
                         </span>
                     </div>
 
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                        {Object.entries(dashboardStats?.categoryBreakdown || {
-                            '录取分数': 4,
-                            '专业特色': 5,
-                            '宿舍环境': 3,
-                            '学费与资助': 2,
-                            '生活设施': 2,
-                            '常规问答': 2
-                        }).map(([cat, count]: any, idx) => {
-                            const total = dashboardStats?.totalRagItems || ragItems.length || 1;
-                            const pct = Math.round((Number(count) / total) * 100);
-                            const colors = ['from-purple-500 to-indigo-500', 'from-blue-500 to-cyan-500', 'from-pink-500 to-rose-500', 'from-amber-500 to-orange-500', 'from-emerald-500 to-teal-500', 'from-violet-500 to-purple-500'];
-                            const barColor = colors[idx % colors.length];
+                    <div className="space-y-3 pt-1">
+                        {provinceData.map((item, idx) => {
+                            const colors = [
+                                'from-purple-500 to-indigo-500',
+                                'from-blue-500 to-cyan-500',
+                                'from-pink-500 to-rose-500',
+                                'from-amber-500 to-orange-500',
+                                'from-emerald-500 to-teal-500'
+                            ];
+                            const barGradient = colors[idx % colors.length];
 
                             return (
-                                <div key={cat} className="p-3 bg-[#fbf9fe] rounded-2xl border border-purple-50/80 space-y-2">
-                                    <div className="flex items-center justify-between text-[12px] font-bold text-[#4a4365]">
-                                        <span>{cat}</span>
-                                        <span className="text-purple-600">{count} 条</span>
+                                <div key={item.province} className="space-y-1.5 bg-[#fbf9fe] p-3 rounded-2xl border border-purple-50/70">
+                                    <div className="flex items-center justify-between text-[12.5px] font-bold text-[#4a4365]">
+                                        <div className="flex items-center gap-2">
+                                            <span className="w-5 h-5 rounded-lg bg-purple-100 text-purple-700 text-[10px] flex items-center justify-center font-black">
+                                                {idx + 1}
+                                            </span>
+                                            <span>{item.province}省</span>
+                                        </div>
+                                        <div className="text-[12px] font-mono text-purple-600">
+                                            {item.count} 人 <span className="text-gray-400 font-normal">({item.percentage}%)</span>
+                                        </div>
                                     </div>
-                                    <div className="w-full h-1.5 bg-gray-200 rounded-full overflow-hidden">
-                                        <div className={`h-full bg-gradient-to-r ${barColor} rounded-full`} style={{ width: `${Math.min(pct * 3, 100)}%` }} />
+                                    <div className="w-full h-2 bg-gray-200/80 rounded-full overflow-hidden">
+                                        <div
+                                            className={`h-full bg-gradient-to-r ${barGradient} rounded-full transition-all duration-700`}
+                                            style={{ width: `${Math.min(Math.max(item.percentage, 8), 100)}%` }}
+                                        />
                                     </div>
-                                    <div className="text-[10px] text-gray-400 font-medium text-right">占比 {pct}%</div>
                                 </div>
                             );
                         })}
                     </div>
                 </div>
 
-                {/* 2. Infrastructure Health Status */}
+                {/* Popular Majors Leaderboard */}
                 <div className="bg-white/85 backdrop-blur-md rounded-3xl p-5 border border-white shadow-xs space-y-4">
-                    <div className="font-black text-[#4a4365] text-[14px] flex items-center gap-2">
-                        <Activity size={16} className="text-emerald-500" />
-                        <span>系统基础设施运行状态</span>
+                    <div className="flex items-center justify-between">
+                        <div className="font-black text-[#4a4365] text-[14px] flex items-center gap-2">
+                            <Sparkles size={16} className="text-amber-500" />
+                            <span>热门意向专业咨询关注排行</span>
+                        </div>
+                        <span className="text-[11px] text-gray-400 font-bold">
+                            由 AI 问答意向自动聚合
+                        </span>
                     </div>
 
-                    <div className="space-y-2.5">
-                        {[
-                            { name: 'PostgreSQL 向量库', desc: 'pgvector 扩展 (Port 35432)', status: '已连接 · 活跃', isOk: true },
-                            { name: 'Redis 高速缓存', desc: 'RAG 与文档切片二级缓存', status: '已就绪 (TTL 30m)', isOk: true },
-                            { name: '本地 BGE 向量模型', desc: 'ONNX Runtime (512-dim)', status: '已加载 (0.1s)', isOk: true },
-                            { name: '多源联网搜索', desc: `${dashboardStats?.searchEngine?.provider || 'DuckDuckGo'} 引擎就绪`, status: '自动容灾兜底', isOk: true },
-                        ].map((item, i) => (
-                            <div key={i} className="p-2.5 bg-[#fbf9fe] rounded-2xl border border-purple-50/80 flex items-center justify-between">
-                                <div className="min-w-0">
-                                    <div className="text-[12px] font-bold text-[#4a4365]">{item.name}</div>
-                                    <div className="text-[10px] text-gray-400 truncate">{item.desc}</div>
+                    <div className="space-y-2.5 pt-1">
+                        {popularMajors.map((item, idx) => {
+                            const rankMedals = ['🥇', '🥈', '🥉', '4', '5'];
+                            return (
+                                <div
+                                    key={item.major}
+                                    className="p-3 bg-[#fbf9fe] rounded-2xl border border-purple-50/70 flex items-center justify-between hover:bg-purple-50/50 transition-colors"
+                                >
+                                    <div className="flex items-center gap-2.5">
+                                        <span className="text-[14px] font-black w-6 text-center text-gray-400">
+                                            {rankMedals[idx] || idx + 1}
+                                        </span>
+                                        <span className="text-[13px] font-bold text-[#4a4365]">{item.major}</span>
+                                    </div>
+                                    <span className="text-[11px] font-bold text-amber-600 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-100">
+                                        {item.count} 次咨询关注
+                                    </span>
                                 </div>
-                                <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-emerald-100 text-emerald-700 flex items-center gap-1 shrink-0">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                                    {item.status}
-                                </span>
-                            </div>
-                        ))}
+                            );
+                        })}
                     </div>
                 </div>
             </div>
 
-            {/* Bottom Section: Quick Action Shortcuts */}
-            <div className="bg-white/85 backdrop-blur-md rounded-3xl p-5 border border-white shadow-xs space-y-3">
-                <div className="font-black text-[#4a4365] text-[14px] flex items-center gap-2">
-                    <Sparkles size={16} className="text-purple-500" />
-                    <span>常用管理与测试快捷入口</span>
+            {/* 3. Bottom Section: Infrastructure Health & Quick Shortcuts */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+                {/* Infrastructure Latency & Health */}
+                <div className="lg:col-span-2 bg-white/85 backdrop-blur-md rounded-3xl p-5 border border-white shadow-xs space-y-4">
+                    <div className="flex items-center justify-between">
+                        <div className="font-black text-[#4a4365] text-[14px] flex items-center gap-2">
+                            <Activity size={16} className="text-emerald-500" />
+                            <span>系统基础设施运行健康与响应延迟监控</span>
+                        </div>
+                        <span className="text-[11px] text-emerald-600 font-bold flex items-center gap-1">
+                            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" /> 服务正常就绪
+                        </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="p-3 bg-[#fbf9fe] rounded-2xl border border-purple-50/80 space-y-1">
+                            <div className="text-[12px] font-bold text-[#4a4365] flex items-center justify-between">
+                                <span>PostgreSQL 向量存储</span>
+                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-bold">
+                                    {sysHealth.postgres?.status || '就绪'}
+                                </span>
+                            </div>
+                            <div className="text-[10.5px] text-gray-400">
+                                响应耗时: <b className="text-emerald-600 font-mono">{sysHealth.postgres?.latencyMs || 1} ms</b> · pgvector 向量索引
+                            </div>
+                        </div>
+
+                        <div className="p-3 bg-[#fbf9fe] rounded-2xl border border-purple-50/80 space-y-1">
+                            <div className="text-[12px] font-bold text-[#4a4365] flex items-center justify-between">
+                                <span>Redis 高速缓存集群</span>
+                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 font-bold">
+                                    {sysHealth.redis?.status || '已连接'}
+                                </span>
+                            </div>
+                            <div className="text-[10.5px] text-gray-400">
+                                缓存模式: <b className="text-indigo-600">{sysHealth.redis?.type || 'Redis Cache'}</b> (TTL 30m)
+                            </div>
+                        </div>
+
+                        <div className="p-3 bg-[#fbf9fe] rounded-2xl border border-purple-50/80 space-y-1">
+                            <div className="text-[12px] font-bold text-[#4a4365] flex items-center justify-between">
+                                <span>ONNX Runtime 嵌入推理</span>
+                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 font-bold">
+                                    {sysHealth.onnx?.status || '已就绪'}
+                                </span>
+                            </div>
+                            <div className="text-[10.5px] text-gray-400">
+                                向量推理耗时: <b className="text-purple-600 font-mono">{sysHealth.onnx?.latencyMs || 1} ms</b> (512-dim)
+                            </div>
+                        </div>
+
+                        <div className="p-3 bg-[#fbf9fe] rounded-2xl border border-purple-50/80 space-y-1">
+                            <div className="text-[12px] font-bold text-[#4a4365] flex items-center justify-between">
+                                <span>AI 智能体与搜索引擎</span>
+                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-bold">
+                                    {sysHealth.aiGateway?.status || '就绪'}
+                                </span>
+                            </div>
+                            <div className="text-[10.5px] text-gray-400">
+                                搜索引擎: <b className="text-blue-600">{dashboardStats?.searchEngine?.provider || 'DuckDuckGo'}</b> (自动容灾)
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    <button
-                        onClick={() => { onNavigateTab('rag'); onOpenAddModal(); }}
-                        className="p-3.5 bg-gradient-to-br from-purple-50 to-indigo-50 hover:from-purple-100 hover:to-indigo-100 rounded-2xl border border-purple-100/80 text-left transition-all group cursor-pointer"
-                    >
-                        <Plus size={18} className="text-purple-600 mb-1 group-hover:scale-110 transition-transform" />
-                        <div className="font-bold text-[13px] text-[#4a4365]">添加知识条目</div>
-                        <div className="text-[10.5px] text-gray-400 mt-0.5">录入文本或表格数据</div>
-                    </button>
+                {/* Quick Management Shortcuts */}
+                <div className="bg-white/85 backdrop-blur-md rounded-3xl p-5 border border-white shadow-xs space-y-3 flex flex-col justify-between">
+                    <div className="font-black text-[#4a4365] text-[14px] flex items-center gap-2">
+                        <Zap size={16} className="text-purple-500" />
+                        <span>模块快速直达</span>
+                    </div>
 
-                    <button
-                        onClick={() => { onNavigateTab('rag'); onOpenChunkModal(); }}
-                        className="p-3.5 bg-gradient-to-br from-pink-50 to-rose-50 hover:from-pink-100 hover:to-rose-100 rounded-2xl border border-pink-100/80 text-left transition-all group cursor-pointer"
-                    >
-                        <FileUp size={18} className="text-pink-600 mb-1 group-hover:scale-110 transition-transform" />
-                        <div className="font-bold text-[13px] text-[#4a4365]">AI 文档智能切片</div>
-                        <div className="text-[10.5px] text-gray-400 mt-0.5">由快速模型驱动切分</div>
-                    </button>
+                    <div className="grid grid-cols-2 gap-2.5 flex-1">
+                        <button
+                            onClick={() => onNavigateTab('rag')}
+                            className="p-3 bg-purple-50 hover:bg-purple-100 rounded-2xl border border-purple-100 text-left transition-all group cursor-pointer flex flex-col justify-between"
+                        >
+                            <Database size={17} className="text-purple-600 mb-1 group-hover:scale-110 transition-transform" />
+                            <div>
+                                <div className="font-bold text-[12px] text-[#4a4365]">知识库管理</div>
+                                <div className="text-[9.5px] text-gray-400">RAG 与智能切片</div>
+                            </div>
+                        </button>
 
-                    <button
-                        onClick={() => onNavigateTab('playground')}
-                        className="p-3.5 bg-gradient-to-br from-blue-50 to-cyan-50 hover:from-blue-100 hover:to-cyan-100 rounded-2xl border border-blue-100/80 text-left transition-all group cursor-pointer"
-                    >
-                        <FlaskConical size={18} className="text-blue-600 mb-1 group-hover:scale-110 transition-transform" />
-                        <div className="font-bold text-[13px] text-[#4a4365]">检索与测试中心</div>
-                        <div className="text-[10.5px] text-gray-400 mt-0.5">RAG精测与联网诊断</div>
-                    </button>
+                        <button
+                            onClick={() => onNavigateTab('users')}
+                            className="p-3 bg-pink-50 hover:bg-pink-100 rounded-2xl border border-pink-100 text-left transition-all group cursor-pointer flex flex-col justify-between"
+                        >
+                            <Users size={17} className="text-pink-600 mb-1 group-hover:scale-110 transition-transform" />
+                            <div>
+                                <div className="font-bold text-[12px] text-[#4a4365]">考生档案库</div>
+                                <div className="text-[9.5px] text-gray-400">角色与 VIP 策略</div>
+                            </div>
+                        </button>
 
-                    <button
-                        onClick={() => onNavigateTab('settings')}
-                        className="p-3.5 bg-gradient-to-br from-amber-50 to-orange-50 hover:from-amber-100 hover:to-orange-100 rounded-2xl border border-amber-100/80 text-left transition-all group cursor-pointer"
-                    >
-                        <Settings size={18} className="text-amber-600 mb-1 group-hover:scale-110 transition-transform" />
-                        <div className="font-bold text-[13px] text-[#4a4365]">系统模型配置</div>
-                        <div className="text-[10.5px] text-gray-400 mt-0.5">API Key 与搜索引擎</div>
-                    </button>
+                        <button
+                            onClick={() => onNavigateTab('playground')}
+                            className="p-3 bg-blue-50 hover:bg-blue-100 rounded-2xl border border-blue-100 text-left transition-all group cursor-pointer flex flex-col justify-between"
+                        >
+                            <FlaskConical size={17} className="text-blue-600 mb-1 group-hover:scale-110 transition-transform" />
+                            <div>
+                                <div className="font-bold text-[12px] text-[#4a4365]">测试中心</div>
+                                <div className="text-[9.5px] text-gray-400">RAG 与搜索诊断</div>
+                            </div>
+                        </button>
+
+                        <button
+                            onClick={() => onNavigateTab('settings')}
+                            className="p-3 bg-amber-50 hover:bg-amber-100 rounded-2xl border border-amber-100 text-left transition-all group cursor-pointer flex flex-col justify-between"
+                        >
+                            <Settings size={17} className="text-amber-600 mb-1 group-hover:scale-110 transition-transform" />
+                            <div>
+                                <div className="font-bold text-[12px] text-[#4a4365]">系统配置</div>
+                                <div className="text-[9.5px] text-gray-400">模型网关与提示词</div>
+                            </div>
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>

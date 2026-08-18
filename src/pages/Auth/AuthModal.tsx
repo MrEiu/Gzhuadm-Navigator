@@ -23,7 +23,20 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onLoginSuccess, settingsCo
     const [codeCountdown, setCodeCountdown] = useState(0);
     const [codeSendMsg, setCodeSendMsg] = useState<string | null>(null);
 
-    const registrationMode = settingsConfig?.authRegistrationMode || 'email';
+    const [dynamicRegMode, setDynamicRegMode] = useState<string>(settingsConfig?.authRegistrationMode || 'username');
+
+    useEffect(() => {
+        fetch(`${API_BASE}/api/admin/config`)
+            .then(res => res.json())
+            .then(data => {
+                if (data.ok && data.config?.authRegistrationMode) {
+                    setDynamicRegMode(data.config.authRegistrationMode);
+                }
+            })
+            .catch(() => {});
+    }, []);
+
+    const registrationMode = dynamicRegMode;
 
     useEffect(() => {
         if (codeCountdown <= 0) return;

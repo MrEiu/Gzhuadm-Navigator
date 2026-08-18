@@ -161,9 +161,9 @@ export const DocChunkImportModal: React.FC<DocChunkImportModalProps> = ({ onClos
                                     onChange={(e) => setChunkMode(e.target.value)}
                                     className="bg-[#f8f6fc] rounded-lg px-2 text-purple-950 font-bold py-1 outline-none text-[12px]"
                                 >
-                                    <option value="ai">🤖 AI 智能语义切片 (DeepSeek大模型提取)</option>
-                                    <option value="heading">按 Markdown 标题章节 (#)</option>
-                                    <option value="length">按固定字数切片 (400字)</option>
+                                    <option value="ai">智能语义切片 (AI 大模型提炼)</option>
+                                    <option value="heading">Markdown 标题章节</option>
+                                    <option value="length">固定字数切片 (400字)</option>
                                 </select>
                             </div>
                         )}
