@@ -64,18 +64,34 @@ export const CampusMapModal: React.FC<CampusMapModalProps> = ({
 
     const categories = ['全部', '教学科研', '生活住宿', '餐饮美食', '体育休闲', '校园地标'];
 
+    const activeRoute = CAMPUS_TOUR_ROUTES.find(r => r.id === activeRouteId);
+
     const filteredLocations = locations.filter(loc => {
-        const matchCat = activeCategory === '全部' || loc.category === activeCategory;
+        // If a preset route is chosen, ONLY include locations in this route
+        if (activeRoute) {
+            if (!activeRoute.locationIds.includes(loc.id)) {
+                return false;
+            }
+        } else {
+            // In free roaming mode, respect activeCategory
+            if (activeCategory !== '全部' && loc.category !== activeCategory) {
+                return false;
+            }
+        }
+
         const q = searchQuery.trim().toLowerCase();
-        if (!q) return matchCat;
+        if (!q) return true;
         const matchName = loc.name.toLowerCase().includes(q);
         const matchDesc = loc.description.toLowerCase().includes(q);
         const matchTerms = (loc.terms || []).some(t => t.toLowerCase().includes(q));
         const matchHighlights = (loc.highlights || []).some(h => h.toLowerCase().includes(q));
-        return matchCat && (matchName || matchDesc || matchTerms || matchHighlights);
+        return matchName || matchDesc || matchTerms || matchHighlights;
+    }).sort((a, b) => {
+        if (activeRoute) {
+            return activeRoute.locationIds.indexOf(a.id) - activeRoute.locationIds.indexOf(b.id);
+        }
+        return 0;
     });
-
-    const activeRoute = CAMPUS_TOUR_ROUTES.find(r => r.id === activeRouteId);
 
     // Handle Pan & Drag
     const handleMouseDown = (e: React.MouseEvent) => {
@@ -319,6 +335,25 @@ export const CampusMapModal: React.FC<CampusMapModalProps> = ({
                                 </button>
                             </div>
 
+                            {/* Floating Active Route Banner */}
+                            {activeRoute && (
+                                <div className="absolute top-4 left-1/2 -translate-x-1/2 z-30 bg-white/95 backdrop-blur-md px-4 py-1.5 rounded-2xl shadow-[0_8px_25px_rgba(74,67,101,0.2)] border border-purple-200/90 flex items-center gap-3 animate-in fade-in slide-in-from-top-3">
+                                    <span className="text-[12px] font-black text-[#4a4365] flex items-center gap-1.5">
+                                        <Navigation size={13} className="text-purple-600 animate-pulse" />
+                                        <span>当前漫游：{activeRoute.title}</span>
+                                    </span>
+                                    <span className="text-[11px] text-purple-700 font-bold bg-purple-100/80 px-2 py-0.5 rounded-lg">
+                                        全线共 {filteredLocations.length} 站 · 预计耗时 {activeRoute.duration}
+                                    </span>
+                                    <button
+                                        onClick={() => setActiveRouteId(null)}
+                                        className="text-[11px] font-bold text-red-500 hover:text-red-700 hover:underline cursor-pointer ml-1"
+                                    >
+                                        退出路线
+                                    </button>
+                                </div>
+                            )}
+
                             {/* Map Canvas with Pan & Zoom Transform */}
                             <div
                                 style={{
@@ -344,7 +379,11 @@ export const CampusMapModal: React.FC<CampusMapModalProps> = ({
 
                                 {/* SVG Thematic Tour Route Connecting Line */}
                                 {activeRoute && (
-                                    <svg className="absolute inset-0 w-full h-full pointer-events-none z-10">
+                                    <svg
+                                        className="absolute inset-0 w-full h-full pointer-events-none z-10"
+                                        viewBox="0 0 100 100"
+                                        preserveAspectRatio="none"
+                                    >
                                         <defs>
                                             <linearGradient id="routeGradient" x1="0%" y1="0%" x2="100%" y2="100%">
                                                 <stop offset="0%" stopColor="#f59e0b" />
@@ -357,12 +396,12 @@ export const CampusMapModal: React.FC<CampusMapModalProps> = ({
                                             points={activeRoute.locationIds
                                                 .map(id => locations.find(l => l.id === id))
                                                 .filter(Boolean)
-                                                .map(l => `${l!.coordinates.x * 11},${l!.coordinates.y * 6.875}`)
+                                                .map(l => `${l!.coordinates.x},${l!.coordinates.y}`)
                                                 .join(' ')}
                                             fill="none"
                                             stroke="url(#routeGradient)"
-                                            strokeWidth="4"
-                                            strokeDasharray="8 6"
+                                            strokeWidth="1.2"
+                                            strokeDasharray="2 1.5"
                                             className="animate-pulse"
                                             strokeLinecap="round"
                                             strokeLinejoin="round"
@@ -445,49 +484,61 @@ export const CampusMapModal: React.FC<CampusMapModalProps> = ({
                         /* View B: Card Grid Mode */
                         <div className="flex-1 h-full overflow-y-auto p-5 sm:p-6 hide-scrollbar">
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                                {filteredLocations.map((loc) => (
-                                    <div
-                                        key={loc.id}
-                                        onClick={() => handleSelectLocation(loc)}
-                                        className="group bg-white rounded-3xl border border-purple-100/70 shadow-[0_4px_20px_rgba(186,175,215,0.12)] hover:shadow-[0_12px_35px_rgba(186,175,215,0.25)] transition-all duration-300 flex flex-col overflow-hidden hover:-translate-y-1 cursor-pointer"
-                                    >
-                                        <div className="relative h-44 overflow-hidden bg-gray-100">
-                                            <img
-                                                src={loc.images[0]}
-                                                alt={loc.name}
-                                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                                            />
-                                            <div className="absolute top-3 left-3 bg-black/50 backdrop-blur-md text-white text-[10px] font-bold px-2.5 py-1 rounded-xl">
-                                                {loc.category}
-                                            </div>
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    handleSelectLocation(loc);
-                                                }}
-                                                className="absolute bottom-3 right-3 bg-gradient-to-r from-purple-600 to-indigo-600 text-white text-[11px] font-bold px-3 py-1 rounded-xl shadow-md flex items-center gap-1 hover:opacity-90"
-                                            >
-                                                <Volume2 size={12} /> 听丽丽解说
-                                            </button>
-                                        </div>
+                                {filteredLocations.map((loc, idx) => {
+                                    const routeOrder = activeRoute?.locationIds.indexOf(loc.id);
+                                    const isInRoute = routeOrder !== undefined && routeOrder !== -1;
 
-                                        <div className="p-4 flex-1 flex flex-col justify-between gap-3">
-                                            <div>
-                                                <h4 className="font-bold text-[15px] text-[#4a4365] group-hover:text-[#a494e8] transition-colors line-clamp-1">
-                                                    {loc.name}
-                                                </h4>
-                                                <p className="text-[12px] text-gray-500 line-clamp-2 mt-1 leading-relaxed">
-                                                    {loc.description}
-                                                </p>
+                                    return (
+                                        <div
+                                            key={loc.id}
+                                            onClick={() => handleSelectLocation(loc)}
+                                            className="group bg-white rounded-3xl border border-purple-100/70 shadow-[0_4px_20px_rgba(186,175,215,0.12)] hover:shadow-[0_12px_35px_rgba(186,175,215,0.25)] transition-all duration-300 flex flex-col overflow-hidden hover:-translate-y-1 cursor-pointer"
+                                        >
+                                            <div className="relative h-44 overflow-hidden bg-gray-100">
+                                                <img
+                                                    src={loc.images[0]}
+                                                    alt={loc.name}
+                                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                                                />
+                                                <div className="absolute top-3 left-3 flex items-center gap-1.5">
+                                                    {isInRoute && (
+                                                        <span className="bg-gradient-to-r from-amber-500 to-rose-500 text-white text-[10px] font-black px-2.5 py-1 rounded-xl shadow-sm">
+                                                            第 {routeOrder! + 1} 站
+                                                        </span>
+                                                    )}
+                                                    <span className="bg-black/50 backdrop-blur-md text-white text-[10px] font-bold px-2.5 py-1 rounded-xl">
+                                                        {loc.category}
+                                                    </span>
+                                                </div>
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleSelectLocation(loc);
+                                                    }}
+                                                    className="absolute bottom-3 right-3 bg-gradient-to-r from-purple-600 to-indigo-600 text-white text-[11px] font-bold px-3 py-1 rounded-xl shadow-md flex items-center gap-1 hover:opacity-90 cursor-pointer"
+                                                >
+                                                    <Volume2 size={12} /> 听丽丽解说
+                                                </button>
                                             </div>
 
-                                            <div className="pt-2 border-t border-purple-50 flex items-center justify-between text-[11px]">
-                                                <span className="text-[#a494e8] font-bold">查看详细参数 ➔</span>
-                                                <span className="text-gray-400 font-medium">{loc.images.length} 张实景图</span>
+                                            <div className="p-4 flex-1 flex flex-col justify-between gap-3">
+                                                <div>
+                                                    <h4 className="font-bold text-[15px] text-[#4a4365] group-hover:text-[#a494e8] transition-colors line-clamp-1">
+                                                        {loc.name}
+                                                    </h4>
+                                                    <p className="text-[12px] text-gray-500 line-clamp-2 mt-1 leading-relaxed">
+                                                        {loc.description}
+                                                    </p>
+                                                </div>
+
+                                                <div className="pt-2 border-t border-purple-50 flex items-center justify-between text-[11px]">
+                                                    <span className="text-[#a494e8] font-bold">查看详细参数 ➔</span>
+                                                    <span className="text-gray-400 font-medium">{loc.images.length} 张实景图</span>
+                                                </div>
                                             </div>
                                         </div>
-                                    </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                         </div>
                     )}

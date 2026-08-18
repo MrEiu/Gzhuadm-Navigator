@@ -55,6 +55,11 @@ export const createApp = () => {
     app.use('/api/admin', ragRouter);
     app.use('/api/admin', adminRouter);
 
+    app.get('/api/campus-map', (_req, res) => {
+        const data = loadCampusMapData();
+        res.json({ ok: true, data });
+    });
+
     // SPA fallback route
     if (fs.existsSync(distDir)) {
         app.use((req, res, next) => {
