@@ -1798,26 +1798,28 @@ export default function App() {
             <button
               type="button"
               onClick={() => { setAuthMode('login'); setAuthError(''); }}
-              className={`flex-1 py-1.5 rounded-xl transition-all ${authMode === 'login' ? 'bg-white text-[#4a4365] shadow-xs' : 'text-[#8a84a4]'}`}
+              className={`flex-1 py-2 rounded-xl transition-all cursor-pointer ${authMode === 'login' ? 'bg-white text-[#4a4365] shadow-xs' : 'text-[#8a84a4]'}`}
             >
               登录账号
             </button>
             <button
               type="button"
-              onClick={() => { setAuthMode('register'); setAuthError(''); }}
-              className={`flex-1 py-1.5 rounded-xl transition-all ${authMode === 'register' ? 'bg-white text-[#4a4365] shadow-xs' : 'text-[#8a84a4]'}`}
+              onClick={() => {
+                if (settingsConfig.authRegistrationMode === 'phone') {
+                  setAuthMode('advanced_register');
+                  setRegTargetType('phone');
+                } else if (settingsConfig.authRegistrationMode === 'email') {
+                  setAuthMode('advanced_register');
+                  setRegTargetType('email');
+                } else {
+                  setAuthMode('register');
+                }
+                setAuthError('');
+              }}
+              className={`flex-1 py-2 rounded-xl transition-all cursor-pointer ${authMode !== 'login' ? 'bg-white text-[#4a4365] shadow-xs font-black' : 'text-[#8a84a4]'}`}
             >
-              标准注册
+              {settingsConfig.authRegistrationMode === 'phone' ? '📱 手机号注册' : (settingsConfig.authRegistrationMode === 'email' ? '✉️ 邮箱注册' : '立即注册')}
             </button>
-            {settingsConfig.advancedAuthEnabled && (
-              <button
-                type="button"
-                onClick={() => { setAuthMode('advanced_register'); setAuthError(''); }}
-                className={`flex-1 py-1.5 rounded-xl transition-all ${authMode === 'advanced_register' ? 'bg-purple-600 text-white shadow-xs' : 'text-purple-600 hover:bg-purple-100'}`}
-              >
-                验证码注册
-              </button>
-            )}
           </div>
 
           {authError && (
@@ -1851,23 +1853,9 @@ export default function App() {
               <div className="space-y-3.5 animate-in fade-in">
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <label className="text-[12px] font-bold text-[#4a4365]">验证类型</label>
-                    <div className="flex items-center gap-2 text-[11px]">
-                      <button
-                        type="button"
-                        onClick={() => setRegTargetType('phone')}
-                        className={`px-2 py-0.5 rounded-md font-bold ${regTargetType === 'phone' ? 'bg-purple-100 text-purple-700' : 'text-gray-400'}`}
-                      >
-                        📱 手机号
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setRegTargetType('email')}
-                        className={`px-2 py-0.5 rounded-md font-bold ${regTargetType === 'email' ? 'bg-purple-100 text-purple-700' : 'text-gray-400'}`}
-                      >
-                        ✉️ 邮箱
-                      </button>
-                    </div>
+                    <label className="text-[12px] font-bold text-[#4a4365]">
+                      {settingsConfig.authRegistrationMode === 'email' ? '电子邮箱 (获取验证码)' : '手机号码 (获取短信验证码)'}
+                    </label>
                   </div>
                   <div className="relative">
                     {regTargetType === 'phone' ? <Globe size={16} className="absolute left-3.5 top-3.5 text-gray-400" /> : <Globe size={16} className="absolute left-3.5 top-3.5 text-gray-400" />}

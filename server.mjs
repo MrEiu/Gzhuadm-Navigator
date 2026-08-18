@@ -46,14 +46,14 @@ const loadEnvFile = (filePath) => {
     if (separatorIndex === -1) continue;
     const key = trimmedLine.slice(0, separatorIndex).trim();
     const value = trimmedLine.slice(separatorIndex + 1).trim();
-    if (key && process.env[key] === undefined) {
+    if (key && value !== undefined) {
       process.env[key] = value;
     }
   }
 };
 
-loadEnvFile(envPath);
 loadEnvFile(envMainPath);
+loadEnvFile(envPath);
 
 // Initialize OpenAI-Compatible client configuration (DeepSeek, OpenAI, DashScope, SiliconFlow, GLM, Moonshot, Custom Gateway)
 const aiBaseUrl = process.env.AI_BASE_URL || process.env.DEEPSEEK_BASE_URL || process.env.OPENAI_BASE_URL || 'https://api.deepseek.com';
@@ -1087,6 +1087,7 @@ const saveSystemProviders = (data) => {
   try { fs.writeFileSync(providersFilePath, JSON.stringify(data, null, 2), 'utf8'); } catch (e) { console.error('Failed to save providers pool:', e); }
 };
 
+// ==========================================
 // User Accounts & Password Security (Bcrypt) Layer
 // ==========================================
 const userAccountsFilePath = path.join(dataDir, 'users_accounts.json');
@@ -1148,25 +1149,30 @@ app.post('/api/auth/send-code', async (req, res) => {
   verificationCodesMap.set(target, { code, expireAt, type });
 
   const smtpHost = process.env.SMTP_HOST;
-  const smtpUser = process.env.SMTP_USER;
-  const smtpPass = process.env.SMTP_PASS;
+  const smtpPort = Number(process.env.SMTP_PORT || 465);
+  const smtpUser = process.env.SMTP_USER || process.env.MAIL_FROM;
+  const smtpPass = process.env.SMTP_PASSWORD || process.env.SMTP_PASS;
+  const smtpSecure = process.env.SMTP_SECURE_ENABLED === '1' || (process.env.SMTP_SECURE_ENABLED !== '0' && smtpPort === 465);
+  const mailFromName = process.env.MAIL_FROM_NAME || '广州大学招生问答平台';
+  const mailFrom = process.env.MAIL_FROM || smtpUser;
 
   if (type === 'email' && smtpHost && smtpUser && smtpPass) {
     try {
       const transporter = nodemailer.createTransport({
         host: smtpHost,
-        port: Number(process.env.SMTP_PORT || 465),
-        secure: true,
+        port: smtpPort,
+        secure: smtpSecure,
         auth: { user: smtpUser, pass: smtpPass }
       });
       await transporter.sendMail({
-        from: `"Gzadm Navigator 验证" <${smtpUser}>`,
+        from: `"${mailFromName}" <${mailFrom}>`,
         to: target,
         subject: '【广州大学招生问答平台】您的注册验证码',
         text: `您的验证码是 ${code}，有效期 5 分钟。如非本人操作请忽略。`
       });
+      console.log(`✉️ [SMTP Email Sent] Successfully sent verification code ${code} to ${target}`);
     } catch (e) {
-      console.error('SMTP Email Send Error:', e);
+      console.error('SMTP Email Send Error:', e.message);
     }
   }
 
@@ -1298,6 +1304,31 @@ app.post('/api/auth/login', (req, res) => {
   });
 });
 
+app.post('/api/user/change-password', (req, res) => {
+  const { username, currentPassword, newPassword } = req.body || {};
+  if (!username || !currentPassword || !newPassword) {
+    return res.status(400).json({ ok: false, error: '所有字段均为必填' });
+  }
+
+  const users = loadUserAccounts();
+  const userIdx = users.findIndex(u => u.username === username);
+  if (userIdx === -1) {
+    return res.status(404).json({ ok: false, error: '账号不存在' });
+  }
+
+  const user = users[userIdx];
+  const isValid = verifyPassword(currentPassword, user.passwordHash || user.password);
+  if (!isValid) {
+    return res.status(400).json({ ok: false, error: '原密码输入错误' });
+  }
+
+  user.passwordHash = hashPassword(newPassword.trim());
+  delete user.password;
+  saveUserAccounts(users);
+
+  res.json({ ok: true, message: '密码修改成功，新密码已通过 Bcrypt 加密保存！' });
+});
+
 app.get('/api/admin/users', (_req, res) => {
   const users = loadUserAccounts();
   const profiles = loadJsonProfiles();
@@ -1393,25 +1424,66 @@ app.post('/api/admin/users/delete', (req, res) => {
 
 // Admin System Config APIs
 app.get('/api/admin/config', (_req, res) => {
+  const providerPool = loadSystemProviders();
   res.json({
     ok: true,
     config: {
-      aiBaseUrl,
-      defaultModel,
-      fastModel,
-      searchProvider,
-      hasApiKey: Boolean(aiApiKey),
-      apiKeyMasked: aiApiKey ? `${aiApiKey.slice(0, 4)}••••${aiApiKey.slice(-4)}` : '',
-      hasTavilyKey: Boolean(tavilyApiKey),
-      tavilyKeyMasked: tavilyApiKey ? `${tavilyApiKey.slice(0, 4)}••••${tavilyApiKey.slice(-4)}` : '',
-      hasBochaKey: Boolean(bochaApiKey),
-      bochaKeyMasked: bochaApiKey ? `${bochaApiKey.slice(0, 4)}••••${bochaApiKey.slice(-4)}` : ''
+      aiBaseUrl: process.env.AI_BASE_URL || aiBaseUrl,
+      defaultModel: process.env.DEFAULT_MODEL || defaultModel,
+      defaultProviderName: process.env.DEFAULT_MODEL_PROVIDER || '',
+      fastBaseUrl: process.env.FAST_AI_BASE_URL || process.env.AI_BASE_URL || aiBaseUrl,
+      fastApiKeyMasked: process.env.FAST_AI_API_KEY ? `${process.env.FAST_AI_API_KEY.slice(0, 4)}••••${process.env.FAST_AI_API_KEY.slice(-4)}` : '',
+      fastModel: process.env.FAST_MODEL || fastModel,
+      fastProviderName: process.env.FAST_MODEL_PROVIDER || '',
+      searchProvider: process.env.SEARCH_PROVIDER || searchProvider,
+      hasApiKey: Boolean(process.env.AI_API_KEY || aiApiKey),
+      apiKeyMasked: (process.env.AI_API_KEY || aiApiKey) ? `${(process.env.AI_API_KEY || aiApiKey).slice(0, 4)}••••${(process.env.AI_API_KEY || aiApiKey).slice(-4)}` : '',
+      hasTavilyKey: Boolean(process.env.TAVILY_API_KEY || tavilyApiKey),
+      tavilyKeyMasked: (process.env.TAVILY_API_KEY || tavilyApiKey) ? `${(process.env.TAVILY_API_KEY || tavilyApiKey).slice(0, 4)}••••` : '',
+      hasBochaKey: Boolean(process.env.BOCHA_API_KEY || bochaApiKey),
+      bochaKeyMasked: (process.env.BOCHA_API_KEY || bochaApiKey) ? `${(process.env.BOCHA_API_KEY || bochaApiKey).slice(0, 4)}••••` : '',
+      advancedAuthEnabled: process.env.ADVANCED_AUTH_ENABLED === 'true',
+      authRegistrationMode: process.env.AUTH_REGISTRATION_MODE || (process.env.ADVANCED_AUTH_ENABLED === 'true' ? 'all' : 'username'),
+      tencentSmsSecretId: process.env.TENCENT_SMS_SECRET_ID || '',
+      tencentSmsSecretKeyMasked: process.env.TENCENT_SMS_SECRET_KEY ? '••••••••' : '',
+      tencentSmsSdkAppId: process.env.TENCENT_SMS_SDK_APP_ID || '',
+      tencentSmsSignName: process.env.TENCENT_SMS_SIGN_NAME || '',
+      tencentSmsTemplateId: process.env.TENCENT_SMS_TEMPLATE_ID || '',
+      smtpHost: process.env.SMTP_HOST || '',
+      smtpPort: process.env.SMTP_PORT || '587',
+      smtpUser: process.env.SMTP_USER || process.env.MAIL_FROM || '',
+      smtpPasswordMasked: (process.env.SMTP_PASSWORD || process.env.SMTP_PASS) ? '••••••••' : '',
+      providerPool
     }
   });
 });
 
 app.post('/api/admin/config', async (req, res) => {
-  const { baseUrl, apiKey, defaultModel: newDefModel, fastModel: newFastModel, searchProvider: newSearchProvider, tavilyApiKey: newTavilyKey, bochaApiKey: newBochaKey } = req.body || {};
+  const {
+    baseUrl,
+    apiKey,
+    defaultModel: newDefModel,
+    defaultProviderName,
+    fastBaseUrl,
+    fastApiKey,
+    fastModel: newFastModel,
+    fastProviderName,
+    searchProvider: newSearchProvider,
+    tavilyApiKey: newTavilyKey,
+    bochaApiKey: newBochaKey,
+    advancedAuthEnabled,
+    authRegistrationMode,
+    tencentSmsSecretId,
+    tencentSmsSecretKey,
+    tencentSmsSdkAppId,
+    tencentSmsSignName,
+    tencentSmsTemplateId,
+    smtpHost,
+    smtpPort,
+    smtpUser,
+    smtpPass,
+    providerPool
+  } = req.body || {};
   
   try {
     const envMap = new Map();
@@ -1428,10 +1500,34 @@ app.post('/api/admin/config', async (req, res) => {
     if (baseUrl) envMap.set('AI_BASE_URL', baseUrl);
     if (apiKey) envMap.set('AI_API_KEY', apiKey);
     if (newDefModel) envMap.set('DEFAULT_MODEL', newDefModel);
+    if (defaultProviderName) envMap.set('DEFAULT_MODEL_PROVIDER', defaultProviderName);
+
+    if (fastBaseUrl) envMap.set('FAST_AI_BASE_URL', fastBaseUrl);
+    if (fastApiKey) envMap.set('FAST_AI_API_KEY', fastApiKey);
     if (newFastModel) envMap.set('FAST_MODEL', newFastModel);
+    if (fastProviderName) envMap.set('FAST_MODEL_PROVIDER', fastProviderName);
+
     if (newSearchProvider) envMap.set('SEARCH_PROVIDER', newSearchProvider);
     if (newTavilyKey) envMap.set('TAVILY_API_KEY', newTavilyKey);
     if (newBochaKey) envMap.set('BOCHA_API_KEY', newBochaKey);
+
+    if (advancedAuthEnabled !== undefined) envMap.set('ADVANCED_AUTH_ENABLED', advancedAuthEnabled ? 'true' : 'false');
+    if (authRegistrationMode) envMap.set('AUTH_REGISTRATION_MODE', authRegistrationMode);
+
+    if (tencentSmsSecretId !== undefined) envMap.set('TENCENT_SMS_SECRET_ID', tencentSmsSecretId);
+    if (tencentSmsSecretKey !== undefined) envMap.set('TENCENT_SMS_SECRET_KEY', tencentSmsSecretKey);
+    if (tencentSmsSdkAppId !== undefined) envMap.set('TENCENT_SMS_SDK_APP_ID', tencentSmsSdkAppId);
+    if (tencentSmsSignName !== undefined) envMap.set('TENCENT_SMS_SIGN_NAME', tencentSmsSignName);
+    if (tencentSmsTemplateId !== undefined) envMap.set('TENCENT_SMS_TEMPLATE_ID', tencentSmsTemplateId);
+
+    if (smtpHost !== undefined) envMap.set('SMTP_HOST', smtpHost);
+    if (smtpPort !== undefined) envMap.set('SMTP_PORT', smtpPort);
+    if (smtpUser !== undefined) envMap.set('SMTP_USER', smtpUser);
+    if (smtpPass !== undefined) envMap.set('SMTP_PASS', smtpPass);
+
+    if (Array.isArray(providerPool)) {
+      saveSystemProviders(providerPool);
+    }
 
     let lines = [
       '# ===================================================',
@@ -1444,15 +1540,6 @@ app.post('/api/admin/config', async (req, res) => {
       lines.push(`${k}=${v}`);
     }
     fs.writeFileSync(envMainPath, lines.join('\n') + '\n', 'utf8');
-
-    // Update in-memory process.env
-    if (baseUrl) process.env.AI_BASE_URL = baseUrl;
-    if (apiKey) process.env.AI_API_KEY = apiKey;
-    if (newDefModel) process.env.DEFAULT_MODEL = newDefModel;
-    if (newFastModel) process.env.FAST_MODEL = newFastModel;
-    if (newSearchProvider) process.env.SEARCH_PROVIDER = newSearchProvider;
-    if (newTavilyKey) process.env.TAVILY_API_KEY = newTavilyKey;
-    if (newBochaKey) process.env.BOCHA_API_KEY = newBochaKey;
 
     res.json({ ok: true, message: '配置已成功保存并立即生效！' });
   } catch (err) {

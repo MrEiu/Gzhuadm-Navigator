@@ -8,6 +8,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const projectRoot = path.resolve(__dirname, '..');
 const envFilePath = path.join(projectRoot, '.env');
+const envLocalFilePath = path.join(projectRoot, '.env.local');
 const dataDir = path.join(projectRoot, 'data');
 const providersFilePath = path.join(dataDir, 'system_providers.json');
 
@@ -85,8 +86,43 @@ const PRESET_PROVIDERS = [
   }
 ];
 
+// Read existing configuration from .env / .env.local
+const loadAllExistingEnv = () => {
+  const map = new Map();
+  const readOne = (p) => {
+    if (fs.existsSync(p)) {
+      const content = fs.readFileSync(p, 'utf8');
+      content.split(/\r?\n/).forEach(line => {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith('#')) return;
+        const idx = trimmed.indexOf('=');
+        if (idx > 0) {
+          const key = trimmed.slice(0, idx).trim();
+          const val = trimmed.slice(idx + 1).trim();
+          map.set(key, val);
+        }
+      });
+    }
+  };
+  readOne(envFilePath);
+  readOne(envLocalFilePath);
+  return map;
+};
+
+// Load saved providers pool from JSON
+const loadExistingProviders = () => {
+  if (fs.existsSync(providersFilePath)) {
+    try {
+      const parsed = JSON.parse(fs.readFileSync(providersFilePath, 'utf8'));
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    } catch {}
+  }
+  return [];
+};
+
 // Helper to fetch model list from OpenAI-compatible /models endpoint
 const fetchRemoteModels = async (baseUrl, apiKey) => {
+  if (!baseUrl || !apiKey) return { ok: false, models: [] };
   const cleanBase = baseUrl.replace(/\/+$/, '');
   const candidateUrls = [
     `${cleanBase}/models`,
@@ -118,86 +154,55 @@ const fetchRemoteModels = async (baseUrl, apiKey) => {
           return { ok: true, models, endpoint: targetUrl };
         }
       }
-    } catch {
-      // try next candidate url
-    }
+    } catch {}
   }
 
   return { ok: false, models: [] };
 };
 
-// Read existing .env into Map
-const loadExistingEnv = () => {
-  const map = new Map();
-  if (fs.existsSync(envFilePath)) {
-    const content = fs.readFileSync(envFilePath, 'utf8');
-    content.split(/\r?\n/).forEach(line => {
-      const trimmed = line.trim();
-      if (!trimmed || trimmed.startsWith('#')) return;
-      const idx = trimmed.indexOf('=');
-      if (idx > 0) {
-        const key = trimmed.slice(0, idx).trim();
-        const val = trimmed.slice(idx + 1).trim();
-        map.set(key, val);
-      }
-    });
-  }
-  return map;
-};
-
-// Save Map back to .env
+// Save Map to both .env and .env.local
 const saveEnvFile = (config) => {
-  const envMap = loadExistingEnv();
+  const envMap = loadAllExistingEnv();
 
   // Primary Default Model configuration
-  envMap.set('AI_BASE_URL', config.baseUrl);
-  envMap.set('AI_API_KEY', config.apiKey);
-  envMap.set('DEFAULT_MODEL', config.defaultModel);
-  if (config.defaultProviderName) {
-    envMap.set('DEFAULT_MODEL_PROVIDER', config.defaultProviderName);
-  }
+  if (config.baseUrl) envMap.set('AI_BASE_URL', config.baseUrl);
+  if (config.apiKey) envMap.set('AI_API_KEY', config.apiKey);
+  if (config.defaultModel) envMap.set('DEFAULT_MODEL', config.defaultModel);
+  if (config.defaultProviderName) envMap.set('DEFAULT_MODEL_PROVIDER', config.defaultProviderName);
 
-  // Fast Model configuration (can be from different provider)
-  if (config.fastBaseUrl) {
-    envMap.set('FAST_AI_BASE_URL', config.fastBaseUrl);
-  }
-  if (config.fastApiKey) {
-    envMap.set('FAST_AI_API_KEY', config.fastApiKey);
-  }
-  envMap.set('FAST_MODEL', config.fastModel);
-  if (config.fastProviderName) {
-    envMap.set('FAST_MODEL_PROVIDER', config.fastProviderName);
-  }
+  // Fast Model configuration
+  if (config.fastBaseUrl) envMap.set('FAST_AI_BASE_URL', config.fastBaseUrl);
+  if (config.fastApiKey) envMap.set('FAST_AI_API_KEY', config.fastApiKey);
+  if (config.fastModel) envMap.set('FAST_MODEL', config.fastModel);
+  if (config.fastProviderName) envMap.set('FAST_MODEL_PROVIDER', config.fastProviderName);
 
   // Web Search configuration
-  if (config.searchProvider) {
-    envMap.set('SEARCH_PROVIDER', config.searchProvider);
-  }
-  if (config.tavilyApiKey) {
-    envMap.set('TAVILY_API_KEY', config.tavilyApiKey);
-  }
-  if (config.bochaApiKey) {
-    envMap.set('BOCHA_API_KEY', config.bochaApiKey);
-  }
+  if (config.searchProvider) envMap.set('SEARCH_PROVIDER', config.searchProvider);
+  if (config.tavilyApiKey !== undefined) envMap.set('TAVILY_API_KEY', config.tavilyApiKey);
+  if (config.bochaApiKey !== undefined) envMap.set('BOCHA_API_KEY', config.bochaApiKey);
 
-  // Registration & Auth modes
-  envMap.set('ADVANCED_AUTH_ENABLED', config.advancedAuthEnabled ? 'true' : 'false');
-  if (config.authRegistrationMode) {
-    envMap.set('AUTH_REGISTRATION_MODE', config.authRegistrationMode);
-  }
+  // Registration & Auth mode (STRICT SINGLE MODE)
+  envMap.set('AUTH_REGISTRATION_MODE', config.authRegistrationMode || 'username');
+  envMap.set('ADVANCED_AUTH_ENABLED', config.authRegistrationMode === 'username' ? 'false' : 'true');
 
   // Tencent SMS
-  if (config.tencentSmsSecretId) envMap.set('TENCENT_SMS_SECRET_ID', config.tencentSmsSecretId);
-  if (config.tencentSmsSecretKey) envMap.set('TENCENT_SMS_SECRET_KEY', config.tencentSmsSecretKey);
-  if (config.tencentSmsSdkAppId) envMap.set('TENCENT_SMS_SDK_APP_ID', config.tencentSmsSdkAppId);
-  if (config.tencentSmsSignName) envMap.set('TENCENT_SMS_SIGN_NAME', config.tencentSmsSignName);
-  if (config.tencentSmsTemplateId) envMap.set('TENCENT_SMS_TEMPLATE_ID', config.tencentSmsTemplateId);
+  if (config.tencentSmsSecretId !== undefined) envMap.set('TENCENT_SMS_SECRET_ID', config.tencentSmsSecretId);
+  if (config.tencentSmsSecretKey !== undefined) envMap.set('TENCENT_SMS_SECRET_KEY', config.tencentSmsSecretKey);
+  if (config.tencentSmsSdkAppId !== undefined) envMap.set('TENCENT_SMS_SDK_APP_ID', config.tencentSmsSdkAppId);
+  if (config.tencentSmsSignName !== undefined) envMap.set('TENCENT_SMS_SIGN_NAME', config.tencentSmsSignName);
+  if (config.tencentSmsTemplateId !== undefined) envMap.set('TENCENT_SMS_TEMPLATE_ID', config.tencentSmsTemplateId);
 
   // SMTP Email
-  if (config.smtpHost) envMap.set('SMTP_HOST', config.smtpHost);
-  if (config.smtpPort) envMap.set('SMTP_PORT', config.smtpPort);
-  if (config.smtpUser) envMap.set('SMTP_USER', config.smtpUser);
-  if (config.smtpPass) envMap.set('SMTP_PASS', config.smtpPass);
+  if (config.smtpHost !== undefined) envMap.set('SMTP_HOST', config.smtpHost);
+  if (config.smtpPort !== undefined) envMap.set('SMTP_PORT', config.smtpPort);
+  if (config.smtpUser !== undefined) envMap.set('SMTP_USER', config.smtpUser);
+  if (config.smtpPass !== undefined) {
+    envMap.set('SMTP_PASS', config.smtpPass);
+    envMap.set('SMTP_PASSWORD', config.smtpPass);
+  }
+  if (config.mailFrom !== undefined) envMap.set('MAIL_FROM', config.mailFrom);
+  if (config.mailFromName !== undefined) envMap.set('MAIL_FROM_NAME', config.mailFromName);
+  if (config.smtpSecureEnabled !== undefined) envMap.set('SMTP_SECURE_ENABLED', config.smtpSecureEnabled);
 
   if (!envMap.has('PORT')) {
     envMap.set('PORT', '3001');
@@ -215,7 +220,9 @@ const saveEnvFile = (config) => {
     lines.push(`${k}=${v}`);
   }
 
-  fs.writeFileSync(envFilePath, lines.join('\n') + '\n', 'utf8');
+  const outputContent = lines.join('\n') + '\n';
+  fs.writeFileSync(envFilePath, outputContent, 'utf8');
+  fs.writeFileSync(envLocalFilePath, outputContent, 'utf8');
 
   // Also save system providers pool to JSON
   try {
@@ -231,13 +238,13 @@ const saveEnvFile = (config) => {
 const printBanner = () => {
   console.log(`
 ${c.cyan}${c.bold}===============================================================
-       🎓 Gzadm Navigator · AI 引擎与多提供商初始化向导
+       🎓 Gzadm Navigator · AI 引擎与系统初始化向导
 ===============================================================${c.reset}
 `);
 };
 
-// Helper function to prompt a single provider selection
-async function promptSingleProvider(rl, title) {
+// Helper function to prompt a single provider
+async function promptSingleProvider(rl, title, initialData = null) {
   console.log(`${c.bold}${title}${c.reset}\n`);
   PRESET_PROVIDERS.forEach((p, idx) => {
     const num = `${c.cyan}[${idx + 1}]${c.reset}`;
@@ -249,12 +256,19 @@ async function promptSingleProvider(rl, title) {
   });
   console.log('');
 
+  let defaultPresetIdx = 0;
+  if (initialData?.type) {
+    const foundIdx = PRESET_PROVIDERS.findIndex(p => p.id === initialData.type);
+    if (foundIdx !== -1) defaultPresetIdx = foundIdx;
+  }
+
   let choiceIdx = -1;
   while (choiceIdx < 0 || choiceIdx >= PRESET_PROVIDERS.length) {
-    const answer = await rl.question(`${c.green}? 请输入选项编号 [1-${PRESET_PROVIDERS.length}] (默认 1): ${c.reset}`);
+    const promptMsg = `${c.green}? 请输入提供商编号 [1-${PRESET_PROVIDERS.length}] (默认 ${defaultPresetIdx + 1}): ${c.reset}`;
+    const answer = await rl.question(promptMsg);
     const trimmed = answer.trim();
     if (!trimmed) {
-      choiceIdx = 0;
+      choiceIdx = defaultPresetIdx;
       break;
     }
     const parsed = parseInt(trimmed, 10);
@@ -266,58 +280,125 @@ async function promptSingleProvider(rl, title) {
   }
 
   const preset = PRESET_PROVIDERS[choiceIdx];
-  let customLabel = preset.name;
-  let baseUrl = preset.url;
+  let customLabel = initialData?.name || preset.name;
+  let baseUrl = preset.isCustom ? (initialData?.baseUrl || '') : preset.url;
 
   if (preset.isCustom) {
     while (!baseUrl) {
-      const inputUrl = await rl.question(`${c.green}? 请输入 OpenAI 兼容的 Base URL (例如 https://api.openai.com/v1): ${c.reset}`);
-      baseUrl = inputUrl.trim();
+      const defUrlText = initialData?.baseUrl ? ` (当前: ${initialData.baseUrl})` : '';
+      const inputUrl = await rl.question(`${c.green}? 请输入 OpenAI 兼容的 Base URL (如 https://api.openai.com/v1)${defUrlText}: ${c.reset}`);
+      baseUrl = inputUrl.trim() || initialData?.baseUrl || '';
       if (!baseUrl) console.log(`${c.red}⚠️ Base URL 不能为空${c.reset}`);
     }
-    const labelInput = await rl.question(`${c.green}? 请为此自定义提供商设置别名 (默认 自定义网关): ${c.reset}`);
+    const defLabelText = initialData?.name ? ` (当前: ${initialData.name})` : ' (默认 自定义网关)';
+    const labelInput = await rl.question(`${c.green}? 请为此自定义提供商设置别名${defLabelText}: ${c.reset}`);
     if (labelInput.trim()) customLabel = labelInput.trim();
   } else {
     console.log(`  👉 接口地址 (Base URL): ${c.dim}${baseUrl}${c.reset}`);
   }
 
-  let apiKey = '';
+  let apiKey = initialData?.apiKey || '';
+  const defKeyText = apiKey ? ` (已存在: ${apiKey.slice(0, 4)}••••${apiKey.slice(-4)}, 回车保持不变)` : '';
   while (!apiKey) {
-    const inputKey = await rl.question(`${c.green}? 请输入 ${customLabel} 的 API Key: ${c.reset}`);
-    apiKey = inputKey.trim();
-    if (!apiKey) console.log(`${c.red}⚠️ API Key 不能为空${c.reset}`);
+    const inputKey = await rl.question(`${c.green}? 请输入 ${customLabel} 的 API Key${defKeyText}: ${c.reset}`);
+    const trimmedKey = inputKey.trim();
+    if (trimmedKey) {
+      apiKey = trimmedKey;
+    } else if (initialData?.apiKey) {
+      apiKey = initialData.apiKey;
+    } else {
+      console.log(`${c.red}⚠️ API Key 不能为空${c.reset}`);
+    }
   }
 
   return {
-    id: `${preset.id}_${Date.now()}`,
+    id: initialData?.id || `${preset.id}_${Date.now()}`,
     type: preset.id,
     name: customLabel,
     baseUrl,
     apiKey,
-    defaultModel: preset.defaultModel,
-    fastModel: preset.fastModel
+    defaultModel: initialData?.defaultModel || preset.defaultModel,
+    fastModel: initialData?.fastModel || preset.fastModel
   };
 }
 
-// Interactive CLI Runner
+// Main Interactive CLI Runner
 async function runInit() {
   printBanner();
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
 
   try {
+    const existingEnv = loadAllExistingEnv();
+    const existingProviders = loadExistingProviders();
+    const hasExistingConfig = existingEnv.size > 0 || existingProviders.length > 0;
+
     // =============================================================
-    // STEP 1: Multi-Provider Pool Configuration (支持配置多个提供商)
+    // 0. Existing Config Detection & Fast Skip / Resume Options
+    // =============================================================
+    if (hasExistingConfig) {
+      console.log(`${c.yellow}${c.bold}🔍 检测到本地已存在历史配置：${c.reset}`);
+      const currBase = existingEnv.get('AI_BASE_URL') || '(未配置)';
+      const currDef = existingEnv.get('DEFAULT_MODEL') || '(未配置)';
+      const currFast = existingEnv.get('FAST_MODEL') || '(未配置)';
+      const currAuth = existingEnv.get('AUTH_REGISTRATION_MODE') || 'username';
+      const currSearch = existingEnv.get('SEARCH_PROVIDER') || 'none';
+
+      console.log(`  • 主模型地址 (Base URL): ${c.cyan}${currBase}${c.reset}`);
+      console.log(`  • 标准对话模型:          ${c.cyan}${currDef}${c.reset}`);
+      console.log(`  • 快速处理模型:          ${c.magenta}${currFast}${c.reset}`);
+      console.log(`  • 考生注册方式:          ${c.bold}${currAuth.toUpperCase()}${c.reset}`);
+      console.log(`  • 联网搜索引擎:          ${c.green}${currSearch.toUpperCase()}${c.reset}\n`);
+
+      console.log(`  ${c.cyan}[1]${c.reset} ${c.bold}读取并基于现有配置更新${c.reset}   ${c.dim}(推荐 · 回车即可保留历史已填选项)${c.reset}`);
+      console.log(`  ${c.cyan}[2]${c.reset} ${c.bold}跳过配置并直接退出${c.reset}       ${c.green}(保持现有配置直接启动应用)${c.reset}`);
+      console.log(`  ${c.cyan}[3]${c.reset} ${c.bold}重新全新配置${c.reset}             ${c.dim}(清空并重新开始向导)${c.reset}\n`);
+
+      const initChoice = await rl.question(`${c.green}? 请选择操作 [1-3] (默认 1): ${c.reset}`);
+      const trimmedChoice = initChoice.trim();
+
+      if (trimmedChoice === '2') {
+        console.log(`\n${c.green}✅ 已跳过配置向导，保持当前环境不变！${c.reset}`);
+        console.log(`${c.dim}运行 ${c.cyan}npm run dev${c.dim} 即可即刻启动服务。${c.reset}\n`);
+        return;
+      }
+      if (trimmedChoice === '3') {
+        existingEnv.clear();
+        existingProviders.length = 0;
+        console.log(`\n${c.yellow}🧹 已清空历史缓存，进入全新配置流程...${c.reset}\n`);
+      } else {
+        console.log(`\n${c.green}✅ 已加载现有配置，每项回车即可保留原值。${c.reset}\n`);
+      }
+    }
+
+    // =============================================================
+    // STEP 1: Multi-Provider Pool Configuration (多模型提供商池)
     // =============================================================
     const providerPool = [];
+    console.log(`${c.bold}===============================================================${c.reset}`);
     console.log(`${c.bold}【步骤 1/4】配置模型提供商池 (Provider Pool)：${c.reset}`);
-    console.log(`${c.dim}您可以配置 1 个或多个大模型提供商（如 DeepSeek、通义千问、硅基流动等），并在下一步将不同模型自由分配给不同提供商。${c.reset}\n`);
+    console.log(`${c.dim}您可以配置 1 个或多个大模型提供商（如 DeepSeek、通义千问、硅基流动等），后续可为不同模型指派不同提供商。${c.reset}\n`);
 
     // Add Provider #1 (Primary)
-    const firstProvider = await promptSingleProvider(rl, '➡️ 请配置第 1 个大模型提供商 (主提供商)：');
+    const initialProv1 = existingProviders[0] || (existingEnv.get('AI_BASE_URL') ? {
+      name: existingEnv.get('DEFAULT_MODEL_PROVIDER') || '主模型提供商',
+      baseUrl: existingEnv.get('AI_BASE_URL'),
+      apiKey: existingEnv.get('AI_API_KEY'),
+      defaultModel: existingEnv.get('DEFAULT_MODEL'),
+      fastModel: existingEnv.get('FAST_MODEL')
+    } : null);
+
+    const firstProvider = await promptSingleProvider(rl, '➡️ 请配置第 1 个大模型提供商 (主提供商)：', initialProv1);
     providerPool.push(firstProvider);
     console.log(`${c.green}✅ 已添加提供商 [1]: ${firstProvider.name}${c.reset}\n`);
 
-    // Optionally Add Additional Providers
+    // Load remaining existing providers if any
+    if (existingProviders.length > 1) {
+      for (let i = 1; i < existingProviders.length; i++) {
+        providerPool.push(existingProviders[i]);
+      }
+    }
+
+    // Optionally Add More Providers
     let addMore = true;
     while (addMore) {
       const moreAns = await rl.question(`${c.green}? 是否继续添加其他模型提供商？(供快速/备用模型调度) (y/N): ${c.reset}`);
@@ -331,14 +412,14 @@ async function runInit() {
       }
     }
 
-    // Display Current Provider Pool
+    // Display Provider Pool Summary
     console.log(`\n${c.bold}📋 当前已配置的提供商池 (${providerPool.length} 个)：${c.reset}`);
     providerPool.forEach((p, idx) => {
       console.log(`   ${c.cyan}[${idx + 1}]${c.reset} ${c.bold}${p.name}${c.reset} ${c.dim}(Base: ${p.baseUrl})${c.reset}`);
     });
 
     // =============================================================
-    // STEP 2: Model Assignment (标准对话模型 & 快速模型绑定)
+    // STEP 2: Model Assignment (标准对话模型 & 快速模型自由绑定)
     // =============================================================
     console.log(`\n${c.bold}===============================================================${c.reset}`);
     console.log(`${c.bold}【步骤 2/4】分配标准对话模型与快速模型：${c.reset}\n`);
@@ -357,9 +438,9 @@ async function runInit() {
       }
     }
 
+    let defaultModel = existingEnv.get('DEFAULT_MODEL') || defaultProv.defaultModel || 'deepseek-chat';
     console.log(`\n⏳ 正在拉取【${defaultProv.name}】的可用模型列表...`);
     const defFetch = await fetchRemoteModels(defaultProv.baseUrl, defaultProv.apiKey);
-    let defaultModel = defaultProv.defaultModel || 'deepseek-chat';
 
     if (defFetch.ok && defFetch.models.length > 0) {
       console.log(`${c.green}✅ 成功获取到 ${defFetch.models.length} 个模型：${c.reset}\n`);
@@ -373,7 +454,7 @@ async function runInit() {
         defaultModel = (!isNaN(num) && num >= 1 && num <= defFetch.models.length) ? defFetch.models[num - 1] : defTrimmed;
       }
     } else {
-      console.log(`${c.yellow}ℹ️ 未能自动拉取模型列表，请手动输入模型名称：${c.reset}`);
+      console.log(`${c.yellow}ℹ️ 未能自动拉取模型列表，请手动确认模型名称：${c.reset}`);
       const defModelAns = await rl.question(`${c.green}? 请输入 标准对话模型 (DEFAULT_MODEL) (默认: ${defaultModel}): ${c.reset}`);
       if (defModelAns.trim()) defaultModel = defModelAns.trim();
     }
@@ -383,11 +464,11 @@ async function runInit() {
     let fastProv = providerPool[0];
     let fastBaseUrl = defaultProv.baseUrl;
     let fastApiKey = defaultProv.apiKey;
-    let fastModel = defaultProv.fastModel || defaultModel;
+    let fastModel = existingEnv.get('FAST_MODEL') || defaultProv.fastModel || defaultModel;
 
     if (providerPool.length > 1) {
       console.log(`${c.bold}请为【快速处理模型 (FAST_MODEL)】选择提供商：${c.reset}`);
-      console.log(`${c.dim}(用于文档智能解析切片、表格处理与高并发任务，可选用轻量高速模型如 qwen-turbo / glm-4-flash / deepseek-chat)${c.reset}`);
+      console.log(`${c.dim}(用于文档智能切片、表格结构化与高并发任务，可指派轻量极速模型)${c.reset}`);
       providerPool.forEach((p, idx) => {
         console.log(`  ${c.cyan}[${idx + 1}]${c.reset} ${p.name}`);
       });
@@ -423,65 +504,100 @@ async function runInit() {
     console.log(`👉 快速处理模型确定为: ${c.magenta}${c.bold}${fastModel}${c.reset} (提供商: ${fastProv.name})\n`);
 
     // =============================================================
-    // STEP 3: Configure Registration Modes & Verification Services
+    // STEP 3: Single-Choice Registration Mode (登录与注册方式单选互斥)
     // =============================================================
     console.log(`\n${c.bold}===============================================================${c.reset}`);
-    console.log(`${c.bold}【步骤 3/4】考生注册方式与验证服务配置：${c.reset}\n`);
+    console.log(`${c.bold}【步骤 3/4】考生注册与登录方式选择 (三选一 · 互斥单选)：${c.reset}\n`);
 
-    console.log(`  ${c.cyan}[1]${c.reset} ${c.bold}普通账号密码注册${c.reset}           ${c.dim}(静态标准模式 · 零第三方依赖)${c.reset}`);
-    console.log(`  ${c.cyan}[2]${c.reset} ${c.bold}手机号验证码注册${c.reset}           ${c.dim}(含手机 6 位验证码校验 · 支持腾讯云 SMS)${c.reset}`);
-    console.log(`  ${c.cyan}[3]${c.reset} ${c.bold}邮箱验证码注册${c.reset}             ${c.dim}(含邮箱 6 位验证码校验 · 支持 SMTP 邮件直发)${c.reset}`);
-    console.log(`  ${c.cyan}[4]${c.reset} ${c.bold}手机号 + 邮箱验证码注册${c.reset}    ${c.dim}(支持手机与邮箱双渠道验证码注册)${c.reset}`);
-    console.log(`  ${c.cyan}[5]${c.reset} ${c.bold}全部开启 (推荐全功能模式)${c.reset}   ${c.green}(支持普通账号、手机号与邮箱多渠道注册)${c.reset}`);
+    console.log(`  ${c.cyan}[1]${c.reset} ${c.bold}普通账号密码注册${c.reset}   ${c.dim}(静态标准模式 · 账号名+密码 · 零第三方依赖)${c.reset}`);
+    console.log(`  ${c.cyan}[2]${c.reset} ${c.bold}手机号验证码注册${c.reset}   ${c.dim}(需手机 6 位短信验证码校验 · 接入腾讯云 SMS)${c.reset}`);
+    console.log(`  ${c.cyan}[3]${c.reset} ${c.bold}邮箱验证码注册${c.reset}     ${c.dim}(需邮箱 6 位验证码校验 · 接入 SMTP 邮件直发)${c.reset}`);
     console.log('');
 
-    let authChoice = 1;
-    const authAns = await rl.question(`${c.green}? 请选择注册方式编号 [1-5] (默认 1): ${c.reset}`);
+    let defaultAuthChoice = 1;
+    const currAuthMode = existingEnv.get('AUTH_REGISTRATION_MODE');
+    if (currAuthMode === 'phone') defaultAuthChoice = 2;
+    else if (currAuthMode === 'email') defaultAuthChoice = 3;
+
+    let authChoice = defaultAuthChoice;
+    const authAns = await rl.question(`${c.green}? 请选择注册方式编号 [1-3] (默认 ${defaultAuthChoice}): ${c.reset}`);
     if (authAns.trim()) {
       const parsed = parseInt(authAns.trim(), 10);
-      if (!isNaN(parsed) && parsed >= 1 && parsed <= 5) authChoice = parsed;
+      if (!isNaN(parsed) && parsed >= 1 && parsed <= 3) authChoice = parsed;
     }
 
-    let advancedAuthEnabled = authChoice !== 1;
     let authRegistrationMode = 'username';
     if (authChoice === 2) authRegistrationMode = 'phone';
     else if (authChoice === 3) authRegistrationMode = 'email';
-    else if (authChoice === 4) authRegistrationMode = 'phone,email';
-    else if (authChoice === 5) authRegistrationMode = 'all';
 
-    let tencentSmsSecretId = '';
-    let tencentSmsSecretKey = '';
-    let tencentSmsSdkAppId = '';
-    let tencentSmsSignName = '';
-    let tencentSmsTemplateId = '';
+    let tencentSmsSecretId = existingEnv.get('TENCENT_SMS_SECRET_ID') || '';
+    let tencentSmsSecretKey = existingEnv.get('TENCENT_SMS_SECRET_KEY') || '';
+    let tencentSmsSdkAppId = existingEnv.get('TENCENT_SMS_SDK_APP_ID') || '';
+    let tencentSmsSignName = existingEnv.get('TENCENT_SMS_SIGN_NAME') || '';
+    let tencentSmsTemplateId = existingEnv.get('TENCENT_SMS_TEMPLATE_ID') || '';
 
-    let smtpHost = '';
-    let smtpPort = '465';
-    let smtpUser = '';
-    let smtpPass = '';
+    let smtpHost = existingEnv.get('SMTP_HOST') || '';
+    let smtpPort = existingEnv.get('SMTP_PORT') || '587';
+    let smtpUser = existingEnv.get('SMTP_USER') || existingEnv.get('MAIL_FROM') || '';
+    let smtpPass = existingEnv.get('SMTP_PASS') || existingEnv.get('SMTP_PASSWORD') || '';
+    let mailFrom = existingEnv.get('MAIL_FROM') || smtpUser;
+    let mailFromName = existingEnv.get('MAIL_FROM_NAME') || '广州大学招生问答平台';
+    let smtpSecureEnabled = existingEnv.get('SMTP_SECURE_ENABLED') || '0';
 
-    // Phone / Tencent Cloud SMS configuration
-    if (authChoice === 2 || authChoice === 4 || authChoice === 5) {
-      console.log(`\n${c.cyan}${c.bold}📱 [腾讯云 SMS 短信验证服务配置]${c.reset}`);
-      console.log(`${c.dim}(若暂不填 SecretId，系统将自动进入 DevMock 模式并在控制台直接打印 6 位验证码)${c.reset}`);
-      tencentSmsSecretId = (await rl.question(`${c.green}? 腾讯云 SecretId (可选): ${c.reset}`)).trim();
+    // Mode 2: Phone / Tencent Cloud SMS configuration
+    if (authChoice === 2) {
+      console.log(`\n${c.cyan}${c.bold}📱 [腾讯云 SMS 手机短信服务配置]${c.reset}`);
+      console.log(`${c.dim}(若留空 SecretId，系统将自动进入 DevMock 本地终端打印 6 位验证码)${c.reset}`);
+      
+      const defSidText = tencentSmsSecretId ? ` (当前: ${tencentSmsSecretId})` : '';
+      const sidInput = await rl.question(`${c.green}? 腾讯云 SecretId (可选)${defSidText}: ${c.reset}`);
+      tencentSmsSecretId = sidInput.trim() || tencentSmsSecretId;
+
       if (tencentSmsSecretId) {
-        tencentSmsSecretKey = (await rl.question(`${c.green}? 腾讯云 SecretKey: ${c.reset}`)).trim();
-        tencentSmsSdkAppId = (await rl.question(`${c.green}? 短信 SdkAppId (可选): ${c.reset}`)).trim();
-        tencentSmsSignName = (await rl.question(`${c.green}? 短信签名 SignName (可选): ${c.reset}`)).trim();
-        tencentSmsTemplateId = (await rl.question(`${c.green}? 正文模板 TemplateId (可选): ${c.reset}`)).trim();
+        const defKeyText = tencentSmsSecretKey ? ' (已有已保存密钥，回车保留)' : '';
+        const keyInput = await rl.question(`${c.green}? 腾讯云 SecretKey${defKeyText}: ${c.reset}`);
+        tencentSmsSecretKey = keyInput.trim() || tencentSmsSecretKey;
+
+        const defAppText = tencentSmsSdkAppId ? ` (当前: ${tencentSmsSdkAppId})` : '';
+        const appInput = await rl.question(`${c.green}? 短信 SdkAppId (可选)${defAppText}: ${c.reset}`);
+        tencentSmsSdkAppId = appInput.trim() || tencentSmsSdkAppId;
+
+        const defSignText = tencentSmsSignName ? ` (当前: ${tencentSmsSignName})` : '';
+        const signInput = await rl.question(`${c.green}? 短信签名 SignName (可选)${defSignText}: ${c.reset}`);
+        tencentSmsSignName = signInput.trim() || tencentSmsSignName;
+
+        const defTplText = tencentSmsTemplateId ? ` (当前: ${tencentSmsTemplateId})` : '';
+        const tplInput = await rl.question(`${c.green}? 正文模板 TemplateId (可选)${defTplText}: ${c.reset}`);
+        tencentSmsTemplateId = tplInput.trim() || tencentSmsTemplateId;
       }
     }
 
-    // Email / SMTP configuration
-    if (authChoice === 3 || authChoice === 4 || authChoice === 5) {
+    // Mode 3: Email / SMTP configuration
+    if (authChoice === 3) {
       console.log(`\n${c.cyan}${c.bold}✉️ [SMTP 发件邮箱服务配置]${c.reset}`);
-      console.log(`${c.dim}(若暂不填 SMTP 主机，系统将自动进入 DevMock 模式并在控制台打印验证码)${c.reset}`);
-      smtpHost = (await rl.question(`${c.green}? SMTP 服务器主机 (如 smtp.qq.com / smtp.163.com, 可选): ${c.reset}`)).trim();
+      console.log(`${c.dim}(如 smtp.qq.com / smtp.163.com，若留空将自动在控制台打印验证码)${c.reset}`);
+
+      const defHostText = smtpHost ? ` (当前: ${smtpHost})` : ' (例如 smtp.qq.com)';
+      const hostInput = await rl.question(`${c.green}? SMTP 服务器主机${defHostText}: ${c.reset}`);
+      smtpHost = hostInput.trim() || smtpHost;
+
       if (smtpHost) {
-        smtpPort = (await rl.question(`${c.green}? SMTP 端口 (默认 465): ${c.reset}`)).trim() || '465';
-        smtpUser = (await rl.question(`${c.green}? 发件账号 (如 admissions@gzhu.edu.cn): ${c.reset}`)).trim();
-        smtpPass = (await rl.question(`${c.green}? 发件授权码 / 密码: ${c.reset}`)).trim();
+        const defPortText = ` (默认: ${smtpPort})`;
+        const portInput = await rl.question(`${c.green}? SMTP 端口 (常见: 465 或 587)${defPortText}: ${c.reset}`);
+        smtpPort = portInput.trim() || smtpPort;
+
+        const defUserText = smtpUser ? ` (当前: ${smtpUser})` : '';
+        const userInput = await rl.question(`${c.green}? 发件账号 (邮箱地址)${defUserText}: ${c.reset}`);
+        smtpUser = userInput.trim() || smtpUser;
+
+        const defPassText = smtpPass ? ' (已有已保存授权码/密码，回车保留)' : '';
+        const passInput = await rl.question(`${c.green}? 发件授权码 / 密码${defPassText}: ${c.reset}`);
+        smtpPass = passInput.trim() || smtpPass;
+
+        mailFrom = smtpUser;
+        const defNameText = ` (默认: ${mailFromName})`;
+        const nameInput = await rl.question(`${c.green}? 发件人显示名称${defNameText}: ${c.reset}`);
+        if (nameInput.trim()) mailFromName = nameInput.trim();
       }
     }
 
@@ -489,37 +605,46 @@ async function runInit() {
     // STEP 4: Configure Web Search Engine
     // =============================================================
     console.log(`\n${c.bold}===============================================================${c.reset}`);
-    console.log(`${c.bold}【步骤 4/4】请选择联网搜索引擎 (用于全国高校招生录取与政策实时查询)：${c.reset}\n`);
+    console.log(`${c.bold}【步骤 4/4】请选择联网搜索引擎 (用于高考录取政策实时查询)：${c.reset}\n`);
 
     console.log(`  ${c.cyan}[1]${c.reset} ${c.bold}Tavily${c.reset}          ${c.dim}(推荐 · AI 优化结构化搜索 · 需填 API Key)${c.reset}`);
-    console.log(`  ${c.cyan}[2]${c.reset} ${c.bold}博查 AI (Bocha)${c.reset}  ${c.dim}(国内中文政策深度搜索 · 需填 API Key)${c.reset}`);
+    console.log(`  ${c.cyan}[2]${c.reset} ${c.bold}博查 AI (Bocha)${c.reset}  ${c.dim}(国内高校与招生深度搜索 · 需填 API Key)${c.reset}`);
     console.log(`  ${c.cyan}[3]${c.reset} ${c.bold}DuckDuckGo${c.reset}       ${c.green}(免 Key · 开箱即用 · 自动兜底)${c.reset}`);
     console.log(`  ${c.cyan}[4]${c.reset} ${c.dim}暂不启用联网搜索${c.reset}`);
     console.log('');
 
-    let searchChoice = 3;
-    const searchAns = await rl.question(`${c.green}? 请输入选项编号 [1-4] (默认 3 - DuckDuckGo): ${c.reset}`);
+    let defaultSearchIdx = 3;
+    const currSearch = existingEnv.get('SEARCH_PROVIDER');
+    if (currSearch === 'tavily') defaultSearchIdx = 1;
+    else if (currSearch === 'bocha') defaultSearchIdx = 2;
+    else if (currSearch === 'duckduckgo') defaultSearchIdx = 3;
+    else if (currSearch === 'none') defaultSearchIdx = 4;
+
+    let searchChoice = defaultSearchIdx;
+    const searchAns = await rl.question(`${c.green}? 请输入选项编号 [1-4] (默认 ${defaultSearchIdx}): ${c.reset}`);
     if (searchAns.trim()) {
       const parsed = parseInt(searchAns.trim(), 10);
       if (!isNaN(parsed) && parsed >= 1 && parsed <= 4) searchChoice = parsed;
     }
 
     let searchProvider = 'duckduckgo';
-    let tavilyApiKey = '';
-    let bochaApiKey = '';
+    let tavilyApiKey = existingEnv.get('TAVILY_API_KEY') || '';
+    let bochaApiKey = existingEnv.get('BOCHA_API_KEY') || '';
 
     if (searchChoice === 1) {
       searchProvider = 'tavily';
+      const defTavText = tavilyApiKey ? ` (当前: ${tavilyApiKey.slice(0, 6)}••••)` : '';
       while (!tavilyApiKey) {
-        const inputKey = await rl.question(`${c.green}? 请输入 Tavily API Key (tvly-...): ${c.reset}`);
-        tavilyApiKey = inputKey.trim();
+        const inputKey = await rl.question(`${c.green}? 请输入 Tavily API Key (tvly-...)${defTavText}: ${c.reset}`);
+        tavilyApiKey = inputKey.trim() || tavilyApiKey;
         if (!tavilyApiKey) console.log(`${c.red}⚠️ Key 不能为空${c.reset}`);
       }
     } else if (searchChoice === 2) {
       searchProvider = 'bocha';
+      const defBocText = bochaApiKey ? ` (当前: ${bochaApiKey.slice(0, 6)}••••)` : '';
       while (!bochaApiKey) {
-        const inputKey = await rl.question(`${c.green}? 请输入 博查 (Bocha) API Key: ${c.reset}`);
-        bochaApiKey = inputKey.trim();
+        const inputKey = await rl.question(`${c.green}? 请输入 博查 (Bocha) API Key${defBocText}: ${c.reset}`);
+        bochaApiKey = inputKey.trim() || bochaApiKey;
         if (!bochaApiKey) console.log(`${c.red}⚠️ Key 不能为空${c.reset}`);
       }
     } else if (searchChoice === 3) {
@@ -543,7 +668,6 @@ async function runInit() {
       searchProvider,
       tavilyApiKey,
       bochaApiKey,
-      advancedAuthEnabled,
       authRegistrationMode,
       tencentSmsSecretId,
       tencentSmsSecretKey,
@@ -554,22 +678,31 @@ async function runInit() {
       smtpPort,
       smtpUser,
       smtpPass,
+      mailFrom,
+      mailFromName,
+      smtpSecureEnabled,
       providerPool
     };
 
     saveEnvFile(configResult);
 
+    const modeLabels = {
+      username: '普通账号密码注册 (零依赖)',
+      phone: '手机短信验证码注册 (腾讯云 SMS)',
+      email: '邮箱验证码注册 (SMTP 邮件直发)'
+    };
+
     console.log(`
 ${c.green}${c.bold}===============================================================
-🎉 Gzadm Navigator 初始化配置已成功保存！
+🎉 Gzadm Navigator 配置已成功保存！
 ===============================================================${c.reset}
 
   ${c.bold}提供商池数量:${c.reset}          ${c.cyan}${providerPool.length} 个模型提供商${c.reset}
   ${c.bold}标准对话模型 (DEFAULT):${c.reset} ${c.cyan}${defaultModel}${c.reset} 【${defaultProv.name}】
   ${c.bold}快速处理模型 (FAST):${c.reset}   ${c.magenta}${fastModel}${c.reset} 【${fastProv.name}】
   ${c.bold}联网搜索引擎:${c.reset}          ${c.green}${searchProvider.toUpperCase()}${c.reset}
-  ${c.bold}考生注册鉴权方式:${c.reset}      ${c.bold}${authRegistrationMode.toUpperCase()}${c.reset} (${advancedAuthEnabled ? '已开启高级注册通道' : '普通账号密码注册'})
-  ${c.bold}环境配置文件路径:${c.reset}      ${path.relative(process.cwd(), envFilePath)}
+  ${c.bold}考生注册与登录模式:${c.reset}    ${c.bold}${modeLabels[authRegistrationMode] || authRegistrationMode}${c.reset}
+  ${c.bold}环境配置文件路径:${c.reset}      ${path.relative(process.cwd(), envFilePath)} / .env.local
 
 ${c.dim}您可以随时运行 ${c.cyan}npm run dev${c.dim} 启动智能招生问答平台，或在后台管理页面的【系统配置】实时调整！${c.reset}
 `);
@@ -591,7 +724,7 @@ if (command === 'init') {
 ${c.cyan}${c.bold}Gzadm Navigator CLI (gzhu)${c.reset}
 
 ${c.bold}用法:${c.reset}
-  gzhu init           交互式配置多模型提供商池、绑定标准/快速模型、配置搜索引擎与注册方式
+  gzhu init           交互式配置多模型提供商池、绑定标准/快速模型、配置搜索引擎与注册方式 (支持读取历史/跳过)
   gzhu --help         查看帮助信息
 `);
 } else {
