@@ -665,13 +665,43 @@ export default function App() {
   const [isPersonalRagOpen, setIsPersonalRagOpen] = useState(false);
 
   // --- Admin Management States ---
-  const [adminTab, setAdminTab] = useState<'rag' | 'users' | 'analytics'>('rag');
+  const [adminTab, setAdminTab] = useState<'dashboard' | 'rag' | 'users' | 'analytics' | 'playground' | 'settings'>('dashboard');
   const [interceptionEnabled, setInterceptionEnabled] = useState(true);
   const [lowScoreThreshold, setLowScoreThreshold] = useState(450);
   const [vipScoreThreshold, setVipScoreThreshold] = useState(580);
   const [adminUserSearch, setAdminUserSearch] = useState('');
   const [adminTargetUser, setAdminTargetUser] = useState<string | null>(null);
   const [registeredUsersList, setRegisteredUsersList] = useState<any[]>([]);
+
+  // --- Dashboard States ---
+  const [dashboardStats, setDashboardStats] = useState<any>(null);
+  const [isLoadingDashboard, setIsLoadingDashboard] = useState(false);
+
+  // --- Playground / Test States ---
+  const [playgroundTab, setPlaygroundTab] = useState<'rag' | 'web'>('rag');
+  const [ragTestQuery, setRagTestQuery] = useState('浙江 计算机 录取分数');
+  const [ragTestResults, setRagTestResults] = useState<any[] | null>(null);
+  const [isRagTesting, setIsRagTesting] = useState(false);
+
+  const [webTestQuery, setWebTestQuery] = useState('2025 全国高考报考人数');
+  const [webTestProvider, setWebTestProvider] = useState('duckduckgo');
+  const [webTestResults, setWebTestResults] = useState<any | null>(null);
+  const [isWebTesting, setIsWebTesting] = useState(false);
+
+  // --- Settings / Config States ---
+  const [settingsConfig, setSettingsConfig] = useState<any>({
+    baseUrl: 'https://api.deepseek.com',
+    apiKey: '',
+    defaultModel: 'deepseek-chat',
+    fastModel: 'deepseek-chat',
+    searchProvider: 'duckduckgo',
+    tavilyApiKey: '',
+    bochaApiKey: ''
+  });
+  const [availableModels, setAvailableModels] = useState<string[]>([]);
+  const [isLoadingModels, setIsLoadingModels] = useState(false);
+  const [isSavingSettings, setIsSavingSettings] = useState(false);
+  const [settingsSaveMsg, setSettingsSaveMsg] = useState<string | null>(null);
 
   // --- Analytics & Dialogue Aggregation States ---
   const [adminMessageSearch, setAdminMessageSearch] = useState('');
