@@ -16,10 +16,9 @@ export const initPostgres = async () => {
         user: process.env.POSTGRES_USER || process.env.PGUSER || 'aurasense',
         password: process.env.POSTGRES_PASSWORD || process.env.PGPASSWORD || 'aurasensepass',
         database: process.env.POSTGRES_DB || process.env.PGDATABASE || 'aurasense',
-        connectionTimeoutMillis: 3000,
+        connectionTimeoutMillis: 600,
     };
 
-    console.log(`⏳ [PostgreSQL] Connecting to ${pgConfig.user}@${pgConfig.host}:${pgConfig.port}/${pgConfig.database}...`);
     try {
         pgPool = new Pool(pgConfig);
         let client;
@@ -27,7 +26,6 @@ export const initPostgres = async () => {
             client = await pgPool.connect();
         } catch (firstErr) {
             if (!process.env.POSTGRES_PORT && targetPort === 35432) {
-                console.warn(`  ⚠️ Host port 35432 failed (${firstErr.message}). Retrying default port 5432...`);
                 pgConfig.port = 5432;
                 pgPool = new Pool(pgConfig);
                 client = await pgPool.connect();

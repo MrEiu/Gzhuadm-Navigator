@@ -166,6 +166,37 @@ export interface RagScoreBreakdown {
     totalScore: number;
     vectorScore: number;
     tokenScore: number;
+    titleCategoryBonus?: number;
     provinceBonus: number;
     categoryBonus: number;
 }
+
+export interface RagSearchResult {
+    item: RagItem;
+    score: number;
+    breakdown?: RagScoreBreakdown;
+}
+
+export interface QaRecord {
+    id: string;
+    sessionId: string;
+    sessionTitle?: string;
+    username: string;
+    question: string;
+    answer: string;
+    createdAt: string;
+}
+
+export interface StrategyConfig {
+    cutoffScore: number; // 压线风险拦截阈值 (e.g. 450)
+    vipScore: number;    // VIP 专属定制通道阈值 (e.g. 580)
+    enabled: boolean;    // 分流策略一键启用/暂停开关
+}
+
+export interface WebSearchResultItem {
+    title: string;
+    url: string;
+    snippet: string;
+    score?: number;
+}
+

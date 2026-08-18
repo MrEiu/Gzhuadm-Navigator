@@ -1,172 +1,199 @@
 import React, { useState, useEffect } from 'react';
-import { X, MessageSquare, Clock, User as UserIcon, Bot, RefreshCw } from 'lucide-react';
+import { X, History, MessageSquare, Bot, User as UserIcon, Calendar, Clock, Inbox } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { ChatSession } from '../../types';
 import { API_BASE } from '../../api/config';
-import { MarkdownViewer } from '../../components/ui/MarkdownViewer';
 
 interface UserChatHistoryModalProps {
     username: string;
+    isOpen: boolean;
     onClose: () => void;
 }
 
-export const UserChatHistoryModal: React.FC<UserChatHistoryModalProps> = ({ username, onClose }) => {
+export const UserChatHistoryModal: React.FC<UserChatHistoryModalProps> = ({
+    username,
+    isOpen,
+    onClose
+}) => {
     const [sessions, setSessions] = useState<ChatSession[]>([]);
     const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(false);
 
     useEffect(() => {
-        if (!username) return;
-        setLoading(true);
-        fetch(`${API_BASE}/api/user/sessions?username=${encodeURIComponent(username)}`)
-            .then(res => res.json())
-            .then(data => {
-                if (data.ok && Array.isArray(data.sessions)) {
-                    setSessions(data.sessions);
-                    if (data.sessions.length > 0) {
-                        setActiveSessionId(data.sessions[0].id);
+        if (isOpen && username) {
+            setLoading(true);
+            fetch(`${API_BASE}/api/user/sessions?username=${encodeURIComponent(username)}`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.ok && Array.isArray(data.sessions)) {
+                        setSessions(data.sessions);
+                        if (data.sessions.length > 0) {
+                            setActiveSessionId(data.sessions[0].id);
+                        }
                     }
-                }
-            })
-            .catch(err => console.error('Failed to load user chat history:', err))
-            .finally(() => setLoading(false));
-    }, [username]);
+                })
+                .catch(err => console.error('Failed to fetch user chat history:', err))
+                .finally(() => setLoading(false));
+        }
+    }, [isOpen, username]);
+
+    if (!isOpen) return null;
 
     const activeSession = sessions.find(s => s.id === activeSessionId) || sessions[0];
 
     return (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-md flex justify-center items-center p-3 sm:p-5 animate-in fade-in duration-200">
-            <div className="bg-white/95 backdrop-blur-2xl rounded-[36px] max-w-4xl w-full h-[85vh] flex flex-col shadow-2xl border-4 border-white overflow-hidden animate-in zoom-in-95 duration-300">
-                {/* Modal Header */}
-                <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-purple-50/70 via-white to-pink-50/50 shrink-0">
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-md flex justify-center items-center p-3 sm:p-6 animate-in fade-in duration-300">
+            <div className="bg-white/95 backdrop-blur-2xl rounded-[36px] max-w-[960px] w-full h-[85vh] flex flex-col shadow-2xl border-4 border-white overflow-hidden animate-in zoom-in-95 duration-300">
+
+                {/* Top Header */}
+                <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-white/70">
                     <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-[#a494e8] to-[#c7b8f9] text-white flex items-center justify-center shadow-md shrink-0 font-bold">
-                            <MessageSquare size={20} />
+                        <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-[#b3a4ed] to-[#f296b2] text-white flex items-center justify-center shadow-[0_6px_16px_rgba(179,164,237,0.35)]">
+                            <History size={20} />
                         </div>
                         <div>
-                            <div className="flex items-center gap-2">
-                                <h3 className="font-black text-[#4a4365] text-[16px]">
-                                    考生咨询历史穿透：@{username}
-                                </h3>
-                                <span className="bg-purple-100 text-purple-700 text-[10.5px] font-bold px-2 py-0.5 rounded-full">
-                                    {sessions.length} 个历史会话
-                                </span>
-                            </div>
-                            <p className="text-[11px] text-[#8a84a4]">回放该考生与 AI 招生顾问的完整多轮对话上下文</p>
+                            <h3 className="font-black text-[#4a4365] text-[16px] tracking-tight">
+                                考生咨询对话记录穿透回放
+                            </h3>
+                            <p className="text-[11px] text-[#8a84a4]">
+                                目标考生：<span className="font-mono text-[#a494e8] font-bold">@{username}</span>
+                                {sessions.length > 0 && `（共发现 ${sessions.length} 个咨询会话）`}
+                            </p>
                         </div>
                     </div>
-
                     <button
                         onClick={onClose}
-                        className="p-2 rounded-2xl text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors cursor-pointer"
+                        className="p-2 rounded-2xl text-gray-400 hover:text-[#4a4365] hover:bg-gray-100 transition-colors cursor-pointer"
                     >
                         <X size={18} />
                     </button>
                 </div>
 
-                {/* Main Body */}
-                <div className="flex-1 flex overflow-hidden">
-                    {/* Left: Session List */}
-                    <div className="w-60 border-r border-gray-100 bg-[#fbf9fe] p-3 overflow-y-auto hide-scrollbar space-y-1.5 shrink-0">
-                        <div className="text-[11px] font-black text-gray-400 px-2 py-1 uppercase tracking-wider">
-                            历史会话列表
+                {/* Main Content Area: Sidebar Sessions List + Message Stream */}
+                {loading ? (
+                    <div className="flex-1 flex flex-col items-center justify-center text-gray-400 text-[13px] gap-2">
+                        <div className="w-8 h-8 border-3 border-[#a494e8] border-t-transparent rounded-full animate-spin" />
+                        <span>正在穿透加载考生历史对话...</span>
+                    </div>
+                ) : sessions.length === 0 ? (
+                    <div className="flex-1 flex flex-col items-center justify-center text-center p-8 space-y-3">
+                        <div className="w-16 h-16 rounded-3xl bg-purple-50 flex items-center justify-center text-purple-300">
+                            <Inbox size={32} />
                         </div>
-                        {loading ? (
-                            <div className="py-8 text-center text-[12px] text-gray-400 flex items-center justify-center gap-1.5">
-                                <RefreshCw size={14} className="animate-spin" /> 加载中...
+                        <h4 className="font-bold text-[#4a4365] text-[15px]">该考生暂无历史咨询记录</h4>
+                        <p className="text-[12px] text-gray-400 max-w-sm">考生尚未与 AI 顾问 Dr. Elena 发起咨询，或历史会话已被考生自行清空。</p>
+                    </div>
+                ) : (
+                    <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
+
+                        {/* Sessions Sidebar */}
+                        <div className="w-full md:w-72 bg-[#f9f7fd] border-b md:border-b-0 md:border-r border-purple-100/60 p-3 overflow-y-auto space-y-2 shrink-0 max-h-48 md:max-h-none">
+                            <div className="text-[11px] font-black uppercase text-[#8a84a4] tracking-wider px-2 py-1 flex items-center gap-1.5">
+                                <MessageSquare size={13} className="text-[#a494e8]" /> 会话列表 ({sessions.length})
                             </div>
-                        ) : sessions.length === 0 ? (
-                            <div className="py-8 text-center text-[12px] text-gray-400">该考生暂无对话记录</div>
-                        ) : (
-                            sessions.map((sess) => {
+                            {sessions.map((sess) => {
                                 const isActive = sess.id === activeSessionId;
-                                const msgsCount = (sess.messages || []).length;
+                                const msgCount = sess.messages?.length || 0;
                                 return (
                                     <button
                                         key={sess.id}
                                         onClick={() => setActiveSessionId(sess.id)}
                                         className={`w-full text-left p-3 rounded-2xl transition-all cursor-pointer border ${isActive
-                                                ? 'bg-white text-[#4a4365] font-bold shadow-xs border-purple-200'
-                                                : 'bg-transparent text-gray-600 hover:bg-white/60 border-transparent'
+                                            ? 'bg-white shadow-[0_4px_12px_rgba(186,175,215,0.25)] border-[#d6cbf5]'
+                                            : 'hover:bg-white/60 border-transparent text-[#6d648b]'
                                             }`}
                                     >
-                                        <div className="text-[12.5px] truncate">{sess.title || '咨询会话'}</div>
-                                        <div className="flex items-center justify-between text-[10px] text-gray-400 mt-1">
-                                            <span>{msgsCount} 条消息</span>
-                                            <span>{sess.updatedAt ? new Date(sess.updatedAt).toLocaleDateString() : ''}</span>
+                                        <div className="flex items-center justify-between mb-1">
+                                            <span className={`text-[12.5px] font-bold truncate max-w-[170px] ${isActive ? 'text-[#4a4365]' : 'text-[#6d648b]'}`}>
+                                                {sess.title || '招生咨询'}
+                                            </span>
+                                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-purple-100 text-purple-700 font-mono">
+                                                {msgCount}条
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center gap-2 text-[10px] text-gray-400">
+                                            <span className="flex items-center gap-1">
+                                                <Clock size={10} />
+                                                {sess.updatedAt ? new Date(sess.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '刚刚'}
+                                            </span>
                                         </div>
                                     </button>
                                 );
-                            })
-                        )}
-                    </div>
+                            })}
+                        </div>
 
-                    {/* Right: Message Stream */}
-                    <div className="flex-1 p-5 overflow-y-auto hide-scrollbar space-y-4 bg-white/60">
-                        {!activeSession || (activeSession.messages || []).length === 0 ? (
-                            <div className="h-full flex flex-col items-center justify-center text-gray-400 gap-2">
-                                <MessageSquare size={36} className="text-gray-300" />
-                                <span className="text-[13px] font-bold">请在左侧选择会话查看详细问答</span>
-                            </div>
-                        ) : (
-                            activeSession.messages.map((m, idx) => {
-                                const isUser = m.sender === 'user';
-                                return (
-                                    <div
-                                        key={m.id || idx}
-                                        className={`flex gap-3 ${isUser ? 'justify-end' : 'justify-start'}`}
-                                    >
-                                        {!isUser && (
-                                            <div className="w-8 h-8 rounded-xl bg-purple-100 text-purple-600 flex items-center justify-center shrink-0 font-bold">
-                                                <Bot size={16} />
-                                            </div>
-                                        )}
-                                        <div className={`max-w-[80%] rounded-3xl p-4 shadow-2xs border ${isUser
-                                                ? 'bg-purple-600 text-white border-purple-600 rounded-br-xs'
-                                                : 'bg-[#fbf9fe] text-[#4a4365] border-purple-50 rounded-tl-xs'
-                                            }`}>
-                                            <div className="flex items-center justify-between gap-4 mb-1">
-                                                <span className={`text-[10px] font-bold ${isUser ? 'text-purple-200' : 'text-[#a494e8]'}`}>
-                                                    {isUser ? `@${username}` : 'AI 顾问 (Dr. Elena)'}
-                                                </span>
-                                                {m.createdAt && (
-                                                    <span className={`text-[9.5px] flex items-center gap-1 ${isUser ? 'text-purple-200' : 'text-gray-400'}`}>
-                                                        <Clock size={10} />
-                                                        {new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                                    </span>
-                                                )}
-                                            </div>
-                                            <div className={`text-[13px] leading-relaxed ${isUser ? 'text-white' : ''}`}>
-                                                {isUser ? (
-                                                    <div className="whitespace-pre-wrap">{m.text}</div>
-                                                ) : (
-                                                    <MarkdownViewer content={m.text} roleColor="#8b5cf6" />
-                                                )}
-                                            </div>
-                                        </div>
-                                        {isUser && (
-                                            <div className="w-8 h-8 rounded-xl bg-pink-100 text-pink-600 flex items-center justify-center shrink-0 font-bold">
-                                                <UserIcon size={16} />
-                                            </div>
-                                        )}
+                        {/* Dialogue Stream */}
+                        <div className="flex-1 bg-[#faf8fc] p-4 sm:p-6 overflow-y-auto space-y-4">
+                            {activeSession && activeSession.messages && activeSession.messages.length > 0 ? (
+                                <div className="space-y-4 max-w-3xl mx-auto">
+                                    <div className="text-center">
+                                        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-gray-400 bg-white px-3 py-1 rounded-full border border-gray-100 shadow-xs">
+                                            <Calendar size={11} /> 会话创建于：{new Date(activeSession.createdAt || Date.now()).toLocaleString()}
+                                        </span>
                                     </div>
-                                );
-                            })
-                        )}
+
+                                    {activeSession.messages.map((msg, i) => {
+                                        const isUser = msg.sender === 'user';
+                                        return (
+                                            <div
+                                                key={msg.id || i}
+                                                className={`flex items-start gap-3 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}
+                                            >
+                                                {/* Avatar */}
+                                                <div
+                                                    className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 shadow-xs text-white text-[12px] font-bold ${isUser
+                                                        ? 'bg-gradient-to-tr from-[#b3a4ed] to-[#c7b8f9]'
+                                                        : 'bg-[#4a4365]'
+                                                        }`}
+                                                >
+                                                    {isUser ? <UserIcon size={16} /> : <Bot size={16} />}
+                                                </div>
+
+                                                {/* Bubble */}
+                                                <div
+                                                    className={`max-w-[85%] rounded-[24px] p-4 text-[13px] leading-relaxed shadow-[0_4px_16px_rgba(203,195,225,0.2)] border ${isUser
+                                                        ? 'bg-gradient-to-r from-[#b3a4ed] to-[#c7b8f9] text-white border-transparent'
+                                                        : 'bg-white text-[#4a4365] border-white/80'
+                                                        }`}
+                                                >
+                                                    <div className="text-[10px] font-bold mb-1 opacity-75">
+                                                        {isUser ? `考生 @${username}` : 'AI 顾问 Dr. Elena'}
+                                                    </div>
+                                                    {isUser ? (
+                                                        <div className="whitespace-pre-wrap font-medium">{msg.text}</div>
+                                                    ) : (
+                                                        <div className="prose prose-sm max-w-none text-[#4a4365] prose-headings:font-bold prose-headings:text-[#4a4365] prose-p:my-1 prose-table:my-2 prose-th:bg-purple-50 prose-td:border-gray-200">
+                                                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                                                {msg.text}
+                                                            </ReactMarkdown>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            ) : (
+                                <div className="h-full flex items-center justify-center text-gray-400 text-[12px]">
+                                    当前选中的会话内暂无具体消息
+                                </div>
+                            )}
+                        </div>
+
                     </div>
-                </div>
+                )}
 
                 {/* Footer */}
-                <div className="px-6 py-3 bg-gray-50/80 border-t border-gray-100 flex items-center justify-between shrink-0">
-                    <span className="text-[11px] text-gray-400">
-                        当前查阅考生：@{username}
-                    </span>
+                <div className="flex justify-end px-6 py-3 border-t border-gray-100 bg-white">
                     <button
                         onClick={onClose}
-                        className="bg-[#4a4365] hover:bg-[#342e49] text-white px-5 py-2 rounded-xl text-[12px] font-bold cursor-pointer transition-all"
+                        className="px-6 py-2 rounded-2xl bg-[#4a4365] text-white text-[12px] font-bold hover:bg-[#342e49] transition-all cursor-pointer"
                     >
-                        关闭
+                        关闭回放
                     </button>
                 </div>
+
             </div>
         </div>
     );

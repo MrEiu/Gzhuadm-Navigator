@@ -47,6 +47,12 @@ export const searchRagEngine = async (query = '', topK = 3) => {
 
     const scored = ragStore.map((item) => {
         let score = 0;
+        let vectorScore = 0;
+        let tokenScore = 0;
+        let titleCategoryBonus = 0;
+        let provinceBonus = 0;
+        let categoryBonus = 0;
+
         const docTitle = (item.title || '').toLowerCase();
         const docCategory = (item.category || '').toLowerCase();
         const docContent = (item.content || '').toLowerCase();
@@ -59,7 +65,8 @@ export const searchRagEngine = async (query = '', topK = 3) => {
             const vecSim = cosineSimilarity(queryVector, item.embedding);
             if (vecSim >= 0.50) {
                 // Linear scale mapping [0.50, 1.0] -> [0, 8.0]
-                score += ((vecSim - 0.50) / 0.50) * 8.0;
+                vectorScore = Number((((vecSim - 0.50) / 0.50) * 8.0).toFixed(2));
+                score += vectorScore;
             }
         }
 
@@ -70,36 +77,51 @@ export const searchRagEngine = async (query = '', topK = 3) => {
                 matchedTokenCount++;
             }
         }
-        score += matchedTokenCount * 2.5;
+        tokenScore = Number((matchedTokenCount * 2.5).toFixed(2));
+        score += tokenScore;
 
         // 3. Exact Title or Category alignment
         if (docTitle.includes(qLower) || qLower.includes(docTitle)) {
-            score += 4.0;
+            titleCategoryBonus += 4.0;
         }
         if (qLower.includes(docCategory)) {
-            score += 3.5;
+            titleCategoryBonus += 3.5;
         }
+        score += titleCategoryBonus;
 
         // 4. Entity Specificity & Conflict Check
         if (queryProvinces.length > 0) {
             const docHasQueriedProvince = queryProvinces.some(p => docText.includes(p));
             if (docHasQueriedProvince) {
-                score += 6.0; // High reward for matching specified province
+                provinceBonus += 6.0; // High reward for matching specified province
             } else if (item.category === '录取分数') {
-                score -= 4.0; // Suppress scores of other non-queried provinces
+                provinceBonus -= 4.0; // Suppress scores of other non-queried provinces
             }
         }
+        score += provinceBonus;
 
         // 5. Category Keyword Match Boost
         for (const [catName, keywords] of Object.entries(CATEGORY_KEYWORDS)) {
             const queryHasKw = keywords.some(kw => qLower.includes(kw));
             const docIsCat = docCategory.includes(catName) || docText.includes(catName);
             if (queryHasKw && docIsCat) {
-                score += 3.0;
+                categoryBonus += 3.0;
             }
         }
+        score += categoryBonus;
 
-        return { item, score: Math.max(0, score) };
+        return {
+            item,
+            score: Math.max(0, Number(score.toFixed(2))),
+            breakdown: {
+                totalScore: Math.max(0, Number(score.toFixed(2))),
+                vectorScore,
+                tokenScore,
+                titleCategoryBonus,
+                provinceBonus,
+                categoryBonus
+            }
+        };
     });
 
     // Dynamic Adaptive Cutoff:

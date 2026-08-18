@@ -1,28 +1,36 @@
 import React, { useState } from 'react';
+import { X, KeyRound, Sparkles, Copy, Check, ShieldAlert } from 'lucide-react';
 import { User } from '../../types';
-import { X, Lock, ShieldCheck, KeyRound, Copy, Check } from 'lucide-react';
+import { API_BASE } from '../../api/config';
 
 interface AdminResetPasswordModalProps {
     user: User;
+    isOpen: boolean;
     onClose: () => void;
-    onSave: (updatedData: any) => void;
+    onSuccess: () => void;
 }
 
-export const AdminResetPasswordModal: React.FC<AdminResetPasswordModalProps> = ({ user, onClose, onSave }) => {
+export const AdminResetPasswordModal: React.FC<AdminResetPasswordModalProps> = ({
+    user,
+    isOpen,
+    onClose,
+    onSuccess
+}) => {
     const [newPassword, setNewPassword] = useState('');
-    const [confirmPass, setConfirmPass] = useState('');
-    const [error, setError] = useState('');
+    const [saving, setSaving] = useState(false);
     const [copied, setCopied] = useState(false);
+    const [errorMsg, setErrorMsg] = useState('');
 
-    const generateRandomPassword = () => {
+    if (!isOpen) return null;
+
+    const handleGenerateRandomPassword = () => {
         const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%&*';
-        let pass = '';
-        for (let i = 0; i < 10; i++) {
-            pass += chars.charAt(Math.floor(Math.random() * chars.length));
+        let randomStr = '';
+        for (let i = 0; i < 8; i++) {
+            randomStr += chars.charAt(Math.floor(Math.random() * chars.length));
         }
-        setNewPassword(pass);
-        setConfirmPass(pass);
-        setError('');
+        const generated = `Gzhu2025@${randomStr}`;
+        setNewPassword(generated);
     };
 
     const handleCopy = () => {
@@ -32,119 +40,132 @@ export const AdminResetPasswordModal: React.FC<AdminResetPasswordModalProps> = (
         setTimeout(() => setCopied(false), 2000);
     };
 
-    const handleReset = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        setError('');
-        if (!newPassword.trim()) {
-            setError('请输入新密码');
-            return;
-        }
-        if (newPassword !== confirmPass) {
-            setError('两次输入的密码不一致');
+        if (!newPassword.trim() || newPassword.length < 6) {
+            setErrorMsg('密码长度不能少于 6 位');
             return;
         }
 
-        onSave({
-            targetUsername: user.username,
-            newPassword: newPassword.trim()
-        });
+        setSaving(true);
+        setErrorMsg('');
+
+        try {
+            const res = await fetch(`${API_BASE}/api/admin/users/update`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    targetUsername: user.username,
+                    newPassword: newPassword.trim()
+                })
+            });
+            const data = await res.json();
+            if (data.ok) {
+                onSuccess();
+                onClose();
+            } else {
+                setErrorMsg(data.error || '重置密码失败');
+            }
+        } catch (err: any) {
+            setErrorMsg(err.message || '网络连接异常');
+        } finally {
+            setSaving(false);
+        }
     };
 
     return (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-md flex justify-center items-center p-4 animate-in fade-in duration-200">
-            <div className="bg-white/95 backdrop-blur-2xl rounded-[36px] p-6 max-w-[460px] w-full space-y-4 shadow-2xl border-4 border-white animate-in zoom-in-95 duration-300">
-                <div className="flex items-center justify-between border-b pb-3">
-                    <h3 className="font-bold text-[#4a4365] text-[15px] flex items-center gap-2">
-                        <Lock size={16} className="text-amber-600" /> 管理员强制重置密码
-                    </h3>
-                    <button onClick={onClose} className="p-1 rounded-full text-gray-400 hover:text-gray-600 cursor-pointer">
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-md flex justify-center items-center p-4 animate-in fade-in duration-300">
+            <div className="bg-white/95 backdrop-blur-2xl rounded-[32px] max-w-[480px] w-full p-6 sm:p-8 shadow-2xl border-4 border-white space-y-5 animate-in zoom-in-95 duration-300">
+
+                {/* Header */}
+                <div className="flex items-center justify-between border-b border-gray-100 pb-4">
+                    <div className="flex items-center gap-3">
+                        <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-amber-500 to-rose-500 text-white flex items-center justify-center shadow-[0_8px_20px_rgba(245,158,11,0.3)]">
+                            <KeyRound size={22} />
+                        </div>
+                        <div>
+                            <h3 className="font-black text-[#4a4365] text-[17px] tracking-tight">
+                                管理员强制重置密码
+                            </h3>
+                            <p className="text-[11px] text-[#8a84a4] font-medium">
+                                考生账号：<span className="font-mono text-[#a494e8] font-bold">@{user.username}</span>
+                            </p>
+                        </div>
+                    </div>
+                    <button
+                        onClick={onClose}
+                        className="p-2 rounded-2xl text-gray-400 hover:text-[#4a4365] hover:bg-gray-100 transition-colors cursor-pointer"
+                    >
                         <X size={18} />
                     </button>
                 </div>
 
-                <div className="bg-amber-50/70 p-3 rounded-2xl border border-amber-100 text-[11.5px] text-amber-800 flex items-center gap-2">
-                    <ShieldCheck size={16} className="text-amber-600 shrink-0" />
-                    <span>重置后，该考生的密码将自动进行 Bcrypt 10 轮加盐哈希更新。</span>
+                {/* Security Note */}
+                <div className="flex items-start gap-2.5 p-3.5 bg-amber-50 rounded-2xl border border-amber-100 text-amber-800 text-[11.5px] leading-relaxed">
+                    <ShieldAlert size={16} className="shrink-0 mt-0.5 text-amber-600" />
+                    <span>
+                        重置后密码将自动通过 <strong>Bcrypt 10 轮加盐哈希</strong> 写入安全数据库，考生原旧密码将立即失效。
+                    </span>
                 </div>
 
-                {error && (
-                    <div className="bg-red-50 text-red-500 text-[12px] p-2.5 rounded-xl border border-red-100 font-bold text-center">
-                        {error}
+                {errorMsg && (
+                    <div className="bg-rose-50 text-rose-600 text-[12px] font-bold p-3 rounded-2xl border border-rose-100">
+                        {errorMsg}
                     </div>
                 )}
 
-                <form onSubmit={handleReset} className="space-y-3.5">
+                <form onSubmit={handleSubmit} className="space-y-4">
                     <div>
-                        <label className="text-[12px] font-bold text-gray-600 block mb-1">目标考生账号</label>
-                        <input
-                            type="text"
-                            disabled
-                            value={`@${user.username}`}
-                            className="w-full bg-gray-50 text-gray-500 rounded-xl px-3.5 py-2 text-[12.5px] font-bold outline-none cursor-not-allowed border"
-                        />
-                    </div>
-
-                    <div>
-                        <div className="flex items-center justify-between mb-1">
-                            <label className="text-[12px] font-bold text-gray-600">设置全新密码</label>
+                        <div className="flex items-center justify-between mb-1.5">
+                            <label className="text-[12px] font-bold text-[#4a4365]">设置新密码</label>
                             <button
                                 type="button"
-                                onClick={generateRandomPassword}
-                                className="text-[11px] font-bold text-purple-600 hover:text-purple-800 flex items-center gap-1 cursor-pointer bg-purple-50 px-2 py-0.5 rounded-lg"
+                                onClick={handleGenerateRandomPassword}
+                                className="text-[11px] font-bold text-purple-600 hover:text-purple-800 flex items-center gap-1 cursor-pointer transition-colors"
                             >
-                                <KeyRound size={12} /> 随机生成强密码
+                                <Sparkles size={13} /> 一键生成高强度临时密码
                             </button>
                         </div>
                         <div className="relative">
                             <input
                                 type="text"
-                                required
                                 value={newPassword}
                                 onChange={(e) => setNewPassword(e.target.value)}
-                                placeholder="输入或生成新密码"
-                                className="w-full bg-[#f8f6fc] rounded-xl pl-3.5 pr-10 py-2.5 text-[12.5px] font-mono outline-none border border-transparent focus:border-amber-300"
+                                placeholder="请输入新密码（至少 6 位）"
+                                className="w-full bg-[#f8f6fc] rounded-2xl px-4 py-3 text-[13px] text-[#4a4365] font-mono outline-none border border-transparent focus:border-[#a494e8] transition-all pr-12"
                             />
                             {newPassword && (
                                 <button
                                     type="button"
                                     onClick={handleCopy}
-                                    className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-700 cursor-pointer"
+                                    className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-xl text-gray-400 hover:text-purple-600 hover:bg-purple-50 transition-colors cursor-pointer"
                                     title="复制密码"
                                 >
-                                    {copied ? <Check size={14} className="text-emerald-500" /> : <Copy size={14} />}
+                                    {copied ? <Check size={16} className="text-emerald-500" /> : <Copy size={16} />}
                                 </button>
                             )}
                         </div>
                     </div>
 
-                    <div>
-                        <label className="text-[12px] font-bold text-gray-600 block mb-1">确认新密码</label>
-                        <input
-                            type="text"
-                            required
-                            value={confirmPass}
-                            onChange={(e) => setConfirmPass(e.target.value)}
-                            placeholder="再次输入新密码"
-                            className="w-full bg-[#f8f6fc] rounded-xl px-3.5 py-2.5 text-[12.5px] font-mono outline-none border border-transparent focus:border-amber-300"
-                        />
-                    </div>
-
-                    <div className="flex justify-end gap-2 pt-3 border-t">
+                    {/* Actions */}
+                    <div className="flex justify-end gap-2.5 pt-4 border-t border-gray-100">
                         <button
                             type="button"
                             onClick={onClose}
-                            className="px-4 py-2 rounded-xl text-[12px] text-gray-500 hover:bg-gray-100 cursor-pointer"
+                            className="px-5 py-2.5 rounded-2xl text-[13px] font-bold text-gray-500 hover:bg-gray-100 transition-all cursor-pointer"
                         >
                             取消
                         </button>
                         <button
                             type="submit"
-                            className="bg-amber-600 hover:bg-amber-700 text-white px-5 py-2 rounded-xl text-[12px] font-bold flex items-center gap-1.5 shadow-sm cursor-pointer transition-all"
+                            disabled={saving || !newPassword.trim()}
+                            className="px-6 py-2.5 rounded-2xl bg-gradient-to-r from-amber-500 to-rose-500 text-white text-[13px] font-bold shadow-[0_4px_12px_rgba(245,158,11,0.35)] hover:opacity-95 active:scale-95 transition-all cursor-pointer disabled:opacity-50"
                         >
-                            <Lock size={14} /> 确认重置密码
+                            {saving ? '正在加密重置...' : '确认强制重置'}
                         </button>
                     </div>
                 </form>
+
             </div>
         </div>
     );

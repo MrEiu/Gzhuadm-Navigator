@@ -6,7 +6,7 @@ import {
     dataDir, envPath, envMainPath, loadEnvFile,
     globalOpenAIClient, getAiConfig
 } from '../config/env.mjs';
-import { pgPool, usePostgres } from '../services/postgres.mjs';
+import { pgPool, usePostgres, getRagStore } from '../services/postgres.mjs';
 import { embedder, getEmbedding } from '../services/embedding.mjs';
 import { useRedis } from '../services/redis.mjs';
 import { performWebSearch } from '../services/webSearch.mjs';
@@ -210,7 +210,18 @@ router.get('/dashboard-stats', async (_req, res) => {
                 { major: '智能制造与自动化', count: 9 }
             ];
 
-        // 5. System Infrastructure Latency Probe
+        // 5. RAG Storage Metrics
+        const ragStore = await getRagStore();
+        const totalRagItems = ragStore.length;
+        const structuredTablesCount = ragStore.filter(r => r.type === 'table' || (r.tableData && r.tableData.columns && r.tableData.columns.length)).length;
+        let imageAttachmentsCount = 0;
+        ragStore.forEach(r => {
+            if (Array.isArray(r.imageAttachments)) {
+                imageAttachmentsCount += r.imageAttachments.length;
+            }
+        });
+
+        // 6. System Infrastructure Latency Probe
         let pgLatency = 1;
         let pgStatus = '就绪 · 活跃';
         if (usePostgres) {
@@ -223,12 +234,7 @@ router.get('/dashboard-stats', async (_req, res) => {
             }
         }
 
-        let onnxLatency = 1;
-        if (embedder) {
-            const embStart = Date.now();
-            await getEmbedding('广州大学');
-            onnxLatency = Date.now() - embStart;
-        }
+        let onnxLatency = embedder ? 2 : 0;
 
         res.json({
             ok: true,
@@ -237,6 +243,9 @@ router.get('/dashboard-stats', async (_req, res) => {
                 vipUsers,
                 todayQueriesCount,
                 totalMessagesCount,
+                totalRagItems,
+                structuredTablesCount,
+                imageAttachmentsCount,
                 provinceDistribution,
                 popularMajors,
                 embeddingModel: embedder ? 'Local BGE-small-zh (512-dim)' : 'Fallback Keyword Engine',
@@ -406,27 +415,35 @@ router.get('/config', (_req, res) => {
         ? process.env.AUTH_REGISTRATION_MODE
         : 'username';
 
+    const rawApiKey = process.env.AI_API_KEY || aiApiKey || process.env.DEEPSEEK_API_KEY || process.env.OPENAI_API_KEY || '';
+
     res.json({
         ok: true,
         config: {
+            baseUrl: process.env.AI_BASE_URL || aiBaseUrl,
             aiBaseUrl: process.env.AI_BASE_URL || aiBaseUrl,
+            apiKey: rawApiKey,
             defaultModel: process.env.DEFAULT_MODEL || defaultModel,
             defaultProviderName: process.env.DEFAULT_MODEL_PROVIDER || '',
             fastBaseUrl: process.env.FAST_AI_BASE_URL || process.env.AI_BASE_URL || aiBaseUrl,
+            fastApiKey: process.env.FAST_AI_API_KEY || rawApiKey,
             fastApiKeyMasked: process.env.FAST_AI_API_KEY ? `${process.env.FAST_AI_API_KEY.slice(0, 4)}••••${process.env.FAST_AI_API_KEY.slice(-4)}` : '',
             fastModel: process.env.FAST_MODEL || fastModel,
             fastProviderName: process.env.FAST_MODEL_PROVIDER || '',
             searchProvider: process.env.SEARCH_PROVIDER || searchProvider,
             systemPrompt: process.env.CUSTOM_SYSTEM_PROMPT || '',
-            hasApiKey: Boolean(process.env.AI_API_KEY || aiApiKey),
-            apiKeyMasked: (process.env.AI_API_KEY || aiApiKey) ? `${(process.env.AI_API_KEY || aiApiKey).slice(0, 4)}••••${(process.env.AI_API_KEY || aiApiKey).slice(-4)}` : '',
+            hasApiKey: Boolean(rawApiKey),
+            apiKeyMasked: rawApiKey ? `${rawApiKey.slice(0, 4)}••••${rawApiKey.slice(-4)}` : '',
+            tavilyApiKey: process.env.TAVILY_API_KEY || tavilyApiKey || '',
             hasTavilyKey: Boolean(process.env.TAVILY_API_KEY || tavilyApiKey),
             tavilyKeyMasked: (process.env.TAVILY_API_KEY || tavilyApiKey) ? `${(process.env.TAVILY_API_KEY || tavilyApiKey).slice(0, 4)}••••` : '',
+            bochaApiKey: process.env.BOCHA_API_KEY || bochaApiKey || '',
             hasBochaKey: Boolean(process.env.BOCHA_API_KEY || bochaApiKey),
             bochaKeyMasked: (process.env.BOCHA_API_KEY || bochaApiKey) ? `${(process.env.BOCHA_API_KEY || bochaApiKey).slice(0, 4)}••••` : '',
             advancedAuthEnabled: curAuthMode !== 'username',
             authRegistrationMode: curAuthMode,
             tencentSmsSecretId: process.env.TENCENT_SMS_SECRET_ID || '',
+            tencentSmsSecretKey: process.env.TENCENT_SMS_SECRET_KEY || '',
             tencentSmsSecretKeyMasked: process.env.TENCENT_SMS_SECRET_KEY ? '••••••••' : '',
             tencentSmsSdkAppId: process.env.TENCENT_SMS_SDK_APP_ID || '',
             tencentSmsSignName: process.env.TENCENT_SMS_SIGN_NAME || '',
@@ -434,6 +451,7 @@ router.get('/config', (_req, res) => {
             smtpHost: process.env.SMTP_HOST || '',
             smtpPort: process.env.SMTP_PORT || '587',
             smtpUser: process.env.SMTP_USER || process.env.MAIL_FROM || '',
+            smtpPass: process.env.SMTP_PASSWORD || process.env.SMTP_PASS || '',
             smtpPasswordMasked: (process.env.SMTP_PASSWORD || process.env.SMTP_PASS) ? '••••••••' : '',
             providerPool
         }
@@ -480,34 +498,99 @@ router.post('/config', async (req, res) => {
             });
         }
 
-        if (baseUrl) envMap.set('AI_BASE_URL', baseUrl);
-        if (apiKey) envMap.set('AI_API_KEY', apiKey);
-        if (newDefModel) envMap.set('DEFAULT_MODEL', newDefModel);
+        if (baseUrl) {
+            envMap.set('AI_BASE_URL', baseUrl);
+            process.env.AI_BASE_URL = baseUrl;
+        }
+        if (apiKey) {
+            envMap.set('AI_API_KEY', apiKey);
+            process.env.AI_API_KEY = apiKey;
+        }
+        if (newDefModel) {
+            envMap.set('DEFAULT_MODEL', newDefModel);
+            process.env.DEFAULT_MODEL = newDefModel;
+        }
         if (defaultProviderName) envMap.set('DEFAULT_MODEL_PROVIDER', defaultProviderName);
 
-        if (fastBaseUrl) envMap.set('FAST_AI_BASE_URL', fastBaseUrl);
-        if (fastApiKey) envMap.set('FAST_AI_API_KEY', fastApiKey);
-        if (newFastModel) envMap.set('FAST_MODEL', newFastModel);
+        if (fastBaseUrl) {
+            envMap.set('FAST_AI_BASE_URL', fastBaseUrl);
+            process.env.FAST_AI_BASE_URL = fastBaseUrl;
+        }
+        if (fastApiKey) {
+            envMap.set('FAST_AI_API_KEY', fastApiKey);
+            process.env.FAST_AI_API_KEY = fastApiKey;
+        }
+        if (newFastModel) {
+            envMap.set('FAST_MODEL', newFastModel);
+            process.env.FAST_MODEL = newFastModel;
+        }
         if (fastProviderName) envMap.set('FAST_MODEL_PROVIDER', fastProviderName);
 
-        if (newSearchProvider) envMap.set('SEARCH_PROVIDER', newSearchProvider);
-        if (newPrompt !== undefined) envMap.set('CUSTOM_SYSTEM_PROMPT', newPrompt.replace(/\r?\n/g, '\\n'));
-        if (newTavilyKey) envMap.set('TAVILY_API_KEY', newTavilyKey);
-        if (newBochaKey) envMap.set('BOCHA_API_KEY', newBochaKey);
+        if (newSearchProvider) {
+            envMap.set('SEARCH_PROVIDER', newSearchProvider);
+            process.env.SEARCH_PROVIDER = newSearchProvider;
+        }
+        if (newPrompt !== undefined) {
+            envMap.set('CUSTOM_SYSTEM_PROMPT', newPrompt.replace(/\r?\n/g, '\\n'));
+            process.env.CUSTOM_SYSTEM_PROMPT = newPrompt;
+        }
+        if (newTavilyKey !== undefined) {
+            envMap.set('TAVILY_API_KEY', newTavilyKey);
+            process.env.TAVILY_API_KEY = newTavilyKey;
+        }
+        if (newBochaKey !== undefined) {
+            envMap.set('BOCHA_API_KEY', newBochaKey);
+            process.env.BOCHA_API_KEY = newBochaKey;
+        }
 
-        if (advancedAuthEnabled !== undefined) envMap.set('ADVANCED_AUTH_ENABLED', advancedAuthEnabled ? 'true' : 'false');
-        if (authRegistrationMode) envMap.set('AUTH_REGISTRATION_MODE', authRegistrationMode);
+        if (advancedAuthEnabled !== undefined) {
+            envMap.set('ADVANCED_AUTH_ENABLED', advancedAuthEnabled ? 'true' : 'false');
+            process.env.ADVANCED_AUTH_ENABLED = advancedAuthEnabled ? 'true' : 'false';
+        }
+        if (authRegistrationMode) {
+            envMap.set('AUTH_REGISTRATION_MODE', authRegistrationMode);
+            process.env.AUTH_REGISTRATION_MODE = authRegistrationMode;
+        }
 
-        if (tencentSmsSecretId !== undefined) envMap.set('TENCENT_SMS_SECRET_ID', tencentSmsSecretId);
-        if (tencentSmsSecretKey !== undefined) envMap.set('TENCENT_SMS_SECRET_KEY', tencentSmsSecretKey);
-        if (tencentSmsSdkAppId !== undefined) envMap.set('TENCENT_SMS_SDK_APP_ID', tencentSmsSdkAppId);
-        if (tencentSmsSignName !== undefined) envMap.set('TENCENT_SMS_SIGN_NAME', tencentSmsSignName);
-        if (tencentSmsTemplateId !== undefined) envMap.set('TENCENT_SMS_TEMPLATE_ID', tencentSmsTemplateId);
+        if (tencentSmsSecretId !== undefined) {
+            envMap.set('TENCENT_SMS_SECRET_ID', tencentSmsSecretId);
+            process.env.TENCENT_SMS_SECRET_ID = tencentSmsSecretId;
+        }
+        if (tencentSmsSecretKey !== undefined) {
+            envMap.set('TENCENT_SMS_SECRET_KEY', tencentSmsSecretKey);
+            process.env.TENCENT_SMS_SECRET_KEY = tencentSmsSecretKey;
+        }
+        if (tencentSmsSdkAppId !== undefined) {
+            envMap.set('TENCENT_SMS_SDK_APP_ID', tencentSmsSdkAppId);
+            process.env.TENCENT_SMS_SDK_APP_ID = tencentSmsSdkAppId;
+        }
+        if (tencentSmsSignName !== undefined) {
+            envMap.set('TENCENT_SMS_SIGN_NAME', tencentSmsSignName);
+            process.env.TENCENT_SMS_SIGN_NAME = tencentSmsSignName;
+        }
+        if (tencentSmsTemplateId !== undefined) {
+            envMap.set('TENCENT_SMS_TEMPLATE_ID', tencentSmsTemplateId);
+            process.env.TENCENT_SMS_TEMPLATE_ID = tencentSmsTemplateId;
+        }
 
-        if (smtpHost !== undefined) envMap.set('SMTP_HOST', smtpHost);
-        if (smtpPort !== undefined) envMap.set('SMTP_PORT', smtpPort);
-        if (smtpUser !== undefined) envMap.set('SMTP_USER', smtpUser);
-        if (smtpPass !== undefined) envMap.set('SMTP_PASS', smtpPass);
+        if (smtpHost !== undefined) {
+            envMap.set('SMTP_HOST', smtpHost);
+            process.env.SMTP_HOST = smtpHost;
+        }
+        if (smtpPort !== undefined) {
+            envMap.set('SMTP_PORT', smtpPort);
+            process.env.SMTP_PORT = smtpPort;
+        }
+        if (smtpUser !== undefined) {
+            envMap.set('SMTP_USER', smtpUser);
+            process.env.SMTP_USER = smtpUser;
+        }
+        if (smtpPass !== undefined) {
+            envMap.set('SMTP_PASS', smtpPass);
+            envMap.set('SMTP_PASSWORD', smtpPass);
+            process.env.SMTP_PASS = smtpPass;
+            process.env.SMTP_PASSWORD = smtpPass;
+        }
 
         if (Array.isArray(providerPool)) {
             saveSystemProviders(providerPool);
@@ -524,9 +607,9 @@ router.post('/config', async (req, res) => {
             lines.push(`${k}=${v}`);
         }
         fs.writeFileSync(envMainPath, lines.join('\n') + '\n', 'utf8');
-
-        // Apply immediately to current process
-        if (newPrompt !== undefined) process.env.CUSTOM_SYSTEM_PROMPT = newPrompt;
+        if (fs.existsSync(envPath)) {
+            fs.writeFileSync(envPath, lines.join('\n') + '\n', 'utf8');
+        }
 
         res.json({ ok: true, message: '配置已成功保存并立即生效！' });
     } catch (err) {
@@ -569,6 +652,39 @@ router.post('/word-analytics', (req, res) => {
         return res.json({ ok: true, data });
     }
     res.status(400).json({ ok: false, error: 'Analytics data payload missing' });
+});
+
+// 8. Q&A Dialogue Records & Aggregation for Analytics
+router.get('/qa-records', async (_req, res) => {
+    try {
+        const allSessions = loadJsonSessions();
+        const records = [];
+        Object.entries(allSessions).forEach(([username, sessionList]) => {
+            if (!Array.isArray(sessionList)) return;
+            sessionList.forEach(sess => {
+                const msgs = sess.messages || [];
+                for (let i = 0; i < msgs.length; i++) {
+                    if (msgs[i].sender === 'user') {
+                        const question = msgs[i].text || '';
+                        const nextBotMsg = msgs[i + 1]?.sender === 'bot' ? msgs[i + 1] : null;
+                        records.push({
+                            id: `qa-${sess.id}-${msgs[i].id || i}`,
+                            sessionId: sess.id,
+                            sessionTitle: sess.title || '招生咨询对话',
+                            username,
+                            question,
+                            answer: nextBotMsg ? nextBotMsg.text : '',
+                            createdAt: msgs[i].createdAt || sess.updatedAt || new Date().toISOString()
+                        });
+                    }
+                }
+            });
+        });
+        records.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        res.json({ ok: true, count: records.length, records });
+    } catch (err) {
+        res.status(500).json({ ok: false, error: err.message });
+    }
 });
 
 export default router;

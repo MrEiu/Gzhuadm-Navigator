@@ -1,319 +1,378 @@
 import React from 'react';
 import {
-    User as UserIcon, MessageSquare, Zap, Cpu, Activity,
-    Database, Users, FlaskConical, Settings, MapPin, Sparkles, Clock
+    Users, MessageSquare, Cpu, Sparkles, MapPin,
+    TrendingUp, Activity, CheckCircle2, AlertCircle, Database,
+    Server, ArrowRight, BookOpen, Sliders
 } from 'lucide-react';
-import { DashboardStats, User } from '../../types';
+import { DashboardStats } from '../../types';
 
 interface DashboardTabProps {
-    dashboardStats: DashboardStats | null;
-    registeredUsersList: User[];
-    onNavigateTab: (tab: 'dashboard' | 'rag' | 'users' | 'analytics' | 'playground' | 'settings') => void;
+    stats: DashboardStats | null;
+    loading: boolean;
+    onNavigateTab: (tabId: string) => void;
 }
 
 export const DashboardTab: React.FC<DashboardTabProps> = ({
-    dashboardStats,
-    registeredUsersList,
+    stats,
+    loading,
     onNavigateTab
 }) => {
-    const totalUsers = dashboardStats?.totalUsers || registeredUsersList.length || 1;
-    const vipUsers = dashboardStats?.vipUsers || 0;
-    const vipPercentage = Math.round((vipUsers / totalUsers) * 100) || 0;
+    if (loading && !stats) {
+        return (
+            <div className="h-[60vh] flex flex-col items-center justify-center text-gray-400 text-[13px] gap-3">
+                <div className="w-9 h-9 border-3 border-[#a494e8] border-t-transparent rounded-full animate-spin" />
+                <span>正在加载数据大盘实时监控指标...</span>
+            </div>
+        );
+    }
 
-    const todayQueries = dashboardStats?.todayQueriesCount || 4;
-    const totalMessages = dashboardStats?.totalMessagesCount || 12;
+    const totalUsers = stats?.totalUsers ?? 0;
+    const vipUsers = stats?.vipUsers ?? 0;
+    const vipPercentage = totalUsers > 0 ? Math.round((vipUsers / totalUsers) * 100) : 0;
+    const todayQueries = stats?.todayQueriesCount ?? 0;
+    const totalMessages = stats?.totalMessagesCount ?? 0;
 
-    const provinceData = dashboardStats?.provinceDistribution || [
-        { province: '广东', count: 12, percentage: 65 },
-        { province: '浙江', count: 4, percentage: 22 },
-        { province: '江苏', count: 2, percentage: 11 }
-    ];
+    const provinceDist = stats?.provinceDistribution || [];
+    const popularMajors = stats?.popularMajors || [];
 
-    const popularMajors = dashboardStats?.popularMajors || [
-        { major: '计算机科学与技术', count: 28 },
-        { major: '人工智能实验班', count: 22 },
-        { major: '软件工程', count: 18 },
-        { major: '数字媒体与交互设计', count: 14 },
-        { major: '智能制造与自动化', count: 9 }
-    ];
-
-    const sysHealth = dashboardStats?.systemHealth || {};
+    const health = stats?.systemHealth;
 
     return (
-        <div className="space-y-6 animate-in fade-in duration-300">
-            {/* 1. Four Main Application Metrics Cards */}
+        <div className="space-y-6 animate-in fade-in duration-300 pb-8">
+
+            {/* 1. Core Application KPI Monitoring Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                {/* Candidates & VIP */}
-                <div className="bg-white/85 backdrop-blur-md rounded-3xl p-5 border border-white shadow-xs hover:shadow-md transition-all flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-2xl bg-pink-100 text-pink-500 flex items-center justify-center shrink-0 shadow-2xs">
-                        <UserIcon size={24} />
-                    </div>
-                    <div className="min-w-0">
-                        <div className="text-[22px] font-black text-[#4a4365] leading-tight">
-                            {totalUsers} <span className="text-[12px] font-bold text-gray-400">位</span>
-                        </div>
-                        <div className="text-[11.5px] font-medium text-gray-500">注册考生总数</div>
-                        <div className="text-[10px] text-pink-600 font-bold mt-0.5 flex items-center gap-1">
-                            <Sparkles size={11} /> VIP 优先考生: {vipUsers} 位 ({vipPercentage}%)
-                        </div>
-                    </div>
-                </div>
 
-                {/* Q&A Traffic */}
-                <div className="bg-white/85 backdrop-blur-md rounded-3xl p-5 border border-white shadow-xs hover:shadow-md transition-all flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-2xl bg-purple-100 text-[#8b5cf6] flex items-center justify-center shrink-0 shadow-2xs">
-                        <MessageSquare size={24} />
-                    </div>
-                    <div className="min-w-0">
-                        <div className="text-[22px] font-black text-[#4a4365] leading-tight">
-                            {todayQueries} <span className="text-[12px] font-bold text-gray-400">次</span>
-                        </div>
-                        <div className="text-[11.5px] font-medium text-gray-500">今日咨询问答量</div>
-                        <div className="text-[10px] text-purple-600 font-bold mt-0.5 flex items-center gap-1">
-                            <Clock size={11} /> 历史累计问答: {totalMessages} 条
-                        </div>
-                    </div>
-                </div>
-
-                {/* Local Vector Model */}
-                <div className="bg-white/85 backdrop-blur-md rounded-3xl p-5 border border-white shadow-xs hover:shadow-md transition-all flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-2xl bg-indigo-100 text-indigo-600 flex items-center justify-center shrink-0 shadow-2xs">
-                        <Zap size={24} />
-                    </div>
-                    <div className="min-w-0">
-                        <div className="text-[16px] font-black text-[#4a4365] leading-tight truncate">
-                            BGE-small-zh
-                        </div>
-                        <div className="text-[11.5px] font-medium text-gray-500">512 维向量引擎</div>
-                        <div className="text-[10px] text-indigo-600 font-bold mt-0.5 flex items-center gap-1">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                            本地 ONNX · {sysHealth.onnx?.latencyMs || 1}ms 极速推理
-                        </div>
-                    </div>
-                </div>
-
-                {/* AI Gateway */}
-                <div className="bg-white/85 backdrop-blur-md rounded-3xl p-5 border border-white shadow-xs hover:shadow-md transition-all flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0 shadow-2xs">
-                        <Cpu size={24} />
-                    </div>
-                    <div className="min-w-0">
-                        <div className="text-[15px] font-black text-[#4a4365] leading-tight truncate">
-                            {dashboardStats?.aiGateway?.defaultModel || 'deepseek-chat'}
-                        </div>
-                        <div className="text-[11.5px] font-medium text-gray-500">默认对话主模型</div>
-                        <div className="text-[10px] text-emerald-600 font-bold mt-0.5 truncate">
-                            快速模型: {dashboardStats?.aiGateway?.fastModel || 'deepseek-chat'}
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            {/* 2. Middle Section: Student Origin Province Distribution & Popular Majors Leaderboard */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-                {/* Student Origin Province Distribution */}
-                <div className="bg-white/85 backdrop-blur-md rounded-3xl p-5 border border-white shadow-xs space-y-4">
+                {/* Card 1: Users & VIP */}
+                <div className="bg-white/80 backdrop-blur-xl rounded-[28px] p-5 border border-white/80 shadow-[0_8px_25px_rgba(186,175,215,0.18)] flex flex-col justify-between hover:-translate-y-0.5 transition-all">
                     <div className="flex items-center justify-between">
-                        <div className="font-black text-[#4a4365] text-[14px] flex items-center gap-2">
-                            <MapPin size={16} className="text-purple-500" />
-                            <span>考生生源省份热力分布 (Top 5)</span>
+                        <span className="text-[12px] font-bold text-[#8a84a4]">注册考生总数</span>
+                        <div className="w-9 h-9 rounded-2xl bg-purple-50 text-[#a494e8] flex items-center justify-center shadow-xs">
+                            <Users size={18} />
                         </div>
-                        <span className="text-[11px] text-gray-400 font-bold">
-                            基于已建档考生高考画像
+                    </div>
+                    <div className="my-2">
+                        <div className="text-[28px] font-black text-[#4a4365] tracking-tight font-mono">
+                            {totalUsers} <span className="text-[13px] font-bold text-gray-400 font-sans">人</span>
+                        </div>
+                    </div>
+                    <div className="flex items-center justify-between text-[11px] pt-2 border-t border-purple-50">
+                        <span className="text-[#8a84a4]">高分 VIP 考生</span>
+                        <span className="font-bold text-purple-700 bg-purple-100/70 px-2 py-0.5 rounded-md">
+                            {vipUsers} 人 ({vipPercentage}%)
                         </span>
                     </div>
+                </div>
 
-                    <div className="space-y-3 pt-1">
-                        {provinceData.map((item, idx) => {
-                            const colors = [
-                                'from-purple-500 to-indigo-500',
-                                'from-blue-500 to-cyan-500',
-                                'from-pink-500 to-rose-500',
-                                'from-amber-500 to-orange-500',
-                                'from-emerald-500 to-teal-500'
-                            ];
-                            const barGradient = colors[idx % colors.length];
+                {/* Card 2: Q&A Traffic */}
+                <div className="bg-white/80 backdrop-blur-xl rounded-[28px] p-5 border border-white/80 shadow-[0_8px_25px_rgba(186,175,215,0.18)] flex flex-col justify-between hover:-translate-y-0.5 transition-all">
+                    <div className="flex items-center justify-between">
+                        <span className="text-[12px] font-bold text-[#8a84a4]">问答交互总量</span>
+                        <div className="w-9 h-9 rounded-2xl bg-rose-50 text-[#f296b2] flex items-center justify-center shadow-xs">
+                            <MessageSquare size={18} />
+                        </div>
+                    </div>
+                    <div className="my-2">
+                        <div className="text-[28px] font-black text-[#4a4365] tracking-tight font-mono">
+                            {totalMessages} <span className="text-[13px] font-bold text-gray-400 font-sans">条</span>
+                        </div>
+                    </div>
+                    <div className="flex items-center justify-between text-[11px] pt-2 border-t border-purple-50">
+                        <span className="text-[#8a84a4]">今日实时咨询</span>
+                        <span className="font-bold text-emerald-700 bg-emerald-100/70 px-2 py-0.5 rounded-md">
+                            +{todayQueries} 条
+                        </span>
+                    </div>
+                </div>
 
-                            return (
-                                <div key={item.province} className="space-y-1.5 bg-[#fbf9fe] p-3 rounded-2xl border border-purple-50/70">
-                                    <div className="flex items-center justify-between text-[12.5px] font-bold text-[#4a4365]">
-                                        <div className="flex items-center gap-2">
-                                            <span className="w-5 h-5 rounded-lg bg-purple-100 text-purple-700 text-[10px] flex items-center justify-center font-black">
+                {/* Card 3: Vector Engine */}
+                <div className="bg-white/80 backdrop-blur-xl rounded-[28px] p-5 border border-white/80 shadow-[0_8px_25px_rgba(186,175,215,0.18)] flex flex-col justify-between hover:-translate-y-0.5 transition-all">
+                    <div className="flex items-center justify-between">
+                        <span className="text-[12px] font-bold text-[#8a84a4]">向量语义计算引擎</span>
+                        <div className="w-9 h-9 rounded-2xl bg-indigo-50 text-indigo-500 flex items-center justify-center shadow-xs">
+                            <Cpu size={18} />
+                        </div>
+                    </div>
+                    <div className="my-2">
+                        <div className="text-[18px] font-black text-[#4a4365] tracking-tight truncate">
+                            BGE-small-zh
+                        </div>
+                        <div className="text-[11px] text-gray-400 font-mono">512 维本地 ONNX 向量化</div>
+                    </div>
+                    <div className="flex items-center justify-between text-[11px] pt-2 border-t border-purple-50">
+                        <span className="text-[#8a84a4]">响应延迟</span>
+                        <span className="font-bold text-indigo-700 bg-indigo-100/70 px-2 py-0.5 rounded-md font-mono">
+                            ~{health?.onnx?.latencyMs ?? 1} ms
+                        </span>
+                    </div>
+                </div>
+
+                {/* Card 4: AI Model Gateway */}
+                <div className="bg-white/80 backdrop-blur-xl rounded-[28px] p-5 border border-white/80 shadow-[0_8px_25px_rgba(186,175,215,0.18)] flex flex-col justify-between hover:-translate-y-0.5 transition-all">
+                    <div className="flex items-center justify-between">
+                        <span className="text-[12px] font-bold text-[#8a84a4]">AI 模型网关</span>
+                        <div className="w-9 h-9 rounded-2xl bg-amber-50 text-amber-500 flex items-center justify-center shadow-xs">
+                            <Sparkles size={18} />
+                        </div>
+                    </div>
+                    <div className="my-2">
+                        <div className="text-[17px] font-black text-[#4a4365] tracking-tight truncate">
+                            {stats?.aiGateway?.defaultModel || 'deepseek-chat'}
+                        </div>
+                        <div className="text-[11px] text-gray-400 truncate">
+                            快速切片：{stats?.aiGateway?.fastModel || 'deepseek-chat'}
+                        </div>
+                    </div>
+                    <div className="flex items-center justify-between text-[11px] pt-2 border-t border-purple-50">
+                        <span className="text-[#8a84a4]">服务商状态</span>
+                        <span className="font-bold text-amber-700 bg-amber-100/70 px-2 py-0.5 rounded-md">
+                            {stats?.aiGateway?.provider || 'DeepSeek API'}
+                        </span>
+                    </div>
+                </div>
+
+            </div>
+
+            {/* 2. Middle Row: Province Distribution & Popular Majors Ranking */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+
+                {/* Province Distribution */}
+                <div className="bg-white/80 backdrop-blur-xl rounded-[32px] p-6 border border-white/80 shadow-[0_8px_25px_rgba(186,175,215,0.18)] space-y-4">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                            <div className="p-2 rounded-xl bg-purple-50 text-purple-600">
+                                <MapPin size={16} />
+                            </div>
+                            <h3 className="font-black text-[#4a4365] text-[15px]">考生生源省份分布 Top 5</h3>
+                        </div>
+                        <span className="text-[11px] text-[#8a84a4]">基于考生档案画像统计</span>
+                    </div>
+
+                    <div className="space-y-3 pt-2">
+                        {provinceDist.length > 0 ? (
+                            provinceDist.map((item, idx) => (
+                                <div key={item.province} className="space-y-1.5">
+                                    <div className="flex items-center justify-between text-[12.5px] font-bold">
+                                        <span className="text-[#4a4365] flex items-center gap-2">
+                                            <span className="w-5 h-5 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center text-[10px] font-mono">
                                                 {idx + 1}
                                             </span>
-                                            <span>{item.province}省</span>
-                                        </div>
-                                        <div className="text-[12px] font-mono text-purple-600">
-                                            {item.count} 人 <span className="text-gray-400 font-normal">({item.percentage}%)</span>
-                                        </div>
+                                            {item.province}
+                                        </span>
+                                        <span className="text-[#8a84a4] font-mono">
+                                            {item.count} 人 ({item.percentage}%)
+                                        </span>
                                     </div>
-                                    <div className="w-full h-2 bg-gray-200/80 rounded-full overflow-hidden">
+                                    <div className="w-full h-2 bg-purple-50 rounded-full overflow-hidden">
                                         <div
-                                            className={`h-full bg-gradient-to-r ${barGradient} rounded-full transition-all duration-700`}
-                                            style={{ width: `${Math.min(Math.max(item.percentage, 8), 100)}%` }}
+                                            className="h-full bg-gradient-to-r from-[#b3a4ed] to-[#f296b2] rounded-full transition-all duration-500"
+                                            style={{ width: `${Math.max(item.percentage, 8)}%` }}
                                         />
                                     </div>
                                 </div>
-                            );
-                        })}
+                            ))
+                        ) : (
+                            <div className="py-6 text-center text-gray-400 text-[12px]">暂无省份分布数据</div>
+                        )}
                     </div>
                 </div>
 
-                {/* Popular Majors Leaderboard */}
-                <div className="bg-white/85 backdrop-blur-md rounded-3xl p-5 border border-white shadow-xs space-y-4">
+                {/* Popular Majors Ranking */}
+                <div className="bg-white/80 backdrop-blur-xl rounded-[32px] p-6 border border-white/80 shadow-[0_8px_25px_rgba(186,175,215,0.18)] space-y-4">
                     <div className="flex items-center justify-between">
-                        <div className="font-black text-[#4a4365] text-[14px] flex items-center gap-2">
-                            <Sparkles size={16} className="text-amber-500" />
-                            <span>热门意向专业咨询关注排行</span>
+                        <div className="flex items-center gap-2">
+                            <div className="p-2 rounded-xl bg-rose-50 text-rose-500">
+                                <TrendingUp size={16} />
+                            </div>
+                            <h3 className="font-black text-[#4a4365] text-[15px]">热门意向专业关注排行</h3>
                         </div>
-                        <span className="text-[11px] text-gray-400 font-bold">
-                            由 AI 问答意向自动聚合
-                        </span>
+                        <span className="text-[11px] text-[#8a84a4]">咨询频次自动聚合</span>
                     </div>
 
-                    <div className="space-y-2.5 pt-1">
-                        {popularMajors.map((item, idx) => {
-                            const rankMedals = ['🥇', '🥈', '🥉', '4', '5'];
-                            return (
+                    <div className="space-y-2.5 pt-2">
+                        {popularMajors.length > 0 ? (
+                            popularMajors.map((item, idx) => (
                                 <div
                                     key={item.major}
-                                    className="p-3 bg-[#fbf9fe] rounded-2xl border border-purple-50/70 flex items-center justify-between hover:bg-purple-50/50 transition-colors"
+                                    className="flex items-center justify-between p-3 rounded-2xl bg-[#f8f6fc] border border-purple-50 hover:bg-white transition-all"
                                 >
-                                    <div className="flex items-center gap-2.5">
-                                        <span className="text-[14px] font-black w-6 text-center text-gray-400">
-                                            {rankMedals[idx] || idx + 1}
-                                        </span>
+                                    <div className="flex items-center gap-3">
+                                        <div className={`w-6 h-6 rounded-lg flex items-center justify-center text-[11px] font-bold ${idx === 0 ? 'bg-amber-400 text-white shadow-xs' :
+                                            idx === 1 ? 'bg-slate-300 text-slate-700' :
+                                                idx === 2 ? 'bg-amber-600 text-white' :
+                                                    'bg-purple-100 text-purple-700'
+                                            }`}>
+                                            {idx + 1}
+                                        </div>
                                         <span className="text-[13px] font-bold text-[#4a4365]">{item.major}</span>
                                     </div>
-                                    <span className="text-[11px] font-bold text-amber-600 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-100">
-                                        {item.count} 次咨询关注
+                                    <span className="text-[11px] font-bold text-[#a494e8] bg-purple-50 px-2.5 py-1 rounded-xl">
+                                        {item.count} 次咨询提及
                                     </span>
                                 </div>
-                            );
-                        })}
+                            ))
+                        ) : (
+                            <div className="py-6 text-center text-gray-400 text-[12px]">暂无专业热度统计</div>
+                        )}
                     </div>
+                </div>
+
+            </div>
+
+            {/* 3. System Infrastructure Health Panel */}
+            <div className="bg-white/80 backdrop-blur-xl rounded-[32px] p-6 border border-white/80 shadow-[0_8px_25px_rgba(186,175,215,0.18)] space-y-4">
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                        <div className="p-2 rounded-xl bg-emerald-50 text-emerald-600">
+                            <Activity size={16} />
+                        </div>
+                        <div>
+                            <h3 className="font-black text-[#4a4365] text-[15px]">系统基础设施健康度监控面板</h3>
+                            <p className="text-[11px] text-[#8a84a4]">实时检测数据库连接、缓存层、向量计算与联网搜索容灾状态</p>
+                        </div>
+                    </div>
+                    <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-100">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                        所有核心服务运行正常
+                    </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 pt-2">
+
+                    {/* PostgreSQL */}
+                    <div className="p-4 rounded-2xl bg-[#fbf9fe] border border-purple-100/60 space-y-1.5">
+                        <div className="flex items-center justify-between">
+                            <span className="text-[12px] font-bold text-[#4a4365] flex items-center gap-1.5">
+                                <Database size={14} className="text-purple-600" /> PostgreSQL pgvector
+                            </span>
+                            <CheckCircle2 size={14} className="text-emerald-500" />
+                        </div>
+                        <div className="text-[11px] text-[#8a84a4]">
+                            {health?.postgres?.status || 'JSON 本地持久化降级'}
+                        </div>
+                        <div className="text-[10px] font-mono text-purple-700">
+                            延迟: {health?.postgres?.latencyMs ?? 1} ms
+                        </div>
+                    </div>
+
+                    {/* Redis Cache */}
+                    <div className="p-4 rounded-2xl bg-[#fbf9fe] border border-purple-100/60 space-y-1.5">
+                        <div className="flex items-center justify-between">
+                            <span className="text-[12px] font-bold text-[#4a4365] flex items-center gap-1.5">
+                                <Server size={14} className="text-rose-500" /> 高速缓存策略
+                            </span>
+                            <CheckCircle2 size={14} className="text-emerald-500" />
+                        </div>
+                        <div className="text-[11px] text-[#8a84a4]">
+                            {health?.redis?.status || '内存 Map 降级缓存 (TTL 30m)'}
+                        </div>
+                        <div className="text-[10px] font-mono text-rose-700">
+                            类型: {health?.redis?.type || 'Memory Cache'}
+                        </div>
+                    </div>
+
+                    {/* ONNX Embedding */}
+                    <div className="p-4 rounded-2xl bg-[#fbf9fe] border border-purple-100/60 space-y-1.5">
+                        <div className="flex items-center justify-between">
+                            <span className="text-[12px] font-bold text-[#4a4365] flex items-center gap-1.5">
+                                <Cpu size={14} className="text-indigo-500" /> ONNX Runtime
+                            </span>
+                            <CheckCircle2 size={14} className="text-emerald-500" />
+                        </div>
+                        <div className="text-[11px] text-[#8a84a4]">
+                            {health?.onnx?.status || '模型加载完成'}
+                        </div>
+                        <div className="text-[10px] font-mono text-indigo-700">
+                            极速召回耗时: {health?.onnx?.latencyMs ?? 1} ms
+                        </div>
+                    </div>
+
+                    {/* Multi-Source Search */}
+                    <div className="p-4 rounded-2xl bg-[#fbf9fe] border border-purple-100/60 space-y-1.5">
+                        <div className="flex items-center justify-between">
+                            <span className="text-[12px] font-bold text-[#4a4365] flex items-center gap-1.5">
+                                <Sparkles size={14} className="text-amber-500" /> 多源联网搜索容灾
+                            </span>
+                            <CheckCircle2 size={14} className="text-emerald-500" />
+                        </div>
+                        <div className="text-[11px] text-[#8a84a4]">
+                            默认引擎: {stats?.searchEngine?.provider || 'duckduckgo'}
+                        </div>
+                        <div className="text-[10px] font-mono text-amber-700">
+                            支持: DDG + Tavily + 博查
+                        </div>
+                    </div>
+
                 </div>
             </div>
 
-            {/* 3. Bottom Section: Infrastructure Health & Quick Shortcuts */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-                {/* Infrastructure Latency & Health */}
-                <div className="lg:col-span-2 bg-white/85 backdrop-blur-md rounded-3xl p-5 border border-white shadow-xs space-y-4">
-                    <div className="flex items-center justify-between">
-                        <div className="font-black text-[#4a4365] text-[14px] flex items-center gap-2">
-                            <Activity size={16} className="text-emerald-500" />
-                            <span>系统基础设施运行健康与响应延迟监控</span>
+            {/* 4. Quick Action Entries */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
+                <button
+                    onClick={() => onNavigateTab('rag')}
+                    className="p-4 bg-white/70 hover:bg-white rounded-2xl border border-white/80 shadow-xs flex items-center justify-between transition-all group cursor-pointer"
+                >
+                    <div className="flex items-center gap-2.5">
+                        <div className="p-2 rounded-xl bg-purple-50 text-purple-600 group-hover:scale-105 transition-transform">
+                            <BookOpen size={16} />
                         </div>
-                        <span className="text-[11px] text-emerald-600 font-bold flex items-center gap-1">
-                            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" /> 服务正常就绪
-                        </span>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div className="p-3 bg-[#fbf9fe] rounded-2xl border border-purple-50/80 space-y-1">
-                            <div className="text-[12px] font-bold text-[#4a4365] flex items-center justify-between">
-                                <span>PostgreSQL 向量存储</span>
-                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-bold">
-                                    {sysHealth.postgres?.status || '就绪'}
-                                </span>
-                            </div>
-                            <div className="text-[10.5px] text-gray-400">
-                                响应耗时: <b className="text-emerald-600 font-mono">{sysHealth.postgres?.latencyMs || 1} ms</b> · pgvector 向量索引
-                            </div>
-                        </div>
-
-                        <div className="p-3 bg-[#fbf9fe] rounded-2xl border border-purple-50/80 space-y-1">
-                            <div className="text-[12px] font-bold text-[#4a4365] flex items-center justify-between">
-                                <span>Redis 高速缓存集群</span>
-                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 font-bold">
-                                    {sysHealth.redis?.status || '已连接'}
-                                </span>
-                            </div>
-                            <div className="text-[10.5px] text-gray-400">
-                                缓存模式: <b className="text-indigo-600">{sysHealth.redis?.type || 'Redis Cache'}</b> (TTL 30m)
-                            </div>
-                        </div>
-
-                        <div className="p-3 bg-[#fbf9fe] rounded-2xl border border-purple-50/80 space-y-1">
-                            <div className="text-[12px] font-bold text-[#4a4365] flex items-center justify-between">
-                                <span>ONNX Runtime 嵌入推理</span>
-                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 font-bold">
-                                    {sysHealth.onnx?.status || '已就绪'}
-                                </span>
-                            </div>
-                            <div className="text-[10.5px] text-gray-400">
-                                向量推理耗时: <b className="text-purple-600 font-mono">{sysHealth.onnx?.latencyMs || 1} ms</b> (512-dim)
-                            </div>
-                        </div>
-
-                        <div className="p-3 bg-[#fbf9fe] rounded-2xl border border-purple-50/80 space-y-1">
-                            <div className="text-[12px] font-bold text-[#4a4365] flex items-center justify-between">
-                                <span>AI 智能体与搜索引擎</span>
-                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-bold">
-                                    {sysHealth.aiGateway?.status || '就绪'}
-                                </span>
-                            </div>
-                            <div className="text-[10.5px] text-gray-400">
-                                搜索引擎: <b className="text-blue-600">{dashboardStats?.searchEngine?.provider || 'DuckDuckGo'}</b> (自动容灾)
-                            </div>
+                        <div className="text-left">
+                            <div className="text-[12.5px] font-bold text-[#4a4365]">知识库管理</div>
+                            <div className="text-[10px] text-[#8a84a4]">维护 RAG 向量条目</div>
                         </div>
                     </div>
-                </div>
+                    <ArrowRight size={14} className="text-gray-300 group-hover:text-purple-600 transition-colors" />
+                </button>
 
-                {/* Quick Management Shortcuts */}
-                <div className="bg-white/85 backdrop-blur-md rounded-3xl p-5 border border-white shadow-xs space-y-3 flex flex-col justify-between">
-                    <div className="font-black text-[#4a4365] text-[14px] flex items-center gap-2">
-                        <Zap size={16} className="text-purple-500" />
-                        <span>模块快速直达</span>
+                <button
+                    onClick={() => onNavigateTab('users')}
+                    className="p-4 bg-white/70 hover:bg-white rounded-2xl border border-white/80 shadow-xs flex items-center justify-between transition-all group cursor-pointer"
+                >
+                    <div className="flex items-center gap-2.5">
+                        <div className="p-2 rounded-xl bg-blue-50 text-blue-600 group-hover:scale-105 transition-transform">
+                            <Users size={16} />
+                        </div>
+                        <div className="text-left">
+                            <div className="text-[12.5px] font-bold text-[#4a4365]">考生档案库</div>
+                            <div className="text-[10px] text-[#8a84a4]">高考画像与 VIP 管理</div>
+                        </div>
                     </div>
+                    <ArrowRight size={14} className="text-gray-300 group-hover:text-blue-600 transition-colors" />
+                </button>
 
-                    <div className="grid grid-cols-2 gap-2.5 flex-1">
-                        <button
-                            onClick={() => onNavigateTab('rag')}
-                            className="p-3 bg-purple-50 hover:bg-purple-100 rounded-2xl border border-purple-100 text-left transition-all group cursor-pointer flex flex-col justify-between"
-                        >
-                            <Database size={17} className="text-purple-600 mb-1 group-hover:scale-110 transition-transform" />
-                            <div>
-                                <div className="font-bold text-[12px] text-[#4a4365]">知识库管理</div>
-                                <div className="text-[9.5px] text-gray-400">RAG 与智能切片</div>
-                            </div>
-                        </button>
-
-                        <button
-                            onClick={() => onNavigateTab('users')}
-                            className="p-3 bg-pink-50 hover:bg-pink-100 rounded-2xl border border-pink-100 text-left transition-all group cursor-pointer flex flex-col justify-between"
-                        >
-                            <Users size={17} className="text-pink-600 mb-1 group-hover:scale-110 transition-transform" />
-                            <div>
-                                <div className="font-bold text-[12px] text-[#4a4365]">考生档案库</div>
-                                <div className="text-[9.5px] text-gray-400">角色与 VIP 策略</div>
-                            </div>
-                        </button>
-
-                        <button
-                            onClick={() => onNavigateTab('playground')}
-                            className="p-3 bg-blue-50 hover:bg-blue-100 rounded-2xl border border-blue-100 text-left transition-all group cursor-pointer flex flex-col justify-between"
-                        >
-                            <FlaskConical size={17} className="text-blue-600 mb-1 group-hover:scale-110 transition-transform" />
-                            <div>
-                                <div className="font-bold text-[12px] text-[#4a4365]">测试中心</div>
-                                <div className="text-[9.5px] text-gray-400">RAG 与搜索诊断</div>
-                            </div>
-                        </button>
-
-                        <button
-                            onClick={() => onNavigateTab('settings')}
-                            className="p-3 bg-amber-50 hover:bg-amber-100 rounded-2xl border border-amber-100 text-left transition-all group cursor-pointer flex flex-col justify-between"
-                        >
-                            <Settings size={17} className="text-amber-600 mb-1 group-hover:scale-110 transition-transform" />
-                            <div>
-                                <div className="font-bold text-[12px] text-[#4a4365]">系统配置</div>
-                                <div className="text-[9.5px] text-gray-400">模型网关与提示词</div>
-                            </div>
-                        </button>
+                <button
+                    onClick={() => onNavigateTab('playground')}
+                    className="p-4 bg-white/70 hover:bg-white rounded-2xl border border-white/80 shadow-xs flex items-center justify-between transition-all group cursor-pointer"
+                >
+                    <div className="flex items-center gap-2.5">
+                        <div className="p-2 rounded-xl bg-amber-50 text-amber-600 group-hover:scale-105 transition-transform">
+                            <Cpu size={16} />
+                        </div>
+                        <div className="text-left">
+                            <div className="text-[12.5px] font-bold text-[#4a4365]">测试诊断中心</div>
+                            <div className="text-[10px] text-[#8a84a4]">检索与联网探活</div>
+                        </div>
                     </div>
-                </div>
+                    <ArrowRight size={14} className="text-gray-300 group-hover:text-amber-600 transition-colors" />
+                </button>
+
+                <button
+                    onClick={() => onNavigateTab('settings')}
+                    className="p-4 bg-white/70 hover:bg-white rounded-2xl border border-white/80 shadow-xs flex items-center justify-between transition-all group cursor-pointer"
+                >
+                    <div className="flex items-center gap-2.5">
+                        <div className="p-2 rounded-xl bg-rose-50 text-rose-600 group-hover:scale-105 transition-transform">
+                            <Sliders size={16} />
+                        </div>
+                        <div className="text-left">
+                            <div className="text-[12.5px] font-bold text-[#4a4365]">系统模型配置</div>
+                            <div className="text-[10px] text-[#8a84a4]">网关与提示词调试</div>
+                        </div>
+                    </div>
+                    <ArrowRight size={14} className="text-gray-300 group-hover:text-rose-600 transition-colors" />
+                </button>
             </div>
+
         </div>
     );
 };

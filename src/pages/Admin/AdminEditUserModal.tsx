@@ -1,205 +1,273 @@
 import React, { useState } from 'react';
-import { User, UserProfile } from '../../types';
-import { X, Check, ShieldCheck, User as UserIcon } from 'lucide-react';
+import { X, UserCheck, Sparkles, MapPin, Award, BookOpen, Phone, Mail, FileText } from 'lucide-react';
+import { User } from '../../types';
+import { API_BASE } from '../../api/config';
 
 interface AdminEditUserModalProps {
     user: User;
+    isOpen: boolean;
     onClose: () => void;
-    onSave: (updatedData: any) => void;
+    onSuccess: () => void;
 }
 
-export const AdminEditUserModal: React.FC<AdminEditUserModalProps> = ({ user, onClose, onSave }) => {
-    const [role, setRole] = useState<'user' | 'admin'>(user.role || 'user');
+export const AdminEditUserModal: React.FC<AdminEditUserModalProps> = ({
+    user,
+    isOpen,
+    onClose,
+    onSuccess
+}) => {
     const [name, setName] = useState(user.profile?.name || '');
     const [province, setProvince] = useState(user.profile?.province || '广东');
-    const [score, setScore] = useState(user.profile?.score || '');
-    const [rank, setRank] = useState(user.profile?.rank || '');
-    const [subjects, setSubjects] = useState(user.profile?.subjects || '物化生');
+    const [score, setScore] = useState(user.profile?.score?.toString() || '');
+    const [rank, setRank] = useState(user.profile?.rank?.toString() || '');
+    const [subjects, setSubjects] = useState(user.profile?.subjects || '物理+化学+生物');
     const [phone, setPhone] = useState(user.phone || user.profile?.phone || '');
     const [email, setEmail] = useState(user.email || user.profile?.email || '');
     const [specialConditions, setSpecialConditions] = useState(user.profile?.specialConditions || '');
+    const [isVip, setIsVip] = useState(Boolean(user.profile?.isVip || (Number(user.profile?.score) > 580)));
+    const [saving, setSaving] = useState(false);
+    const [errorMsg, setErrorMsg] = useState('');
 
-    const handleSave = (e: React.FormEvent) => {
+    if (!isOpen) return null;
+
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        const updatedProfile: UserProfile = {
-            ...(user.profile || {}),
-            name,
-            province,
-            score: score ? Number(score) : '',
-            rank: rank ? Number(rank) : '',
-            subjects,
-            phone,
-            email,
-            specialConditions
-        };
+        setSaving(true);
+        setErrorMsg('');
 
-        onSave({
-            targetUsername: user.username,
-            role,
-            phone,
-            email,
-            score,
-            province,
-            specialConditions,
-            profile: updatedProfile
-        });
+        try {
+            const res = await fetch(`${API_BASE}/api/admin/users/update`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    targetUsername: user.username,
+                    phone,
+                    email,
+                    score: score ? Number(score) : '',
+                    province,
+                    isVip,
+                    specialConditions
+                })
+            });
+            const data = await res.json();
+            if (data.ok) {
+                // Also update profile details
+                await fetch(`${API_BASE}/api/user/profile`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        username: user.username,
+                        profile: {
+                            name,
+                            province,
+                            score: score ? Number(score) : '',
+                            rank: rank ? Number(rank) : '',
+                            subjects,
+                            phone,
+                            email,
+                            specialConditions,
+                            isVip
+                        }
+                    })
+                });
+                onSuccess();
+                onClose();
+            } else {
+                setErrorMsg(data.error || '保存资料失败');
+            }
+        } catch (err: any) {
+            setErrorMsg(err.message || '网络连接异常');
+        } finally {
+            setSaving(false);
+        }
     };
 
     return (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-md flex justify-center items-center p-4 animate-in fade-in duration-200">
-            <div className="bg-white/95 backdrop-blur-2xl rounded-[36px] max-w-[540px] w-full max-h-[90vh] overflow-y-auto p-6 shadow-2xl border-4 border-white space-y-4 animate-in zoom-in-95 duration-300">
-                <div className="flex items-center justify-between border-b pb-3">
-                    <div className="flex items-center gap-2.5">
-                        <div className="w-10 h-10 rounded-2xl bg-purple-100 text-purple-700 flex items-center justify-center font-bold">
-                            <UserIcon size={20} />
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-md flex justify-center items-center p-4 animate-in fade-in duration-300">
+            <div className="bg-white/95 backdrop-blur-2xl rounded-[32px] max-w-[600px] w-full max-h-[90vh] overflow-y-auto p-6 sm:p-8 shadow-2xl border-4 border-white space-y-5 animate-in zoom-in-95 duration-300">
+
+                {/* Header */}
+                <div className="flex items-center justify-between border-b border-gray-100 pb-4">
+                    <div className="flex items-center gap-3">
+                        <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-[#b3a4ed] to-[#f296b2] text-white flex items-center justify-center shadow-[0_8px_20px_rgba(179,164,237,0.35)]">
+                            <UserCheck size={22} />
                         </div>
                         <div>
-                            <h3 className="font-bold text-[#4a4365] text-[15px]">编辑考生档案与权限: @{user.username}</h3>
-                            <p className="text-[11px] text-[#8a84a4]">配置该账号的系统角色、高考数据与联系方式</p>
+                            <h3 className="font-black text-[#4a4365] text-[17px] tracking-tight">
+                                修改考生资料档案
+                            </h3>
+                            <p className="text-[11px] text-[#8a84a4] font-medium">
+                                账号：<span className="font-mono text-[#a494e8] font-bold">@{user.username}</span>
+                            </p>
                         </div>
                     </div>
-                    <button onClick={onClose} className="p-1.5 rounded-full text-gray-400 hover:text-gray-600 cursor-pointer">
+                    <button
+                        onClick={onClose}
+                        className="p-2 rounded-2xl text-gray-400 hover:text-[#4a4365] hover:bg-gray-100 transition-colors cursor-pointer"
+                    >
                         <X size={18} />
                     </button>
                 </div>
 
-                <form onSubmit={handleSave} className="space-y-3.5">
-                    {/* Role Promotion / Demotion Switch */}
-                    <div className="bg-purple-50/70 p-3.5 rounded-2xl border border-purple-100 flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                            <ShieldCheck size={18} className="text-purple-600" />
-                            <div>
-                                <div className="text-[12.5px] font-bold text-[#4a4365]">系统角色权限</div>
-                                <div className="text-[10px] text-gray-400">设为超级管理员后可访问后台管理控制台</div>
-                            </div>
-                        </div>
-                        <div className="flex bg-white p-1 rounded-xl border border-purple-100 shadow-2xs">
-                            <button
-                                type="button"
-                                onClick={() => setRole('user')}
-                                className={`px-3 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${role === 'user' ? 'bg-[#4a4365] text-white shadow-xs' : 'text-gray-500'
-                                    }`}
-                            >
-                                普通考生
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => setRole('admin')}
-                                className={`px-3 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${role === 'admin' ? 'bg-purple-600 text-white shadow-xs' : 'text-gray-500'
-                                    }`}
-                            >
-                                超级管理员
-                            </button>
-                        </div>
+                {errorMsg && (
+                    <div className="bg-rose-50 text-rose-600 text-[12px] font-bold p-3 rounded-2xl border border-rose-100">
+                        {errorMsg}
                     </div>
+                )}
 
-                    <div>
-                        <label className="text-[12px] font-bold text-gray-600 block mb-1">考生真实姓名</label>
-                        <input
-                            type="text"
-                            value={name}
-                            onChange={(e) => setName(e.target.value)}
-                            className="w-full bg-[#f8f6fc] rounded-xl px-3.5 py-2.5 text-[12.5px] outline-none border border-transparent focus:border-purple-300"
-                            placeholder="如：张同学"
-                        />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3">
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {/* Real Name */}
                         <div>
-                            <label className="text-[12px] font-bold text-gray-600 block mb-1">高考省份</label>
-                            <select
+                            <label className="text-[12px] font-bold text-[#4a4365] block mb-1.5 flex items-center gap-1.5">
+                                <FileText size={13} className="text-[#a494e8]" /> 考生真实姓名
+                            </label>
+                            <input
+                                type="text"
+                                value={name}
+                                onChange={(e) => setName(e.target.value)}
+                                placeholder="如：张三"
+                                className="w-full bg-[#f8f6fc] rounded-2xl px-4 py-2.5 text-[13px] text-[#4a4365] outline-none border border-transparent focus:border-[#a494e8] transition-all"
+                            />
+                        </div>
+
+                        {/* Province */}
+                        <div>
+                            <label className="text-[12px] font-bold text-[#4a4365] block mb-1.5 flex items-center gap-1.5">
+                                <MapPin size={13} className="text-[#a494e8]" /> 高考省份
+                            </label>
+                            <input
+                                type="text"
                                 value={province}
                                 onChange={(e) => setProvince(e.target.value)}
-                                className="w-full bg-[#f8f6fc] rounded-xl px-3.5 py-2.5 text-[12.5px] outline-none border border-transparent focus:border-purple-300 font-bold text-gray-700"
-                            >
-                                {['广东', '浙江', '江苏', '四川', '山东', '河南', '湖北', '湖南', '福建', '安徽', '北京', '上海', '重庆', '陕西', '江西', '河北'].map(p => (
-                                    <option key={p} value={p}>{p}</option>
-                                ))}
-                            </select>
+                                placeholder="如：广东 / 浙江 / 四川"
+                                className="w-full bg-[#f8f6fc] rounded-2xl px-4 py-2.5 text-[13px] text-[#4a4365] outline-none border border-transparent focus:border-[#a494e8] transition-all"
+                            />
                         </div>
+
+                        {/* Score */}
                         <div>
-                            <label className="text-[12px] font-bold text-gray-600 block mb-1">高考总分</label>
+                            <label className="text-[12px] font-bold text-[#4a4365] block mb-1.5 flex items-center gap-1.5">
+                                <Award size={13} className="text-[#a494e8]" /> 高考总分
+                            </label>
                             <input
                                 type="number"
                                 value={score}
                                 onChange={(e) => setScore(e.target.value)}
-                                className="w-full bg-[#f8f6fc] rounded-xl px-3.5 py-2.5 text-[12.5px] outline-none font-bold text-purple-600 border border-transparent focus:border-purple-300"
                                 placeholder="如：595"
+                                className="w-full bg-[#f8f6fc] rounded-2xl px-4 py-2.5 text-[13px] text-[#4a4365] outline-none border border-transparent focus:border-[#a494e8] transition-all font-mono"
                             />
                         </div>
-                    </div>
 
-                    <div className="grid grid-cols-2 gap-3">
+                        {/* Rank */}
                         <div>
-                            <label className="text-[12px] font-bold text-gray-600 block mb-1">全省排名位次</label>
+                            <label className="text-[12px] font-bold text-[#4a4365] block mb-1.5 flex items-center gap-1.5">
+                                <Award size={13} className="text-[#a494e8]" /> 全省位次 / 排名
+                            </label>
                             <input
                                 type="number"
                                 value={rank}
                                 onChange={(e) => setRank(e.target.value)}
-                                className="w-full bg-[#f8f6fc] rounded-xl px-3.5 py-2.5 text-[12.5px] outline-none border border-transparent focus:border-purple-300"
-                                placeholder="如：12000"
+                                placeholder="如：12500"
+                                className="w-full bg-[#f8f6fc] rounded-2xl px-4 py-2.5 text-[13px] text-[#4a4365] outline-none border border-transparent focus:border-[#a494e8] transition-all font-mono"
                             />
                         </div>
-                        <div>
-                            <label className="text-[12px] font-bold text-gray-600 block mb-1">选科组合</label>
+
+                        {/* Subjects */}
+                        <div className="sm:col-span-2">
+                            <label className="text-[12px] font-bold text-[#4a4365] block mb-1.5 flex items-center gap-1.5">
+                                <BookOpen size={13} className="text-[#a494e8]" /> 选科组合 / 科类
+                            </label>
                             <input
                                 type="text"
                                 value={subjects}
                                 onChange={(e) => setSubjects(e.target.value)}
-                                className="w-full bg-[#f8f6fc] rounded-xl px-3.5 py-2.5 text-[12.5px] outline-none border border-transparent focus:border-purple-300"
-                                placeholder="如：物理/化学/生物"
+                                placeholder="如：物化生 / 历史+政治+地理 / 物理+化学+地理"
+                                className="w-full bg-[#f8f6fc] rounded-2xl px-4 py-2.5 text-[13px] text-[#4a4365] outline-none border border-transparent focus:border-[#a494e8] transition-all"
                             />
                         </div>
-                    </div>
 
-                    <div className="grid grid-cols-2 gap-3">
+                        {/* Phone */}
                         <div>
-                            <label className="text-[12px] font-bold text-gray-600 block mb-1">手机号码</label>
+                            <label className="text-[12px] font-bold text-[#4a4365] block mb-1.5 flex items-center gap-1.5">
+                                <Phone size={13} className="text-[#a494e8]" /> 手机号码
+                            </label>
                             <input
                                 type="tel"
                                 value={phone}
                                 onChange={(e) => setPhone(e.target.value)}
-                                className="w-full bg-[#f8f6fc] rounded-xl px-3.5 py-2.5 text-[12.5px] outline-none border border-transparent focus:border-purple-300"
+                                placeholder="如：13800138000"
+                                className="w-full bg-[#f8f6fc] rounded-2xl px-4 py-2.5 text-[13px] text-[#4a4365] outline-none border border-transparent focus:border-[#a494e8] transition-all font-mono"
                             />
                         </div>
+
+                        {/* Email */}
                         <div>
-                            <label className="text-[12px] font-bold text-gray-600 block mb-1">电子邮箱</label>
+                            <label className="text-[12px] font-bold text-[#4a4365] block mb-1.5 flex items-center gap-1.5">
+                                <Mail size={13} className="text-[#a494e8]" /> 电子邮箱
+                            </label>
                             <input
                                 type="email"
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
-                                className="w-full bg-[#f8f6fc] rounded-xl px-3.5 py-2.5 text-[12.5px] outline-none border border-transparent focus:border-purple-300"
+                                placeholder="如：student@example.com"
+                                className="w-full bg-[#f8f6fc] rounded-2xl px-4 py-2.5 text-[13px] text-[#4a4365] outline-none border border-transparent focus:border-[#a494e8] transition-all"
+                            />
+                        </div>
+
+                        {/* Special Conditions */}
+                        <div className="sm:col-span-2">
+                            <label className="text-[12px] font-bold text-[#4a4365] block mb-1.5">
+                                特殊意向说明 / 备注
+                            </label>
+                            <textarea
+                                rows={2}
+                                value={specialConditions}
+                                onChange={(e) => setSpecialConditions(e.target.value)}
+                                placeholder="如：优先考虑计算机专业、希望保研率高、意向大学城校区等"
+                                className="w-full bg-[#f8f6fc] rounded-2xl p-3.5 text-[13px] text-[#4a4365] outline-none border border-transparent focus:border-[#a494e8] transition-all"
+                            />
+                        </div>
+
+                        {/* VIP Switch */}
+                        <div className="sm:col-span-2 flex items-center justify-between p-3.5 bg-gradient-to-r from-amber-50 to-purple-50 rounded-2xl border border-amber-200/60">
+                            <div className="flex items-center gap-2.5">
+                                <div className="p-2 rounded-xl bg-amber-400 text-white shadow-xs">
+                                    <Sparkles size={16} />
+                                </div>
+                                <div>
+                                    <div className="text-[13px] font-bold text-[#4a4365]">VIP 高分专属定制通道</div>
+                                    <div className="text-[10.5px] text-[#8a84a4]">开启后享有 AI 顾问高分位次深度志愿推演</div>
+                                </div>
+                            </div>
+                            <input
+                                type="checkbox"
+                                checked={isVip}
+                                onChange={(e) => setIsVip(e.target.checked)}
+                                className="w-5 h-5 accent-amber-500 rounded cursor-pointer"
                             />
                         </div>
                     </div>
 
-                    <div>
-                        <label className="text-[12px] font-bold text-gray-600 block mb-1">报考意向 / 特殊说明</label>
-                        <textarea
-                            rows={2}
-                            value={specialConditions}
-                            onChange={(e) => setSpecialConditions(e.target.value)}
-                            placeholder="如：意向大湾区就业、倾向计算机或数字媒体专业等"
-                            className="w-full bg-[#f8f6fc] rounded-xl p-3 text-[12px] outline-none border border-transparent focus:border-purple-300"
-                        />
-                    </div>
-
-                    <div className="flex justify-end gap-2 pt-3 border-t">
+                    {/* Actions */}
+                    <div className="flex justify-end gap-2.5 pt-4 border-t border-gray-100">
                         <button
                             type="button"
                             onClick={onClose}
-                            className="px-4 py-2.5 rounded-xl text-[12px] font-bold text-gray-500 hover:bg-gray-100 cursor-pointer"
+                            className="px-5 py-2.5 rounded-2xl text-[13px] font-bold text-gray-500 hover:bg-gray-100 transition-all cursor-pointer"
                         >
                             取消
                         </button>
                         <button
                             type="submit"
-                            className="bg-[#4a4365] hover:bg-[#342e49] text-white px-5 py-2.5 rounded-xl text-[12px] font-bold flex items-center gap-1.5 shadow-sm cursor-pointer transition-all"
+                            disabled={saving}
+                            className="px-6 py-2.5 rounded-2xl bg-gradient-to-r from-[#b3a4ed] to-[#c7b8f9] text-white text-[13px] font-bold shadow-[0_4px_12px_rgba(179,164,237,0.4)] hover:opacity-95 active:scale-95 transition-all cursor-pointer disabled:opacity-50"
                         >
-                            <Check size={14} /> 保存修改
+                            {saving ? '保存中...' : '保存考生档案'}
                         </button>
                     </div>
                 </form>
+
             </div>
         </div>
     );

@@ -1,3 +1,5 @@
+import fs from 'fs';
+import path from 'path';
 import { env, pipeline } from '@xenova/transformers';
 import { modelsCacheDir } from '../config/env.mjs';
 
@@ -5,26 +7,25 @@ import { modelsCacheDir } from '../config/env.mjs';
 env.cacheDir = modelsCacheDir;
 env.remoteHost = 'https://hf-mirror.com';
 env.remotePathTemplate = '{model}/resolve/{revision}/';
+env.allowLocalModels = true;
 
 export let embedder = null;
 
 export const initEmbedder = async () => {
     const modelName = 'Xenova/bge-small-zh-v1.5';
-    console.log(`⏳ [ONNX Model] Checking local model cache in: ${modelsCacheDir}`);
+    const localModelDir = path.join(modelsCacheDir, 'Xenova', 'bge-small-zh-v1.5');
+    const hasLocal = fs.existsSync(localModelDir) && fs.existsSync(path.join(localModelDir, 'tokenizer.json'));
+
     try {
         const startTime = Date.now();
-        embedder = await pipeline('feature-extraction', modelName, {
-            progress_callback: (info) => {
-                if (info.status === 'initiate') {
-                    console.log(`  🔍 [Model Check] Initiating ${info.file || info.name || ''}...`);
-                } else if (info.status === 'downloading') {
-                    const pct = typeof info.progress === 'number' ? info.progress.toFixed(1) : '0.0';
-                    console.log(`  📥 [Model Downloading] ${info.file || ''}: ${pct}%`);
-                } else if (info.status === 'done') {
-                    console.log(`  ✅ [Model File Loaded] ${info.file || ''}`);
-                }
-            }
-        });
+        if (hasLocal) {
+            embedder = await pipeline('feature-extraction', modelName, {
+                local_files_only: true
+            });
+        } else {
+            console.log(`⏳ [ONNX Model] Fetching ${modelName} to cache...`);
+            embedder = await pipeline('feature-extraction', modelName);
+        }
         const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
         console.log(`✅ [ONNX Model Ready] Local BGE 512-dim embedding loaded in ${elapsed}s! (Cache: ./data/models_cache)`);
     } catch (err) {

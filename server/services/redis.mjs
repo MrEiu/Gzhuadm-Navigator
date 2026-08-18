@@ -6,16 +6,13 @@ const memoryCache = new Map();
 
 export const initRedis = async () => {
     const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
-    console.log(`⏳ [Redis Cache] Connecting to ${redisUrl}...`);
     try {
-        redisClient = createClient({ url: redisUrl, socket: { connectTimeout: 3000 } });
-        redisClient.on('error', (err) => console.warn('  ⚠️ [Redis Socket Warning]:', err.message));
+        redisClient = createClient({ url: redisUrl, socket: { connectTimeout: 600 } });
+        redisClient.on('error', () => { });
         await redisClient.connect();
         useRedis = true;
         console.log(`✅ [Redis Cache Ready] High-speed cache active at ${redisUrl}`);
     } catch (err) {
-        console.warn(`⚠️ [Redis Cache Warning] Failed to connect to ${redisUrl} (${err.message}).`);
-        console.warn(`  👉 Fallback in-memory Map cache activated.`);
         useRedis = false;
     }
 };
