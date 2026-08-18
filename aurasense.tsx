@@ -707,11 +707,24 @@ export default function App() {
     }
   });
 
-  const [authMode, setAuthMode] = useState('login');
+  const [authMode, setAuthMode] = useState<'login' | 'register' | 'advanced_register'>('login');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [authError, setAuthError] = useState('');
+
+  // --- Advanced Registration States (SMS / Email Verification) ---
+  const [regTargetType, setRegTargetType] = useState<'phone' | 'email'>('phone');
+  const [regTarget, setRegTarget] = useState('');
+  const [regVerificationCode, setRegVerificationCode] = useState('');
+  const [isSendingCode, setIsSendingCode] = useState(false);
+  const [codeCountdown, setCodeCountdown] = useState(0);
+  const [codeSendMsg, setCodeSendMsg] = useState<string | null>(null);
+
+  // --- Admin User Management Modals ---
+  const [editingUserModal, setEditingUserModal] = useState<any | null>(null);
+  const [passwordResetModal, setPasswordResetModal] = useState<any | null>(null);
+  const [adminResetPasswordInput, setAdminResetPasswordInput] = useState('');
 
   // --- User Personal Profile & Score Tier State ---
   const [userProfile, setUserProfile] = useState(() => {
@@ -794,6 +807,132 @@ export default function App() {
 
   const isLowScore = userProfile && typeof userProfile.score === 'number' && userProfile.score > 0 && userProfile.score < lowScoreThreshold;
   const isVipUser = userProfile && (userProfile.isVip || (typeof userProfile.score === 'number' && userProfile.score >= vipScoreThreshold));
+
+  const handleSendVerificationCode = async () => {
+    if (!regTarget.trim()) {
+      setAuthError(`请输入您的${regTargetType === 'phone' ? '手机号' : '邮箱号'}`);
+      return;
+    }
+    setIsSendingCode(true);
+    setAuthError('');
+    setCodeSendMsg(null);
+    try {
+      const res = await fetch(`${API_BASE}/api/auth/send-code`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ target: regTarget.trim(), type: regTargetType })
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setCodeSendMsg(data.message);
+        setCodeCountdown(60);
+      } else {
+        setAuthError(data.error || '验证码发送失败');
+      }
+    } catch (e: any) {
+      setAuthError(`网络错误: ${e.message}`);
+    } finally {
+      setIsSendingCode(false);
+    }
+  };
+
+  useEffect(() => {
+    if (codeCountdown <= 0) return;
+    const timer = setInterval(() => {
+      setCodeCountdown(prev => (prev <= 1 ? 0 : prev - 1));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [codeCountdown]);
+
+  const handleAdvancedRegisterSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!username.trim() || !password || !regTarget.trim() || !regVerificationCode.trim()) {
+      setAuthError('请完整填写账号、密码、手机/邮箱与验证码');
+      return;
+    }
+    if (password !== confirmPassword) {
+      setAuthError('两次输入的密码不一致');
+      return;
+    }
+
+    try {
+      const res = await fetch(`${API_BASE}/api/auth/register-advanced`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: username.trim(),
+          password,
+          target: regTarget.trim(),
+          type: regTargetType,
+          code: regVerificationCode.trim()
+        })
+      });
+      const data = await res.json();
+      if (data.ok && data.user) {
+        setCurrentUser(data.user);
+        localStorage.setItem('aurasense_logged_user', JSON.stringify(data.user));
+        setAuthError('');
+      } else {
+        setAuthError(data.error || '高级注册失败');
+      }
+    } catch (e: any) {
+      setAuthError(`注册失败: ${e.message}`);
+    }
+  };
+
+  const handleFetchRegisteredUsersServer = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/users`);
+      const data = await res.json();
+      if (data.ok && Array.isArray(data.users)) {
+        setRegisteredUsersList(data.users);
+      } else {
+        fetchRegisteredUsers();
+      }
+    } catch {
+      fetchRegisteredUsers();
+    }
+  };
+
+  const handleAdminSaveUserUpdate = async (updatedData: any) => {
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/users/update`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedData)
+      });
+      const data = await res.json();
+      if (data.ok) {
+        handleFetchRegisteredUsersServer();
+        setEditingUserModal(null);
+        setPasswordResetModal(null);
+        setAdminResetPasswordInput('');
+      } else {
+        alert(`修改失败: ${data.error}`);
+      }
+    } catch (e: any) {
+      alert(`网络错误: ${e.message}`);
+    }
+  };
+
+  const handleAdminDeleteUser = async (targetUsername: string) => {
+    if (!confirm(`确定要注销并删除用户【${targetUsername}】吗？此操作无法撤销。`)) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/users/delete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: targetUsername })
+      });
+      const data = await res.json();
+      if (data.ok) {
+        handleFetchRegisteredUsersServer();
+      } else {
+        alert(data.error || '删除失败');
+      }
+    } catch (e: any) {
+      alert(`删除失败: ${e.message}`);
+    }
+  };
 
   const fetchRegisteredUsers = () => {
     try {
@@ -1134,7 +1273,7 @@ export default function App() {
     if (currentUser?.role === 'admin') {
       if (adminTab === 'dashboard') fetchDashboardStats();
       if (adminTab === 'rag') fetchRagKnowledge();
-      if (adminTab === 'users') fetchRegisteredUsers();
+      if (adminTab === 'users') handleFetchRegisteredUsersServer();
       if (adminTab === 'settings') {
         fetchSettingsConfig();
         handleFetchModelsList();
@@ -1655,23 +1794,30 @@ export default function App() {
             </p>
           </div>
 
-          <div className="flex bg-[#f0ebf8] p-1 rounded-2xl mb-6">
+          <div className="flex bg-[#f0ebf8] p-1 rounded-2xl mb-5 text-[12px] font-bold">
             <button
+              type="button"
               onClick={() => { setAuthMode('login'); setAuthError(''); }}
-              className={`flex-1 py-2 rounded-xl text-[13px] font-bold transition-all ${
-                authMode === 'login' ? 'bg-white text-[#4a4365] shadow-xs' : 'text-[#8a84a4]'
-              }`}
+              className={`flex-1 py-1.5 rounded-xl transition-all ${authMode === 'login' ? 'bg-white text-[#4a4365] shadow-xs' : 'text-[#8a84a4]'}`}
             >
               登录账号
             </button>
             <button
+              type="button"
               onClick={() => { setAuthMode('register'); setAuthError(''); }}
-              className={`flex-1 py-2 rounded-xl text-[13px] font-bold transition-all ${
-                authMode === 'register' ? 'bg-white text-[#4a4365] shadow-xs' : 'text-[#8a84a4]'
-              }`}
+              className={`flex-1 py-1.5 rounded-xl transition-all ${authMode === 'register' ? 'bg-white text-[#4a4365] shadow-xs' : 'text-[#8a84a4]'}`}
             >
-              注册新用户
+              标准注册
             </button>
+            {settingsConfig.advancedAuthEnabled && (
+              <button
+                type="button"
+                onClick={() => { setAuthMode('advanced_register'); setAuthError(''); }}
+                className={`flex-1 py-1.5 rounded-xl transition-all ${authMode === 'advanced_register' ? 'bg-purple-600 text-white shadow-xs' : 'text-purple-600 hover:bg-purple-100'}`}
+              >
+                验证码注册
+              </button>
+            )}
           </div>
 
           {authError && (
@@ -1680,9 +1826,15 @@ export default function App() {
             </div>
           )}
 
-          <form onSubmit={authMode === 'login' ? handleLogin : handleRegister} className="space-y-4">
+          {codeSendMsg && (
+            <div className="bg-emerald-50 text-emerald-600 text-[11.5px] p-2.5 rounded-2xl mb-4 font-bold border border-emerald-100 text-center animate-in fade-in">
+              {codeSendMsg}
+            </div>
+          )}
+
+          <form onSubmit={authMode === 'login' ? handleLogin : (authMode === 'advanced_register' ? handleAdvancedRegisterSubmit : handleRegister)} className="space-y-3.5">
             <div>
-              <label className="text-[12px] font-bold text-[#4a4365] block mb-1">账号</label>
+              <label className="text-[12px] font-bold text-[#4a4365] block mb-1">账号名</label>
               <div className="relative">
                 <User size={16} className="absolute left-3.5 top-3.5 text-gray-400" />
                 <input
@@ -1694,6 +1846,64 @@ export default function App() {
                 />
               </div>
             </div>
+
+            {authMode === 'advanced_register' && (
+              <div className="space-y-3.5 animate-in fade-in">
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-[12px] font-bold text-[#4a4365]">验证类型</label>
+                    <div className="flex items-center gap-2 text-[11px]">
+                      <button
+                        type="button"
+                        onClick={() => setRegTargetType('phone')}
+                        className={`px-2 py-0.5 rounded-md font-bold ${regTargetType === 'phone' ? 'bg-purple-100 text-purple-700' : 'text-gray-400'}`}
+                      >
+                        📱 手机号
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setRegTargetType('email')}
+                        className={`px-2 py-0.5 rounded-md font-bold ${regTargetType === 'email' ? 'bg-purple-100 text-purple-700' : 'text-gray-400'}`}
+                      >
+                        ✉️ 邮箱
+                      </button>
+                    </div>
+                  </div>
+                  <div className="relative">
+                    {regTargetType === 'phone' ? <Globe size={16} className="absolute left-3.5 top-3.5 text-gray-400" /> : <Globe size={16} className="absolute left-3.5 top-3.5 text-gray-400" />}
+                    <input
+                      type={regTargetType === 'phone' ? 'tel' : 'email'}
+                      value={regTarget}
+                      onChange={(e) => setRegTarget(e.target.value)}
+                      placeholder={regTargetType === 'phone' ? '输入11位手机号码' : '输入电子邮箱账号'}
+                      className="w-full bg-[#f8f6fc] border-none rounded-2xl pl-10 pr-4 py-3 text-[13px] outline-none focus:ring-2 focus:ring-[#a494e8]"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[12px] font-bold text-[#4a4365] block mb-1">验证码</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      maxLength={6}
+                      value={regVerificationCode}
+                      onChange={(e) => setRegVerificationCode(e.target.value)}
+                      placeholder="6位验证码"
+                      className="flex-1 bg-[#f8f6fc] border-none rounded-2xl px-4 py-3 text-[13px] font-mono outline-none focus:ring-2 focus:ring-[#a494e8]"
+                    />
+                    <button
+                      type="button"
+                      disabled={isSendingCode || codeCountdown > 0}
+                      onClick={handleSendVerificationCode}
+                      className="px-4 py-3 bg-purple-100 hover:bg-purple-200 text-purple-700 rounded-2xl text-[12px] font-bold shrink-0 disabled:opacity-50 cursor-pointer"
+                    >
+                      {codeCountdown > 0 ? `${codeCountdown}s 后重发` : (isSendingCode ? '发送中...' : '获取验证码')}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div>
               <label className="text-[12px] font-bold text-[#4a4365] block mb-1">密码</label>
@@ -1709,7 +1919,7 @@ export default function App() {
               </div>
             </div>
 
-            {authMode === 'register' && (
+            {authMode !== 'login' && (
               <div className="animate-in fade-in">
                 <label className="text-[12px] font-bold text-[#4a4365] block mb-1">确认密码</label>
                 <div className="relative">
@@ -1727,7 +1937,7 @@ export default function App() {
 
             <button
               type="submit"
-              className="w-full bg-[#4a4365] text-white py-3.5 rounded-2xl font-bold text-[14px] shadow-lg hover:bg-[#342e49] active:scale-95 transition-all flex items-center justify-center gap-2 mt-2"
+              className="w-full bg-[#4a4365] text-white py-3.5 rounded-2xl font-bold text-[14px] shadow-lg hover:bg-[#342e49] active:scale-95 transition-all flex items-center justify-center gap-2 mt-2 cursor-pointer"
             >
               <span>{authMode === 'login' ? '立即登录' : '创建账号并登录'}</span>
               <ArrowRight size={16} />
@@ -3312,6 +3522,24 @@ export default function App() {
         </div>
       )}
 
+      {/* Modal Admin 1: Edit User Account Info */}
+      {editingUserModal && (
+        <AdminEditUserModal
+          user={editingUserModal}
+          onClose={() => setEditingUserModal(null)}
+          onSave={handleAdminSaveUserUpdate}
+        />
+      )}
+
+      {/* Modal Admin 2: Reset User Password with Bcrypt */}
+      {passwordResetModal && (
+        <AdminResetPasswordModal
+          user={passwordResetModal}
+          onClose={() => setPasswordResetModal(null)}
+          onSave={handleAdminSaveUserUpdate}
+        />
+      )}
+
       {/* Modal 0: User Background Profile Entry Form */}
       <UserProfileModal
         profile={userProfile}
@@ -4128,6 +4356,178 @@ const PersonalRagModal = ({ username, isOpen, onClose }: PersonalRagModalProps) 
           </button>
         </div>
 
+      </div>
+    </div>
+  );
+};
+// ==========================================
+// Admin User Information Edit Modal
+// ==========================================
+const AdminEditUserModal = ({ user, onClose, onSave }: any) => {
+  const [formData, setFormData] = useState({
+    targetUsername: user?.username || '',
+    newUsername: user?.username || '',
+    phone: user?.phone || user?.profile?.phone || '',
+    email: user?.email || user?.profile?.email || '',
+    province: user?.profile?.province || '',
+    score: user?.profile?.score || '',
+    isVip: user?.profile?.isVip || false,
+    specialConditions: user?.profile?.specialConditions || ''
+  });
+
+  if (!user) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-md flex justify-center items-center p-4 animate-in fade-in duration-300">
+      <div className="bg-white/95 backdrop-blur-2xl rounded-[36px] max-w-[500px] w-full p-6 shadow-2xl border-4 border-white space-y-4 animate-in zoom-in-95 duration-300">
+        <div className="flex items-center justify-between border-b pb-3">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center font-bold">
+              <Edit3 size={18} />
+            </div>
+            <div>
+              <h3 className="font-bold text-[#4a4365] text-[15px]">修改账号与资料【{user.username}】</h3>
+              <p className="text-[11px] text-[#8a84a4]">管理员可直接调整考生信息、关联手机邮箱与分级状态</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-2 rounded-2xl text-gray-400 hover:text-gray-600">
+            <X size={18} />
+          </button>
+        </div>
+
+        <form onSubmit={(e) => { e.preventDefault(); onSave(formData); }} className="space-y-3.5 text-[12px]">
+          <div>
+            <label className="font-bold text-[#4a4365] block mb-1">账号名称</label>
+            <input
+              type="text"
+              value={formData.newUsername}
+              onChange={(e) => setFormData({ ...formData, newUsername: e.target.value })}
+              className="w-full bg-[#f8f6fc] p-2.5 rounded-xl font-bold outline-none"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="font-bold text-[#4a4365] block mb-1">手机号</label>
+              <input
+                type="text"
+                value={formData.phone}
+                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                placeholder="11位手机号"
+                className="w-full bg-[#f8f6fc] p-2.5 rounded-xl outline-none"
+              />
+            </div>
+            <div>
+              <label className="font-bold text-[#4a4365] block mb-1">电子邮箱</label>
+              <input
+                type="email"
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                placeholder="user@domain.com"
+                className="w-full bg-[#f8f6fc] p-2.5 rounded-xl outline-none"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="font-bold text-[#4a4365] block mb-1">高考省份</label>
+              <input
+                type="text"
+                value={formData.province}
+                onChange={(e) => setFormData({ ...formData, province: e.target.value })}
+                placeholder="如: 广东/浙江"
+                className="w-full bg-[#f8f6fc] p-2.5 rounded-xl outline-none"
+              />
+            </div>
+            <div>
+              <label className="font-bold text-[#4a4365] block mb-1">高考分数</label>
+              <input
+                type="number"
+                value={formData.score}
+                onChange={(e) => setFormData({ ...formData, score: e.target.value })}
+                placeholder="例如: 590"
+                className="w-full bg-[#f8f6fc] p-2.5 rounded-xl outline-none font-bold text-purple-600"
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between bg-purple-50/60 p-3 rounded-2xl border border-purple-100">
+            <span className="font-bold text-[#4a4365]">设置 VIP 考生专属通道</span>
+            <button
+              type="button"
+              onClick={() => setFormData({ ...formData, isVip: !formData.isVip })}
+              className={`px-3 py-1 rounded-xl text-[11px] font-bold cursor-pointer ${formData.isVip ? 'bg-purple-600 text-white' : 'bg-gray-200 text-gray-600'}`}
+            >
+              {formData.isVip ? 'VIP 已开启' : '普通用户'}
+            </button>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2 border-t">
+            <button type="button" onClick={onClose} className="px-4 py-2.5 rounded-xl text-gray-500 font-bold hover:bg-gray-100">
+              取消
+            </button>
+            <button type="submit" className="px-6 py-2.5 bg-[#4a4365] text-white font-bold rounded-xl shadow-md hover:bg-[#342e49] cursor-pointer">
+              保存更改
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+// ==========================================
+// Admin Password Reset Modal (Bcrypt Auto-Hashing)
+// ==========================================
+const AdminResetPasswordModal = ({ user, onClose, onSave }: any) => {
+  const [newPassword, setNewPassword] = useState('');
+
+  if (!user) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-md flex justify-center items-center p-4 animate-in fade-in duration-300">
+      <div className="bg-white/95 backdrop-blur-2xl rounded-[36px] max-w-[420px] w-full p-6 shadow-2xl border-4 border-white space-y-4 animate-in zoom-in-95 duration-300">
+        <div className="flex items-center justify-between border-b pb-3">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center font-bold">
+              <Lock size={18} />
+            </div>
+            <div>
+              <h3 className="font-bold text-[#4a4365] text-[15px]">重置用户密码【{user.username}】</h3>
+              <p className="text-[11px] text-[#8a84a4]">新密码将由 Node bcryptjs 进行 10 轮加盐哈希保存</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-2 rounded-2xl text-gray-400 hover:text-gray-600">
+            <X size={18} />
+          </button>
+        </div>
+
+        <form onSubmit={(e) => { e.preventDefault(); onSave({ targetUsername: user.username, newPassword }); }} className="space-y-4 text-[12px]">
+          <div className="bg-amber-50 p-3 rounded-2xl border border-amber-100 text-amber-800 text-[11px]">
+            当前密钥状态: <strong className="font-mono">{user.isPasswordHashed ? '🔒 已具备 Bcrypt 杂凑保护' : '⚠️ 明文/未加密存储'}</strong>
+          </div>
+
+          <div>
+            <label className="font-bold text-[#4a4365] block mb-1">请输入全新重置密码</label>
+            <input
+              type="text"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              placeholder="例如: NewPass123!"
+              className="w-full bg-[#f8f6fc] p-3 rounded-xl font-mono text-[13px] outline-none focus:ring-2 focus:ring-amber-400"
+            />
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2 border-t">
+            <button type="button" onClick={onClose} className="px-4 py-2.5 rounded-xl text-gray-500 font-bold hover:bg-gray-100">
+              取消
+            </button>
+            <button type="submit" disabled={!newPassword.trim()} className="px-6 py-2.5 bg-amber-600 text-white font-bold rounded-xl shadow-md hover:bg-amber-700 cursor-pointer disabled:opacity-50">
+              立即重置并 Bcrypt 加密
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );
