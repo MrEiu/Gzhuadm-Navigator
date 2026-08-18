@@ -1,0 +1,113 @@
+import express from 'express';
+import { run, user, assistant } from '@openai/agents';
+import { getUserProfile } from '../services/personalRag.mjs';
+import { searchRagEngine, formatRagContext } from '../services/ragEngine.mjs';
+import { createAdmissionsAgent } from '../services/agentService.mjs';
+
+const router = express.Router();
+
+// --- Chat Endpoint with Agent Workflow Integration ---
+router.post('/chat', async (req, res) => {
+    const username = req.body?.username || '';
+    const incomingMessages = Array.isArray(req.body?.messages) ? req.body.messages : [];
+    const lastUserMsg = [...incomingMessages].reverse().find(m => m.role === 'user')?.content || '';
+
+    // Retrieve user background profile
+    let userProfile = req.body?.userProfile || null;
+    if (username && !userProfile) {
+        userProfile = await getUserProfile(username);
+    }
+
+    // 1. Check Low Score Rule (< 450 -> Service Busy Lock)
+    if (userProfile && typeof userProfile.score === 'number' && userProfile.score > 0 && userProfile.score < 450) {
+        return res.json({
+            ok: true,
+            isBusy: true,
+            reply: `⚠️ **系统通知**：当前招生咨询队列正忙，请稍后再试。\n\n您目前填报的高考分数为 **${userProfile.score} 分**（低于450分基础咨询段），系统正优先分配计算资源处理高并发位次咨询，感谢您的理解与配合！`,
+            source: 'low-score-busy-lock'
+        });
+    }
+
+    const hasRemoteKey = Boolean(process.env.DEEPSEEK_API_KEY || process.env.OPENAI_API_KEY || process.env.AI_API_KEY);
+
+    // 2. If no remote API key, serve local response using RAG context
+    if (!hasRemoteKey) {
+        const ragMatches = await searchRagEngine(lastUserMsg, 3);
+        if (ragMatches.length) {
+            const topMatch = ragMatches[0].item;
+            let reply = `根据校方数据库核对：\n\n### 📌 ${topMatch.title}\n${topMatch.content}\n\n`;
+
+            if (topMatch.tableData && topMatch.tableData.columns && topMatch.tableData.rows) {
+                reply += `| ${topMatch.tableData.columns.join(' | ')} |\n`;
+                reply += `| ${topMatch.tableData.columns.map(() => '---').join(' | ')} |\n`;
+                topMatch.tableData.rows.forEach(r => {
+                    reply += `| ${r.join(' | ')} |\n`;
+                });
+                reply += `\n`;
+            }
+
+            if (topMatch.imageAttachments && topMatch.imageAttachments.length) {
+                topMatch.imageAttachments.forEach(img => {
+                    reply += `![${img.caption || img.name}](${img.url})\n`;
+                });
+            }
+
+            return res.json({ ok: true, reply, source: 'local-bge-rag-db' });
+        }
+
+        return res.json({
+            ok: true,
+            reply: `同学/家长您好！我是招生咨询顾问 **Dr. Elena**。✨\n\n关于您咨询的“${lastUserMsg}”，您可以向我询问广州大学热门专业录取分数线、四人间宿舍环境配置或学费与资助政策，我会随时为您解答！`,
+            source: 'local-fallback'
+        });
+    }
+
+    // 3. Run @openai/agents Autonomous Agent Workflow
+    try {
+        const agent = createAdmissionsAgent(userProfile, username);
+
+        const inputItems = incomingMessages
+            .filter((m) => m && typeof m.role === 'string' && typeof m.content === 'string')
+            .map((m) => {
+                if (m.role === 'assistant') return assistant(m.content);
+                return user(m.content);
+            });
+
+        if (inputItems.length === 0 && lastUserMsg) {
+            inputItems.push(user(lastUserMsg));
+        }
+
+        console.log(`🤖 [Agent Run] Executing Admissions Agent for user: ${username || 'anonymous'}`);
+        const runResult = await run(agent, inputItems);
+
+        const reply = runResult.finalOutput || '我刚刚有点走神了，您可以再说一次吗？';
+
+        let calledRagTool = false;
+        if (Array.isArray(runResult.newItems)) {
+            calledRagTool = runResult.newItems.some(item => {
+                const name = item.name || item.toolName || item.tool?.name || item.function?.name || item.rawItem?.name;
+                return name === 'searchCampusKnowledge' || JSON.stringify(item).includes('searchCampusKnowledge');
+            });
+        }
+
+        res.json({
+            ok: true,
+            reply,
+            source: calledRagTool ? 'openai-agents-rag-tool' : 'openai-agents-direct'
+        });
+    } catch (error) {
+        console.error('⚠️ [Agent Run Error]:', error);
+
+        // Fallback to local RAG knowledge match on failure
+        const ragMatches = await searchRagEngine(lastUserMsg, 3);
+        const ragContext = formatRagContext(ragMatches);
+
+        res.json({
+            ok: true,
+            reply: ragContext ? `根据校方数据库为您查找到以下信息：\n\n${ragContext}` : '服务响应稍慢，请再次发送请求。',
+            source: 'rag-fallback'
+        });
+    }
+});
+
+export default router;
