@@ -350,9 +350,16 @@ export const PlaygroundTab: React.FC = () => {
                                                 >
                                                     {item.title} <ExternalLink size={12} className="shrink-0 text-gray-400" />
                                                 </a>
-                                                <span className="text-[10px] font-bold bg-amber-100 text-amber-800 px-2 py-0.5 rounded-md shrink-0">
-                                                    {(item as any).source === 'tavily' ? 'Tavily AI' : ((item as any).source === 'bocha' ? '博查 AI' : ((item as any).source === 'bing' ? '必应全网' : ((item as any).source === 'duckduckgo' ? 'DuckDuckGo' : '大湾区招生快照')))}
-                                                </span>
+                                                <div className="flex items-center gap-1.5 shrink-0">
+                                                    {item.images && item.images.length > 0 && (
+                                                        <span className="text-[10px] font-bold bg-purple-100 text-purple-700 px-2 py-0.5 rounded-md flex items-center gap-1">
+                                                            <ImageIcon size={10} /> {item.images.length} 张配图
+                                                        </span>
+                                                    )}
+                                                    <span className="text-[10px] font-bold bg-amber-100 text-amber-800 px-2 py-0.5 rounded-md">
+                                                        {(item as any).source === 'tavily' ? 'Tavily AI' : ((item as any).source === 'bocha' ? '博查 AI' : ((item as any).source === 'bing' ? '必应全网' : ((item as any).source === 'duckduckgo' ? 'DuckDuckGo' : '大湾区招生快照')))}
+                                                    </span>
+                                                </div>
                                             </div>
 
                                             <p className="text-[12px] text-[#6d648b] leading-relaxed line-clamp-3">
@@ -360,31 +367,45 @@ export const PlaygroundTab: React.FC = () => {
                                             </p>
 
                                             {item.images && item.images.length > 0 && (
-                                                <div className="flex items-center gap-2 pt-1 overflow-x-auto hide-scrollbar">
-                                                    {item.images.slice(0, 3).map((img: any, imgIdx: number) => {
-                                                        const imgUrl = typeof img === 'string' ? img : img.url;
-                                                        const imgTitle = typeof img === 'string' ? item.title : (img.title || item.title);
-                                                        return (
-                                                            <a
-                                                                key={imgIdx}
-                                                                href={imgUrl}
-                                                                target="_blank"
-                                                                rel="noreferrer"
-                                                                className="group relative rounded-xl overflow-hidden border border-amber-200/60 shadow-2xs hover:scale-105 transition-all shrink-0 bg-white"
-                                                                title={imgTitle}
-                                                            >
-                                                                <img
-                                                                    src={imgUrl}
-                                                                    alt={imgTitle}
-                                                                    className="w-24 h-16 object-cover bg-amber-50"
-                                                                    onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
-                                                                />
-                                                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[10px] font-bold">
-                                                                    查看配图
-                                                                </div>
-                                                            </a>
-                                                        );
-                                                    })}
+                                                <div className="space-y-1 pt-1">
+                                                    <div className="text-[10.5px] font-bold text-[#8a84a4] flex items-center gap-1">
+                                                        <ImageIcon size={11} className="text-amber-500" /> 检索提取的网页配图 ({item.images.length})：
+                                                    </div>
+                                                    <div className="flex items-center gap-2 overflow-x-auto hide-scrollbar py-1">
+                                                        {item.images.map((img: any, imgIdx: number) => {
+                                                            const imgUrl = typeof img === 'string' ? img : img.url;
+                                                            const imgTitle = typeof img === 'string' ? item.title : (img.title || item.title);
+                                                            return (
+                                                                <a
+                                                                    key={imgIdx}
+                                                                    href={imgUrl}
+                                                                    target="_blank"
+                                                                    rel="noreferrer"
+                                                                    className="group relative rounded-xl overflow-hidden border border-amber-200/80 shadow-2xs hover:scale-105 transition-all shrink-0 bg-white"
+                                                                    title={imgTitle}
+                                                                >
+                                                                    <img
+                                                                        src={imgUrl}
+                                                                        alt={imgTitle}
+                                                                        referrerPolicy="no-referrer"
+                                                                        loading="lazy"
+                                                                        className="w-28 h-18 object-cover bg-amber-50"
+                                                                        onError={(e) => {
+                                                                            const target = e.target as HTMLImageElement;
+                                                                            if (!target.dataset.retried) {
+                                                                                target.dataset.retried = 'true';
+                                                                                target.src = 'https://images.unsplash.com/photo-1562774053-701939374585?auto=format&fit=crop&w=400&q=80';
+                                                                            }
+                                                                        }}
+                                                                    />
+                                                                    <div className="absolute inset-0 bg-black/45 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white text-[10px] font-bold p-1 text-center">
+                                                                        <ExternalLink size={12} className="mb-0.5" />
+                                                                        <span className="line-clamp-1">{imgTitle || '查看大图'}</span>
+                                                                    </div>
+                                                                </a>
+                                                            );
+                                                        })}
+                                                    </div>
                                                 </div>
                                             )}
 

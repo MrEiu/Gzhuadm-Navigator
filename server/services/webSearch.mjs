@@ -19,35 +19,70 @@ const withTimeout = (promise, ms = 3000) => {
     ]);
 };
 
-// Fast Bing CN Image Fetcher
-const fetchBingImages = async (cleanQuery, count = 3) => {
+// 1. Baidu Image API Fetcher (High-speed & Zero Auth in Mainland)
+const fetchBaiduImages = async (cleanQuery, count = 3) => {
     try {
-        const url = `https://cn.bing.com/images/search?q=${encodeURIComponent(cleanQuery)}&form=HDRSC2`;
+        const url = `https://image.baidu.com/search/acjson?tn=resultjson_com&logid=1&ipn=rj&ct=201326592&is=&fp=result&fr=&word=${encodeURIComponent(cleanQuery)}&queryWord=${encodeURIComponent(cleanQuery)}&pn=0&rn=${count + 2}&ie=utf-8&oe=utf-8`;
         const res = await withTimeout(fetch(url, {
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+                'Accept': 'text/plain, */*; q=0.01',
                 'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8'
             }
         }), 2500);
 
         if (!res.ok) return [];
-        const html = await res.text();
+        const json = await res.json();
+        const rawList = Array.isArray(json?.data) ? json.data : [];
+        const images = [];
+
+        for (const item of rawList) {
+            if (images.length >= count) break;
+            const imgUrl = item?.hoverURL || item?.middleURL || item?.thumbURL;
+            if (imgUrl && imgUrl.startsWith('http')) {
+                images.push({
+                    url: imgUrl,
+                    title: item?.fromPageTitleEnc ? item.fromPageTitleEnc.replace(/<[^>]+>/g, '').trim() : `${cleanQuery} 配图`
+                });
+            }
+        }
+        return images;
+    } catch {
+        return [];
+    }
+};
+
+// 2. Bing CN Image Fetcher
+const fetchBingImages = async (cleanQuery, count = 3) => {
+    try {
+        const url = `https://cn.bing.com/images/search?q=${encodeURIComponent(cleanQuery)}&form=HDRSC2&first=1`;
+        const res = await withTimeout(fetch(url, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8'
+            }
+        }), 2500);
+
+        if (!res.ok) return [];
+        let html = await res.text();
         const imgList = [];
+        const decodedHtml = html.replace(/&quot;/g, '"').replace(/&amp;/g, '&');
         
-        // Match murl in Bing Image search JSON attributes
-        const murlRegex = /murl&quot;:&quot;(http[^&]+)&quot;/g;
+        // Match murl in iusc JSON data
+        const murlRegex = /"murl"\s*:\s*"(https?:\/\/[^"]+)"/g;
         let match;
-        while ((match = murlRegex.exec(html)) !== null && imgList.length < count) {
+        while ((match = murlRegex.exec(decodedHtml)) !== null && imgList.length < count) {
             const rawUrl = match[1].replace(/\\/g, '');
-            if (rawUrl.startsWith('http') && !rawUrl.includes('.svg')) {
-                imgList.push({ url: rawUrl, title: `${cleanQuery} 相关配图` });
+            if (!rawUrl.includes('.svg') && !rawUrl.includes('.ico')) {
+                imgList.push({ url: rawUrl, title: `${cleanQuery} 配图` });
             }
         }
 
-        // Fallback: match thumb image src
+        // Match tse thumbnail URLs
         if (imgList.length === 0) {
-            const thumbRegex = /src="([^"]*tse[^"]*)"/g;
-            while ((match = thumbRegex.exec(html)) !== null && imgList.length < count) {
+            const tseRegex = /"(https?:\/\/[^"]*tse[^"]*\.bing\.net\/th\?id=[^"]+)"/g;
+            while ((match = tseRegex.exec(decodedHtml)) !== null && imgList.length < count) {
                 imgList.push({ url: match[1], title: `${cleanQuery} 缩略图` });
             }
         }
@@ -58,7 +93,30 @@ const fetchBingImages = async (cleanQuery, count = 3) => {
     }
 };
 
-// Fast Bing CN Web Scraper
+// Unified Multi-Source Image Aggregator
+const fetchMultiSourceImages = async (cleanQuery, count = 3) => {
+    try {
+        const [baiduImgs, bingImgs] = await Promise.all([
+            fetchBaiduImages(cleanQuery, count).catch(() => []),
+            fetchBingImages(cleanQuery, count).catch(() => [])
+        ]);
+        const merged = [...baiduImgs, ...bingImgs];
+        const unique = [];
+        const seen = new Set();
+        for (const img of merged) {
+            if (img?.url && !seen.has(img.url)) {
+                seen.add(img.url);
+                unique.push(img);
+                if (unique.length >= count) break;
+            }
+        }
+        return unique;
+    } catch {
+        return [];
+    }
+};
+
+// 3. Fast Bing CN Web Scraper
 const fetchBingSearch = async (cleanQuery, maxResults = 4) => {
     try {
         const url = `https://cn.bing.com/search?q=${encodeURIComponent(cleanQuery)}&ensearch=0`;
@@ -69,7 +127,7 @@ const fetchBingSearch = async (cleanQuery, maxResults = 4) => {
                     'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8'
                 }
             }), 2500),
-            fetchBingImages(cleanQuery, 3).catch(() => [])
+            fetchMultiSourceImages(cleanQuery, 3).catch(() => [])
         ]);
 
         if (!webRes.ok) return [];
@@ -97,13 +155,19 @@ const fetchBingSearch = async (cleanQuery, maxResults = 4) => {
                 }
             }
         }
+
+        // If results were found but no images were attached, assign images to the top result
+        if (results.length > 0 && images.length > 0 && results.every(r => !r.images || r.images.length === 0)) {
+            results[0].images = images;
+        }
+
         return results;
     } catch {
         return [];
     }
 };
 
-// Admissions Knowledge Web Intelligence Engine (Intranet/Offline Multi-Source Fallback with rich campus images)
+// 4. Admissions Knowledge Web Intelligence Engine (Intranet/Offline Multi-Source Fallback with rich campus images)
 const generateAdmissionsWebDigests = (cleanQuery, maxResults = 3) => {
     const qLower = cleanQuery.toLowerCase();
     const digests = [];
@@ -262,12 +326,13 @@ export const performWebSearch = async (query = '', maxResults = 4) => {
                 const json = await res.json();
                 const pages = json.data?.webPages?.value || [];
                 if (pages.length > 0) {
-                    return pages.slice(0, maxResults).map(p => ({
+                    const fallbackImgs = await fetchMultiSourceImages(cleanQuery, 3).catch(() => []);
+                    return pages.slice(0, maxResults).map((p, idx) => ({
                         title: p.name || p.title || '网页搜索结果',
                         url: p.url,
                         snippet: p.snippet || p.summary || '',
                         source: 'bocha',
-                        images: p.images || []
+                        images: (p.images && p.images.length > 0) ? p.images : (idx === 0 ? fallbackImgs : [])
                     }));
                 }
             }
@@ -276,7 +341,7 @@ export const performWebSearch = async (query = '', maxResults = 4) => {
         }
     }
 
-    // 3. Fast Bing Search Scraper (with Bing Images)
+    // 3. Fast Bing Search Scraper (with Multi-Source Images)
     try {
         console.log(`🌐 [WebSearch: Bing Scraper] Querying "${cleanQuery}"...`);
         const bingResults = await fetchBingSearch(cleanQuery, maxResults);
@@ -292,13 +357,13 @@ export const performWebSearch = async (query = '', maxResults = 4) => {
         console.log(`🌐 [WebSearch: DuckDuckGo Fallback] Querying "${cleanQuery}"...`);
         const ddgRes = await withTimeout(ddgSearch(cleanQuery, { safeSearch: SafeSearchType.STRICT }), 2500);
         if (ddgRes?.results && ddgRes.results.length > 0) {
-            const bingFallbackImages = await fetchBingImages(cleanQuery, 3).catch(() => []);
+            const fallbackImages = await fetchMultiSourceImages(cleanQuery, 3).catch(() => []);
             return ddgRes.results.slice(0, maxResults).map((r, idx) => ({
                 title: r.title || '网页搜索结果',
                 url: r.url,
                 snippet: r.description || r.snippet || '',
                 source: 'duckduckgo',
-                images: idx === 0 ? bingFallbackImages : []
+                images: idx === 0 ? fallbackImages : []
             }));
         }
     } catch (err) {
