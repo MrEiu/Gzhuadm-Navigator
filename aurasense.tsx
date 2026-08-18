@@ -7,7 +7,8 @@ import {
   Search, X, Upload, Check, User, Lock, LogOut, ShieldCheck, 
   ArrowRight, FileText, FileUp, Scissors, Layers, Eye,
   MessageSquare, History, PanelLeftOpen, PanelLeftClose, Clock, ChevronRight,
-  MapPin, Compass, Map, Navigation, Tag, Info, ExternalLink, Bookmark
+  MapPin, Compass, Map, Navigation, Tag, Info, ExternalLink, Bookmark,
+  LayoutDashboard, Globe, Settings, Cpu, Activity, RefreshCw, Zap, Sliders, CheckCircle2, AlertCircle, Play, FlaskConical
 } from 'lucide-react';
 
 const API_BASE = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') ? `http://${window.location.hostname}:3001` : '';
