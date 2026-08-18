@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
     Sliders, Sparkles, KeyRound, Globe, Server, Check,
     RefreshCw, Eye, EyeOff, ShieldCheck, Mail, Smartphone,
-    Bot, MessageSquare, ArrowRight, Zap, CheckCircle2
+    Bot, MessageSquare, ArrowRight, Zap, CheckCircle2,
+    Upload, Compass, Image as ImageIcon, Link as LinkIcon
 } from 'lucide-react';
 import { SettingsConfig } from '../../types';
 import { API_BASE } from '../../api/config';
@@ -26,7 +27,21 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigSaved }) => {
     const [testingConnection, setTestingConnection] = useState(false);
     const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
 
-    // Form fields
+    // 1. Agent Personas & Avatars (Dr & Lili)
+    const [drName, setDrName] = useState('Dr. Elena');
+    const [drTitle, setDrTitle] = useState('招生咨询顾问');
+    const [drAvatar, setDrAvatar] = useState('https://images.unsplash.com/photo-1559839734-2b71ea197ec2?q=80&w=200&auto=format&fit=crop');
+
+    const [liliName, setLiliName] = useState('丽丽学姐');
+    const [liliTitle, setLiliTitle] = useState('校园智能伴游');
+    const [liliAvatar, setLiliAvatar] = useState('https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=400&auto=format&fit=crop');
+
+    const [uploadingDrAvatar, setUploadingDrAvatar] = useState(false);
+    const [uploadingLiliAvatar, setUploadingLiliAvatar] = useState(false);
+    const drFileInputRef = useRef<HTMLInputElement>(null);
+    const liliFileInputRef = useRef<HTMLInputElement>(null);
+
+    // 2. Gateway and Models
     const [baseUrl, setBaseUrl] = useState('https://api.deepseek.com');
     const [apiKey, setApiKey] = useState('');
     const [showApiKey, setShowApiKey] = useState(false);
@@ -38,12 +53,12 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigSaved }) => {
 
     const [systemPrompt, setSystemPrompt] = useState(DEFAULT_SYSTEM_PROMPT);
 
-    // Search Engine
+    // 3. Search Engine
     const [searchProvider, setSearchProvider] = useState<'multi' | 'bing' | 'tavily' | 'bocha' | 'duckduckgo' | 'none'>('multi');
     const [tavilyApiKey, setTavilyApiKey] = useState('');
     const [bochaApiKey, setBochaApiKey] = useState('');
 
-    // Registration Mode & Security Channels
+    // 4. Registration Mode & Security Channels
     const [authMode, setAuthMode] = useState<'username' | 'phone' | 'email'>('username');
     const [tencentSmsSecretId, setTencentSmsSecretId] = useState('');
     const [tencentSmsSecretKey, setTencentSmsSecretKey] = useState('');
@@ -87,6 +102,22 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigSaved }) => {
                 setSmtpUser(c.smtpUser || '');
                 setSmtpPass(c.smtpPass || '');
             }
+
+            // Also load Agent Avatars
+            const agentRes = await fetch(`${API_BASE}/api/agent-config`);
+            const agentData = await agentRes.json();
+            if (agentData.ok && agentData.data) {
+                if (agentData.data.dr) {
+                    setDrName(agentData.data.dr.name || 'Dr. Elena');
+                    setDrTitle(agentData.data.dr.title || '招生咨询顾问');
+                    setDrAvatar(agentData.data.dr.avatar || 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?q=80&w=200&auto=format&fit=crop');
+                }
+                if (agentData.data.lili) {
+                    setLiliName(agentData.data.lili.name || '丽丽学姐');
+                    setLiliTitle(agentData.data.lili.title || '校园智能伴游');
+                    setLiliAvatar(agentData.data.lili.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=400&auto=format&fit=crop');
+                }
+            }
         } catch (err) {
             console.error('Fetch config err:', err);
         } finally {
@@ -108,45 +139,24 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigSaved }) => {
             tag: '推荐 · 超高性价比'
         },
         {
-            name: 'OpenAI Official',
+            name: '硅基流动 (SiliconFlow)',
+            url: 'https://api.siliconflow.cn/v1',
+            defaultM: 'deepseek-ai/DeepSeek-V3',
+            fastM: 'deepseek-ai/DeepSeek-V3',
+            tag: '国内高速大模型平台'
+        },
+        {
+            name: 'OpenAI 官方',
             url: 'https://api.openai.com/v1',
             defaultM: 'gpt-4o',
             fastM: 'gpt-4o-mini',
-            tag: '旗舰通用'
+            tag: '全球通用高性能'
         },
         {
-            name: '阿里通义千问',
-            url: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
-            defaultM: 'qwen-plus',
-            fastM: 'qwen-turbo',
-            tag: '国内低延迟'
-        },
-        {
-            name: '硅基流动 SiliconFlow',
-            url: 'https://api.siliconflow.cn/v1',
-            defaultM: 'deepseek-ai/DeepSeek-V3',
-            fastM: 'deepseek-ai/DeepSeek-R1-Distill-Qwen-7B',
-            tag: '算力矩阵'
-        },
-        {
-            name: '智谱清言 GLM',
-            url: 'https://open.bigmodel.cn/api/paas/v4',
-            defaultM: 'glm-4-plus',
-            fastM: 'glm-4-flash',
-            tag: '清华系大模型'
-        },
-        {
-            name: '月之暗面 Kimi',
-            url: 'https://api.moonshot.cn/v1',
-            defaultM: 'moonshot-v1-32k',
-            fastM: 'moonshot-v1-8k',
-            tag: '超长上下文'
-        },
-        {
-            name: '本地网关 (Ollama)',
+            name: 'Ollama 本地大模型',
             url: 'http://localhost:11434/v1',
-            defaultM: 'qwen2.5:7b',
-            fastM: 'qwen2.5:1.5b',
+            defaultM: 'deepseek-r1:8b',
+            fastM: 'llama3.2:3b',
             tag: '完全私有化离线'
         }
     ];
@@ -180,13 +190,13 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigSaved }) => {
             } else {
                 setTestResult({
                     ok: false,
-                    message: data.error || '连通握手失败'
+                    message: `连通失败：${data.error || '无法连接该端点'}`
                 });
             }
         } catch (err: any) {
             setTestResult({
                 ok: false,
-                message: err.message || '网络连接超时'
+                message: `请求异常：${err.message || '网络连接被拒绝'}`
             });
         } finally {
             setTestingConnection(false);
@@ -196,126 +206,384 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigSaved }) => {
     const handleFetchModels = async () => {
         setFetchingModels(true);
         try {
-            const res = await fetch(`${API_BASE}/api/admin/models`);
+            const res = await fetch(`${API_BASE}/api/admin/fetch-models`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ baseUrl, apiKey: apiKey || undefined })
+            });
             const data = await res.json();
             if (data.ok && Array.isArray(data.models) && data.models.length > 0) {
                 setAvailableModels(data.models);
-                alert(`🎉 成功从服务商远程拉取到 ${data.models.length} 个可用模型！`);
+                setTestResult({
+                    ok: true,
+                    message: `成功从远程端点拉取到 ${data.models.length} 个可用模型！`
+                });
             } else {
-                alert('未获取到可用模型列表：' + (data.error || '请先配置正确的 API Key'));
+                setTestResult({
+                    ok: false,
+                    message: `获取失败：${data.error || '该服务端点不支持动态获取模型列表'}`
+                });
             }
-        } catch (err) {
-            console.error('Fetch models err:', err);
+        } catch (err: any) {
+            setTestResult({
+                ok: false,
+                message: `拉取异常：${err.message}`
+            });
         } finally {
             setFetchingModels(false);
         }
     };
 
-    const handleSaveConfig = async (e: React.FormEvent) => {
+    // Avatar Upload Helper for Dr
+    const handleDrAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        setUploadingDrAvatar(true);
+        const reader = new FileReader();
+        reader.onload = async (loadEvent) => {
+            const base64Data = loadEvent.target?.result as string;
+            try {
+                const res = await fetch(`${API_BASE}/api/user/upload-avatar`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ imageBase64: base64Data, filename: file.name })
+                });
+                const data = await res.json();
+                if (data.ok && data.url) {
+                    const fullUrl = data.url.startsWith('http') ? data.url : `${API_BASE}${data.url}`;
+                    setDrAvatar(fullUrl);
+                } else {
+                    setDrAvatar(base64Data);
+                }
+            } catch {
+                setDrAvatar(base64Data);
+            } finally {
+                setUploadingDrAvatar(false);
+            }
+        };
+        reader.readAsDataURL(file);
+    };
+
+    // Avatar Upload Helper for Lili
+    const handleLiliAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        setUploadingLiliAvatar(true);
+        const reader = new FileReader();
+        reader.onload = async (loadEvent) => {
+            const base64Data = loadEvent.target?.result as string;
+            try {
+                const res = await fetch(`${API_BASE}/api/user/upload-avatar`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ imageBase64: base64Data, filename: file.name })
+                });
+                const data = await res.json();
+                if (data.ok && data.url) {
+                    const fullUrl = data.url.startsWith('http') ? data.url : `${API_BASE}${data.url}`;
+                    setLiliAvatar(fullUrl);
+                } else {
+                    setLiliAvatar(base64Data);
+                }
+            } catch {
+                setLiliAvatar(base64Data);
+            } finally {
+                setUploadingLiliAvatar(false);
+            }
+        };
+        reader.readAsDataURL(file);
+    };
+
+    const handleSave = async (e: React.FormEvent) => {
         e.preventDefault();
         setSaving(true);
         setSaveSuccess(false);
 
         try {
-            const payload: any = {
-                baseUrl,
-                defaultModel,
-                fastModel,
-                searchProvider,
-                systemPrompt,
-                authRegistrationMode: authMode,
-                advancedAuthEnabled: authMode !== 'username',
-                tencentSmsSecretId,
-                tencentSmsSdkAppId,
-                tencentSmsSignName,
-                tencentSmsTemplateId,
-                smtpHost,
-                smtpPort,
-                smtpUser
-            };
-
-            if (apiKey) payload.apiKey = apiKey;
-            if (tavilyApiKey) payload.tavilyApiKey = tavilyApiKey;
-            if (bochaApiKey) payload.bochaApiKey = bochaApiKey;
-            if (tencentSmsSecretKey) payload.tencentSmsSecretKey = tencentSmsSecretKey;
-            if (smtpPass) payload.smtpPass = smtpPass;
-
+            // Save main gateway config
             const res = await fetch(`${API_BASE}/api/admin/config`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
+                body: JSON.stringify({
+                    baseUrl,
+                    apiKey,
+                    defaultModel,
+                    fastModel,
+                    searchProvider,
+                    tavilyApiKey,
+                    bochaApiKey,
+                    systemPrompt,
+                    authRegistrationMode: authMode,
+                    tencentSmsSecretId,
+                    tencentSmsSecretKey,
+                    tencentSmsSdkAppId,
+                    tencentSmsSignName,
+                    tencentSmsTemplateId,
+                    smtpHost,
+                    smtpPort,
+                    smtpUser,
+                    smtpPass
+                })
+            });
+
+            // Save Agent Personas & Avatars
+            await fetch(`${API_BASE}/api/admin/agent-config`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    dr: { name: drName, title: drTitle, avatar: drAvatar },
+                    lili: { name: liliName, title: liliTitle, avatar: liliAvatar }
+                })
             });
 
             const data = await res.json();
             if (data.ok) {
                 setSaveSuccess(true);
-                setTimeout(() => setSaveSuccess(false), 3000);
                 onConfigSaved?.();
+                setTimeout(() => setSaveSuccess(false), 3500);
             } else {
-                alert('保存配置失败：' + (data.error || '未知错误'));
+                alert(`保存失败：${data.error || '未知错误'}`);
             }
         } catch (err: any) {
-            alert('保存异常：' + (err.message || '网络连接错误'));
+            alert(`保存配置请求异常：${err.message}`);
         } finally {
             setSaving(false);
         }
     };
 
     return (
-        <form onSubmit={handleSaveConfig} className="space-y-6 animate-in fade-in duration-300 pb-12">
-
-            {/* Top Info Banner */}
-            <div className="bg-white/80 backdrop-blur-xl rounded-[28px] p-5 border border-white/80 shadow-[0_6px_20px_rgba(186,175,215,0.15)] flex flex-col sm:flex-row items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
-                    <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-[#b3a4ed] to-[#f296b2] text-white flex items-center justify-center shadow-[0_8px_20px_rgba(179,164,237,0.35)]">
-                        <Sliders size={22} />
-                    </div>
-                    <div>
-                        <h3 className="font-black text-[#4a4365] text-[16px] tracking-tight">
-                            系统模型与引擎配置中心
-                        </h3>
-                        <p className="text-[11.5px] text-[#8a84a4]">
-                            支持一键切换服务商预设 · 双模型协同分流 · 提示词热更新 · 联网搜索引擎与短信邮箱配置
-                        </p>
-                    </div>
+        <form onSubmit={handleSave} className="space-y-6 max-w-5xl mx-auto pb-10">
+            {/* Header & Save Action */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-100/80 pb-4">
+                <div>
+                    <h3 className="font-black text-[#4a4365] text-[18px] tracking-tight flex items-center gap-2">
+                        <Sliders size={20} className="text-[#a494e8]" /> 全局系统配置与智能体形象定制
+                    </h3>
+                    <p className="text-[12px] text-[#7a7398] font-medium mt-0.5">
+                        可视化管理 AI 网关、双模型协同分配、Dr 与丽丽学姐头像形象及考生验证通道
+                    </p>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2.5">
+                    {saveSuccess && (
+                        <span className="text-[12px] font-bold text-emerald-600 flex items-center gap-1 animate-in fade-in">
+                            <CheckCircle2 size={15} /> 配置已成功保存并立即生效！
+                        </span>
+                    )}
+
                     <button
                         type="submit"
                         disabled={saving}
-                        className="px-6 py-2.5 rounded-2xl bg-gradient-to-r from-[#b3a4ed] to-[#c7b8f9] text-white text-[13px] font-bold shadow-[0_4px_14px_rgba(179,164,237,0.4)] hover:opacity-95 active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                        className="px-6 py-2.5 rounded-2xl bg-gradient-to-r from-[#b3a4ed] to-[#a494e8] hover:opacity-95 text-white font-bold text-[13px] shadow-[0_6px_20px_rgba(179,164,237,0.35)] transition-all cursor-pointer flex items-center gap-1.5 active:scale-98 disabled:opacity-50"
                     >
-                        {saveSuccess ? <CheckCircle2 size={16} className="text-white" /> : <Check size={16} />}
-                        <span>{saving ? '正在写入环境配置...' : saveSuccess ? '配置已保存并立即生效' : '保存并应用新配置'}</span>
+                        <Check size={16} />
+                        <span>{saving ? '保存中...' : '保存全部系统配置'}</span>
                     </button>
                 </div>
             </div>
 
-            {/* 1. Large Model Provider Presets Strip */}
-            <div className="bg-white/80 backdrop-blur-xl rounded-[32px] p-6 border border-white/80 shadow-[0_8px_25px_rgba(186,175,215,0.18)] space-y-3.5">
+            {/* 1. NEW: AI Agent Personas & Avatar Customization Card */}
+            <div className="bg-white/80 backdrop-blur-xl rounded-[32px] p-6 border border-white/80 shadow-[0_8px_25px_rgba(186,175,215,0.18)] space-y-5">
                 <div className="flex items-center justify-between">
-                    <span className="text-[13px] font-bold text-[#4a4365] flex items-center gap-1.5">
-                        <Sparkles size={15} className="text-purple-600" /> 主流大模型服务商一键快捷预设
-                    </span>
-                    <span className="text-[11px] text-[#8a84a4]">点击卡片即可一键填充对应网关地址与推荐模型</span>
+                    <div>
+                        <h4 className="font-black text-[#4a4365] text-[15px] flex items-center gap-2">
+                            <Bot size={18} className="text-purple-600" /> AI 智能体人设与头像形象定制 (Dr. 与 丽丽学姐)
+                        </h4>
+                        <p className="text-[11.5px] text-[#8a84a4] mt-0.5">
+                            支持自定义招生百事通与导览学姐的头像（本地上传或网络 URL）、显示名称与头衔
+                        </p>
+                    </div>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5 pt-1">
+                    
+                    {/* Agent 1: Dr. Elena (广大招生导师) */}
+                    <div className="bg-gradient-to-br from-purple-50/70 via-white to-indigo-50/40 p-5 rounded-3xl border border-purple-100 shadow-2xs space-y-4">
+                        <div className="flex items-center justify-between">
+                            <span className="text-[12px] font-black text-purple-950 flex items-center gap-1.5">
+                                <Sparkles size={14} className="text-purple-600" />
+                                <span>广大招生咨询顾问 (Dr.)</span>
+                            </span>
+                            <span className="text-[10px] font-bold bg-purple-100 text-purple-800 px-2 py-0.5 rounded-md">
+                                问答对话主角色
+                            </span>
+                        </div>
+
+                        <div className="flex items-center gap-4">
+                            {/* Avatar Preview */}
+                            <div className="relative w-16 h-16 rounded-2xl overflow-hidden shadow-md border-2 border-white shrink-0 bg-purple-100">
+                                <img
+                                    src={drAvatar}
+                                    alt="Dr. Avatar"
+                                    className="w-full h-full object-cover"
+                                    onError={(e) => {
+                                        (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1559839734-2b71ea197ec2?q=80&w=200&auto=format&fit=crop";
+                                    }}
+                                />
+                            </div>
+
+                            <div className="flex-1 space-y-2">
+                                <input
+                                    ref={drFileInputRef}
+                                    type="file"
+                                    accept="image/*"
+                                    onChange={handleDrAvatarUpload}
+                                    className="hidden"
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => drFileInputRef.current?.click()}
+                                    disabled={uploadingDrAvatar}
+                                    className="px-3 py-1.5 bg-white hover:bg-purple-50 text-purple-700 text-[11.5px] font-bold rounded-xl border border-purple-200 shadow-2xs flex items-center gap-1.5 transition-all cursor-pointer"
+                                >
+                                    <Upload size={12} className={uploadingDrAvatar ? 'animate-bounce' : ''} />
+                                    <span>{uploadingDrAvatar ? '上传中...' : '上传本地图片作为头像'}</span>
+                                </button>
+
+                                <div className="relative">
+                                    <LinkIcon size={11} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                                    <input
+                                        type="text"
+                                        value={drAvatar}
+                                        onChange={(e) => setDrAvatar(e.target.value)}
+                                        placeholder="或输入外部图片链接 URL..."
+                                        className="w-full bg-white/90 border border-purple-100 rounded-xl pl-7 pr-2.5 py-1 text-[11px] text-[#4a4365] outline-none focus:ring-1 focus:ring-purple-400"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3 pt-1">
+                            <div>
+                                <label className="text-[11px] font-bold text-gray-500 mb-1 block">顾问名称</label>
+                                <input
+                                    type="text"
+                                    value={drName}
+                                    onChange={(e) => setDrName(e.target.value)}
+                                    placeholder="如：Dr. Elena"
+                                    className="w-full bg-white border border-purple-100 rounded-xl px-3 py-1.5 text-[12px] font-bold text-[#4a4365] outline-none focus:ring-1 focus:ring-purple-400"
+                                />
+                            </div>
+                            <div>
+                                <label className="text-[11px] font-bold text-gray-500 mb-1 block">顾问头衔</label>
+                                <input
+                                    type="text"
+                                    value={drTitle}
+                                    onChange={(e) => setDrTitle(e.target.value)}
+                                    placeholder="如：招生咨询专家"
+                                    className="w-full bg-white border border-purple-100 rounded-xl px-3 py-1.5 text-[12px] font-bold text-[#4a4365] outline-none focus:ring-1 focus:ring-purple-400"
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Agent 2: 丽丽学姐 (校园导览伴游) */}
+                    <div className="bg-gradient-to-br from-pink-50/60 via-white to-amber-50/40 p-5 rounded-3xl border border-pink-100 shadow-2xs space-y-4">
+                        <div className="flex items-center justify-between">
+                            <span className="text-[12px] font-black text-pink-950 flex items-center gap-1.5">
+                                <Compass size={14} className="text-pink-600" />
+                                <span>校园智能伴游 (丽丽学姐)</span>
+                            </span>
+                            <span className="text-[10px] font-bold bg-pink-100 text-pink-800 px-2 py-0.5 rounded-md">
+                                地图导览与语音主角色
+                            </span>
+                        </div>
+
+                        <div className="flex items-center gap-4">
+                            {/* Avatar Preview */}
+                            <div className="relative w-16 h-16 rounded-2xl overflow-hidden shadow-md border-2 border-white shrink-0 bg-pink-100">
+                                <img
+                                    src={liliAvatar}
+                                    alt="Lili Avatar"
+                                    className="w-full h-full object-cover"
+                                    onError={(e) => {
+                                        (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=400&auto=format&fit=crop";
+                                    }}
+                                />
+                            </div>
+
+                            <div className="flex-1 space-y-2">
+                                <input
+                                    ref={liliFileInputRef}
+                                    type="file"
+                                    accept="image/*"
+                                    onChange={handleLiliAvatarUpload}
+                                    className="hidden"
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => liliFileInputRef.current?.click()}
+                                    disabled={uploadingLiliAvatar}
+                                    className="px-3 py-1.5 bg-white hover:bg-pink-50 text-pink-700 text-[11.5px] font-bold rounded-xl border border-pink-200 shadow-2xs flex items-center gap-1.5 transition-all cursor-pointer"
+                                >
+                                    <Upload size={12} className={uploadingLiliAvatar ? 'animate-bounce' : ''} />
+                                    <span>{uploadingLiliAvatar ? '上传中...' : '上传本地图片作为头像'}</span>
+                                </button>
+
+                                <div className="relative">
+                                    <LinkIcon size={11} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                                    <input
+                                        type="text"
+                                        value={liliAvatar}
+                                        onChange={(e) => setLiliAvatar(e.target.value)}
+                                        placeholder="或输入外部图片链接 URL..."
+                                        className="w-full bg-white/90 border border-pink-100 rounded-xl pl-7 pr-2.5 py-1 text-[11px] text-[#4a4365] outline-none focus:ring-1 focus:ring-pink-400"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3 pt-1">
+                            <div>
+                                <label className="text-[11px] font-bold text-gray-500 mb-1 block">伴游名称</label>
+                                <input
+                                    type="text"
+                                    value={liliName}
+                                    onChange={(e) => setLiliName(e.target.value)}
+                                    placeholder="如：丽丽学姐"
+                                    className="w-full bg-white border border-pink-100 rounded-xl px-3 py-1.5 text-[12px] font-bold text-[#4a4365] outline-none focus:ring-1 focus:ring-pink-400"
+                                />
+                            </div>
+                            <div>
+                                <label className="text-[11px] font-bold text-gray-500 mb-1 block">伴游头衔</label>
+                                <input
+                                    type="text"
+                                    value={liliTitle}
+                                    onChange={(e) => setLiliTitle(e.target.value)}
+                                    placeholder="如：校园智能伴游"
+                                    className="w-full bg-white border border-pink-100 rounded-xl px-3 py-1.5 text-[12px] font-bold text-[#4a4365] outline-none focus:ring-1 focus:ring-pink-400"
+                                />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* 2. Model Presets Quick Bar */}
+            <div className="bg-white/80 backdrop-blur-xl rounded-[32px] p-6 border border-white/80 shadow-[0_8px_25px_rgba(186,175,215,0.18)] space-y-3">
+                <div className="flex items-center justify-between">
+                    <h4 className="font-black text-[#4a4365] text-[15px] flex items-center gap-2">
+                        <Sparkles size={16} className="text-[#a494e8]" /> 主流大模型服务商一键配置预设 (One-Click Presets)
+                    </h4>
+                    <span className="text-[11px] text-[#8a84a4] font-medium">点击自动填入推荐参数</span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                     {presets.map((p) => {
                         const isCurrent = baseUrl === p.url;
                         return (
                             <div
                                 key={p.name}
                                 onClick={() => handleApplyPreset(p)}
-                                className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between space-y-2 ${isCurrent
-                                    ? 'bg-purple-50/90 border-purple-300 shadow-xs'
-                                    : 'bg-[#fbf9fe] border-purple-50 hover:bg-white hover:border-purple-200'
-                                    }`}
+                                className={`p-4 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between space-y-2 ${
+                                    isCurrent
+                                        ? 'bg-gradient-to-br from-purple-50 to-indigo-50 border-purple-300 shadow-xs ring-2 ring-purple-400/20'
+                                        : 'bg-[#fbf9fe] border-purple-50 hover:bg-white hover:border-purple-200'
+                                }`}
                             >
                                 <div className="flex items-center justify-between">
-                                    <span className="font-bold text-[#4a4365] text-[13px]">{p.name}</span>
-                                    {isCurrent && <span className="text-[10px] font-bold text-purple-700 bg-purple-200/80 px-1.5 py-0.5 rounded-md">当前选中</span>}
+                                    <div className="font-black text-[13px] text-[#4a4365]">{p.name}</div>
+                                    {isCurrent && <Check size={14} className="text-purple-600 font-bold" />}
                                 </div>
                                 <div className="text-[10px] font-mono text-purple-600 font-bold truncate">
                                     {p.defaultM}
@@ -329,7 +597,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigSaved }) => {
                 </div>
             </div>
 
-            {/* 2. AI Gateway & Dual Model Allocation */}
+            {/* 3. AI Gateway & Dual Model Allocation */}
             <div className="bg-white/80 backdrop-blur-xl rounded-[32px] p-6 border border-white/80 shadow-[0_8px_25px_rgba(186,175,215,0.18)] space-y-4">
                 <div className="flex items-center justify-between">
                     <h4 className="font-black text-[#4a4365] text-[15px] flex items-center gap-2">
@@ -378,124 +646,118 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigSaved }) => {
                             value={baseUrl}
                             onChange={(e) => setBaseUrl(e.target.value)}
                             placeholder="如：https://api.deepseek.com"
-                            className="w-full bg-[#f8f6fc] rounded-2xl px-4 py-2.5 text-[12.5px] text-[#4a4365] font-mono outline-none border border-transparent focus:border-[#a494e8] transition-all"
+                            className="w-full bg-[#f8f6fc] rounded-2xl px-4 py-2.5 text-[13px] text-[#4a4365] font-mono outline-none border border-transparent focus:border-[#a494e8]"
                         />
                     </div>
 
                     {/* API Key */}
                     <div>
                         <label className="text-[12px] font-bold text-[#4a4365] block mb-1.5">
-                            API Key（若留空则保持服务端既有秘钥）
+                            API Key (留空则沿用现有 Key)
                         </label>
                         <div className="relative">
                             <input
                                 type={showApiKey ? 'text' : 'password'}
                                 value={apiKey}
                                 onChange={(e) => setApiKey(e.target.value)}
-                                placeholder="sk-••••••••••••••••••••••••"
-                                className="w-full bg-[#f8f6fc] rounded-2xl px-4 py-2.5 text-[12.5px] text-[#4a4365] font-mono outline-none border border-transparent focus:border-[#a494e8] transition-all pr-10"
+                                placeholder="sk-••••••••••••••••"
+                                className="w-full bg-[#f8f6fc] rounded-2xl pl-4 pr-10 py-2.5 text-[13px] text-[#4a4365] font-mono outline-none border border-transparent focus:border-[#a494e8]"
                             />
                             <button
                                 type="button"
                                 onClick={() => setShowApiKey(!showApiKey)}
-                                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-[#4a4365]"
                             >
-                                {showApiKey ? <EyeOff size={16} /> : <Eye size={16} />}
+                                {showApiKey ? <EyeOff size={15} /> : <Eye size={15} />}
                             </button>
                         </div>
                     </div>
+                </div>
 
-                    {/* Default Model */}
-                    <div>
-                        <div className="flex items-center justify-between mb-1.5">
-                            <label className="text-[12px] font-bold text-[#4a4365]">
-                                默认主对话模型 (<span className="font-mono text-purple-600">DEFAULT_MODEL</span>)
+                {/* Dual Models */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                    {/* Default Reasoning Model */}
+                    <div className="bg-[#fbf9fe] p-4 rounded-2xl border border-purple-100 space-y-2">
+                        <div className="flex items-center justify-between">
+                            <label className="text-[12px] font-bold text-purple-900 flex items-center gap-1.5">
+                                <Bot size={14} className="text-purple-600" /> 主力深度推理模型 (Default Model)
                             </label>
-                            <span className="text-[10.5px] text-[#8a84a4]">用于考生核心问答</span>
+                            <span className="text-[10px] text-purple-700 bg-purple-100 px-2 py-0.5 rounded-full font-bold">
+                                负责招生复杂问答与多轮 Agent
+                            </span>
                         </div>
-                        {availableModels.length > 0 ? (
-                            <select
-                                value={defaultModel}
-                                onChange={(e) => setDefaultModel(e.target.value)}
-                                className="w-full bg-[#f8f6fc] rounded-2xl px-4 py-2.5 text-[12.5px] text-[#4a4365] font-mono font-bold outline-none border border-transparent focus:border-[#a494e8] transition-all"
-                            >
-                                {availableModels.map(m => (
-                                    <option key={m} value={m}>{m}</option>
-                                ))}
-                            </select>
-                        ) : (
-                            <input
-                                type="text"
-                                value={defaultModel}
-                                onChange={(e) => setDefaultModel(e.target.value)}
-                                placeholder="如：deepseek-chat / gpt-4o"
-                                className="w-full bg-[#f8f6fc] rounded-2xl px-4 py-2.5 text-[12.5px] text-[#4a4365] font-mono outline-none border border-transparent focus:border-[#a494e8] transition-all"
-                            />
-                        )}
+                        <input
+                            type="text"
+                            value={defaultModel}
+                            onChange={(e) => setDefaultModel(e.target.value)}
+                            placeholder="如：deepseek-chat / gpt-4o"
+                            list="model-options"
+                            className="w-full bg-white rounded-xl px-3.5 py-2 text-[12.5px] font-mono text-[#4a4365] outline-none border border-purple-100 focus:border-[#a494e8]"
+                        />
                     </div>
 
                     {/* Fast Model */}
-                    <div>
-                        <div className="flex items-center justify-between mb-1.5">
-                            <label className="text-[12px] font-bold text-[#4a4365]">
-                                快速处理模型 (<span className="font-mono text-indigo-600">FAST_MODEL</span>)
+                    <div className="bg-[#fbf9fe] p-4 rounded-2xl border border-purple-100 space-y-2">
+                        <div className="flex items-center justify-between">
+                            <label className="text-[12px] font-bold text-purple-900 flex items-center gap-1.5">
+                                <Zap size={14} className="text-amber-500" /> 高速轻量模型 (Fast Model)
                             </label>
-                            <span className="text-[10.5px] text-[#8a84a4]">用于文档语义切片与后台分析</span>
+                            <span className="text-[10px] text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full font-bold">
+                                负责文档智能切片与轻量意图分类
+                            </span>
                         </div>
-                        {availableModels.length > 0 ? (
-                            <select
-                                value={fastModel}
-                                onChange={(e) => setFastModel(e.target.value)}
-                                className="w-full bg-[#f8f6fc] rounded-2xl px-4 py-2.5 text-[12.5px] text-[#4a4365] font-mono font-bold outline-none border border-transparent focus:border-[#a494e8] transition-all"
-                            >
-                                {availableModels.map(m => (
-                                    <option key={m} value={m}>{m}</option>
-                                ))}
-                            </select>
-                        ) : (
-                            <input
-                                type="text"
-                                value={fastModel}
-                                onChange={(e) => setFastModel(e.target.value)}
-                                placeholder="如：deepseek-chat / gpt-4o-mini"
-                                className="w-full bg-[#f8f6fc] rounded-2xl px-4 py-2.5 text-[12.5px] text-[#4a4365] font-mono outline-none border border-transparent focus:border-[#a494e8] transition-all"
-                            />
-                        )}
+                        <input
+                            type="text"
+                            value={fastModel}
+                            onChange={(e) => setFastModel(e.target.value)}
+                            placeholder="如：deepseek-chat / gpt-4o-mini"
+                            list="model-options"
+                            className="w-full bg-white rounded-xl px-3.5 py-2 text-[12.5px] font-mono text-[#4a4365] outline-none border border-purple-100 focus:border-[#a494e8]"
+                        />
                     </div>
+
+                    {/* Datalist for available models */}
+                    <datalist id="model-options">
+                        {availableModels.map(m => (
+                            <option key={m} value={m} />
+                        ))}
+                    </datalist>
                 </div>
             </div>
 
-            {/* 3. System Prompt Customization */}
+            {/* 4. Admissions AI Expert System Prompt */}
             <div className="bg-white/80 backdrop-blur-xl rounded-[32px] p-6 border border-white/80 shadow-[0_8px_25px_rgba(186,175,215,0.18)] space-y-3">
                 <div className="flex items-center justify-between">
                     <h4 className="font-black text-[#4a4365] text-[15px] flex items-center gap-2">
-                        <Bot size={16} className="text-purple-600" /> AI 咨询顾问 Dr. Elena 系统提示词 (System Prompt) 自定义
+                        <MessageSquare size={16} className="text-purple-600" /> 招生百事通全局人设提示词 (System Prompt)
                     </h4>
                     <button
                         type="button"
                         onClick={() => setSystemPrompt(DEFAULT_SYSTEM_PROMPT)}
-                        className="text-[11px] font-bold text-purple-600 hover:text-purple-800 transition-colors cursor-pointer"
+                        className="text-[11.5px] font-bold text-[#a494e8] hover:text-purple-700 transition-colors cursor-pointer"
                     >
-                        恢复默认提示词
+                        恢复官方默认人设
                     </button>
                 </div>
+
                 <textarea
-                    rows={5}
+                    rows={6}
                     value={systemPrompt}
                     onChange={(e) => setSystemPrompt(e.target.value)}
-                    placeholder="请输入 Dr. Elena 咨询顾问人设、表达风格与决策规则..."
-                    className="w-full bg-[#f8f6fc] rounded-2xl p-4 text-[12.5px] text-[#4a4365] leading-relaxed outline-none border border-transparent focus:border-[#a494e8] transition-all font-mono"
+                    className="w-full bg-[#f8f6fc] rounded-2xl p-4 text-[12.5px] text-[#4a4365] leading-relaxed font-sans outline-none border border-transparent focus:border-[#a494e8]"
                 />
             </div>
 
-            {/* 4. Search Engine Configuration */}
+            {/* 5. Web Search Engine Selection */}
             <div className="bg-white/80 backdrop-blur-xl rounded-[32px] p-6 border border-white/80 shadow-[0_8px_25px_rgba(186,175,215,0.18)] space-y-4">
-                <h4 className="font-black text-[#4a4365] text-[15px] flex items-center gap-2">
-                    <Globe size={16} className="text-amber-500" /> 联网搜索引擎选配
-                </h4>
+                <div className="flex items-center justify-between">
+                    <h4 className="font-black text-[#4a4365] text-[15px] flex items-center gap-2">
+                        <Globe size={16} className="text-amber-500" /> 招生实时联网搜索引擎模式
+                    </h4>
+                </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                    <label className={`p-4 rounded-2xl border transition-all cursor-pointer flex items-start gap-3 ${(searchProvider === 'multi' || searchProvider === 'duckduckgo') ? 'bg-amber-50/80 border-amber-300 shadow-xs' : 'bg-[#fbf9fe] border-purple-50'}`}>
+                    <label className={`p-4 rounded-2xl border transition-all cursor-pointer flex items-start gap-3 ${searchProvider === 'multi' || searchProvider === 'duckduckgo' ? 'bg-amber-50/80 border-amber-300 shadow-xs' : 'bg-[#fbf9fe] border-purple-50'}`}>
                         <input
                             type="radio"
                             name="searchProvider"
@@ -507,7 +769,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigSaved }) => {
                             <div className="font-bold text-[#4a4365] text-[13px] flex items-center gap-1.5">
                                 多源智能容灾 <span className="text-[10px] bg-amber-200/80 text-amber-900 px-1.5 py-0.5 rounded font-black">推荐</span>
                             </div>
-                            <div className="text-[11px] text-[#8a84a4]">免 Key 必应直连 + DDG + 招生快照三级容灾</div>
+                            <div className="text-[11px] text-[#8a84a4]">百度图集 + 必应 + DDG 三级容灾</div>
                         </div>
                     </label>
 
@@ -535,7 +797,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigSaved }) => {
                         />
                         <div>
                             <div className="font-bold text-[#4a4365] text-[13px]">Tavily AI Search</div>
-                            <div className="text-[11px] text-[#8a84a4]">AI 优化结构化搜索 (需 API Key)</div>
+                            <div className="text-[11px] text-[#8a84a4]">AI 优化结构化搜索 (需 Key)</div>
                         </div>
                     </label>
 
@@ -549,7 +811,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigSaved }) => {
                         />
                         <div>
                             <div className="font-bold text-[#4a4365] text-[13px]">博查 AI (Bocha)</div>
-                            <div className="text-[11px] text-[#8a84a4]">国内政策与高校招生深度检索 (需 Key)</div>
+                            <div className="text-[11px] text-[#8a84a4]">国内政策与招生深度检索 (需 Key)</div>
                         </div>
                     </label>
                 </div>
@@ -581,7 +843,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigSaved }) => {
                 )}
             </div>
 
-            {/* 5. Registration Mode & Security Channels */}
+            {/* 6. Registration Mode & Security Channels */}
             <div className="bg-white/80 backdrop-blur-xl rounded-[32px] p-6 border border-white/80 shadow-[0_8px_25px_rgba(186,175,215,0.18)] space-y-4">
                 <h4 className="font-black text-[#4a4365] text-[15px] flex items-center gap-2">
                     <ShieldCheck size={16} className="text-emerald-600" /> 考生注册方式与安全通道

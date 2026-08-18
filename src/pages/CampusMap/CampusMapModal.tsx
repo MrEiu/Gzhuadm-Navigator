@@ -18,6 +18,8 @@ interface CampusMapModalProps {
     onClose: () => void;
     onAskQuestion: (text: string) => void;
     pinScale?: number;
+    liliAvatar?: string;
+    liliName?: string;
 }
 
 export const CampusMapModal: React.FC<CampusMapModalProps> = ({
@@ -25,7 +27,9 @@ export const CampusMapModal: React.FC<CampusMapModalProps> = ({
     isOpen,
     onClose,
     onAskQuestion,
-    pinScale = 0.8
+    pinScale = 0.8,
+    liliAvatar,
+    liliName
 }) => {
     const [activeCategory, setActiveCategory] = useState('全部');
     const [searchQuery, setSearchQuery] = useState('');
@@ -555,12 +559,15 @@ export const CampusMapModal: React.FC<CampusMapModalProps> = ({
                             <div className="p-4 sm:p-5 border-b border-purple-100/60 bg-gradient-to-br from-purple-50/70 to-indigo-50/50 flex items-start justify-between gap-3 shrink-0">
                                 <div className="flex items-center gap-3">
                                     <img
-                                        src={LILI_GUIDE_AGENT.avatar}
-                                        alt={LILI_GUIDE_AGENT.name}
+                                        src={liliAvatar || LILI_GUIDE_AGENT.avatar}
+                                        alt={liliName || LILI_GUIDE_AGENT.name}
                                         className="w-11 h-11 rounded-2xl object-cover shadow-sm border border-white"
+                                        onError={(e) => {
+                                            (e.target as HTMLImageElement).src = LILI_GUIDE_AGENT.avatar;
+                                        }}
                                     />
                                     <div>
-                                        <div className="font-black text-[#4a4365] text-[14px]">学姐丽丽 · 伴游解说</div>
+                                        <div className="font-black text-[#4a4365] text-[14px]">{liliName || '丽丽学姐'} · 伴游解说</div>
                                         <div className="text-[10.5px] text-[#8a84a4]">已定位：{selectedLoc.name.split(' ')[0]}</div>
                                     </div>
                                 </div>

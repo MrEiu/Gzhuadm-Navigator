@@ -251,7 +251,7 @@ export const UsersTab: React.FC<UsersTabProps> = ({ onRefreshStats }) => {
                         type="text"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        placeholder="搜索考生账号名、真实姓名、生源省份..."
+                        placeholder="搜索考生账号名、考生昵称、生源省份..."
                         className="w-full bg-[#f8f6fc] rounded-2xl pl-9 pr-4 py-2 text-[12.5px] text-[#4a4365] outline-none border border-transparent focus:border-[#a494e8] transition-all"
                     />
                 </div>
@@ -298,13 +298,28 @@ export const UsersTab: React.FC<UsersTabProps> = ({ onRefreshStats }) => {
                                 <div className="space-y-3">
                                     <div className="flex items-start justify-between">
                                         <div className="flex items-center gap-3">
-                                            <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-[#b3a4ed] to-[#f296b2] text-white flex items-center justify-center font-bold text-[16px] shadow-xs">
-                                                {(prof.name || user.username).slice(0, 1).toUpperCase()}
-                                            </div>
+                                            {prof.avatar && (prof.avatar.startsWith('http') || prof.avatar.startsWith('/uploads') || prof.avatar.startsWith('data:image')) ? (
+                                                <img
+                                                    src={prof.avatar}
+                                                    alt="avatar"
+                                                    className="w-11 h-11 rounded-2xl object-cover shadow-xs border-2 border-white"
+                                                    onError={(e) => {
+                                                        (e.target as HTMLImageElement).style.display = 'none';
+                                                    }}
+                                                />
+                                            ) : prof.avatar ? (
+                                                <div className="w-11 h-11 rounded-2xl bg-purple-100 flex items-center justify-center text-xl shadow-xs border-2 border-white select-none">
+                                                    {prof.avatar}
+                                                </div>
+                                            ) : (
+                                                <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-[#b3a4ed] to-[#f296b2] text-white flex items-center justify-center font-bold text-[16px] shadow-xs">
+                                                    {(prof.name || user.username).slice(0, 1).toUpperCase()}
+                                                </div>
+                                            )}
                                             <div>
                                                 <div className="flex items-center gap-1.5">
                                                     <h4 className="font-black text-[#4a4365] text-[14.5px]">
-                                                        {prof.name || '未填真实姓名'}
+                                                        {prof.name || '未填昵称'}
                                                     </h4>
                                                     {isVip && (
                                                         <span className="bg-gradient-to-r from-amber-400 to-amber-500 text-white text-[9.5px] font-black px-1.5 py-0.5 rounded-md shadow-xs flex items-center gap-0.5">

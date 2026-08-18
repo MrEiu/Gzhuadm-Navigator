@@ -1,7 +1,7 @@
 import express from 'express';
 import fs from 'fs';
 import path from 'path';
-import { dataDir } from '../config/env.mjs';
+import { dataDir, uploadsDir } from '../config/env.mjs';
 import { pgPool, usePostgres } from '../services/postgres.mjs';
 import {
     loadJsonProfiles, saveJsonProfiles,
@@ -149,7 +149,7 @@ router.post('/profile', async (req, res) => {
     if (isVip) {
         saveUserPersonalMemory(
             username,
-            `学生个人基础背景资料：姓名【${updatedProfile.name || username}】，省份【${updatedProfile.province}】，高考成绩【${updatedProfile.score}分】，全省排名【第${updatedProfile.rank}名】，选科【${updatedProfile.subjects}】，特殊情况说明【${updatedProfile.specialConditions || '无'}】`,
+            `学生个人基础背景资料：昵称【${updatedProfile.name || username}】，省份【${updatedProfile.province}】，高考成绩【${updatedProfile.score}分】，全省排名【第${updatedProfile.rank}名】，选科【${updatedProfile.subjects}】，特殊情况说明【${updatedProfile.specialConditions || '无'}】`,
             '个人基础背景档案',
             'VIP基本资料'
         ).catch(() => { });
@@ -200,6 +200,47 @@ router.get('/personal-rag', async (req, res) => {
         items = (loadJsonPersonalRag()[username]) || [];
     }
     res.json({ ok: true, items });
+});
+
+// --- Avatar Upload API (Supports User & Admin) ---
+const avatarsDir = path.join(uploadsDir, 'avatars');
+if (!fs.existsSync(avatarsDir)) {
+    fs.mkdirSync(avatarsDir, { recursive: true });
+}
+
+router.post('/upload-avatar', (req, res) => {
+    try {
+        const { imageBase64 } = req.body || {};
+        if (!imageBase64 || typeof imageBase64 !== 'string') {
+            return res.status(400).json({ ok: false, error: '缺少图片数据 (imageBase64 必须为有效 base64 字符串)' });
+        }
+
+        const matches = imageBase64.match(/^data:image\/([a-zA-Z0-9\+\.]+);base64,(.+)$/);
+        let ext = 'png';
+        let buffer;
+        if (matches && matches.length === 3) {
+            ext = matches[1] === 'jpeg' ? 'jpg' : matches[1];
+            buffer = Buffer.from(matches[2], 'base64');
+        } else {
+            buffer = Buffer.from(imageBase64, 'base64');
+        }
+
+        if (buffer.length > 5 * 1024 * 1024) {
+            return res.status(400).json({ ok: false, error: '头像图片大小不能超过 5MB' });
+        }
+
+        const safeExt = ['jpg', 'jpeg', 'png', 'webp', 'gif'].includes(ext.toLowerCase()) ? ext.toLowerCase() : 'png';
+        const newFileName = `avatar_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${safeExt}`;
+        const targetPath = path.join(avatarsDir, newFileName);
+
+        fs.writeFileSync(targetPath, buffer);
+        const fileUrl = `/uploads/avatars/${newFileName}`;
+
+        res.json({ ok: true, url: fileUrl, filename: newFileName });
+    } catch (err) {
+        console.error('Avatar upload error:', err);
+        res.status(500).json({ ok: false, error: err.message || '上传头像失败' });
+    }
 });
 
 export default router;

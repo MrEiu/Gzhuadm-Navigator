@@ -117,16 +117,16 @@ export const AdminEditUserModal: React.FC<AdminEditUserModalProps> = ({
 
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        {/* Real Name */}
+                        {/* Nickname */}
                         <div>
                             <label className="text-[12px] font-bold text-[#4a4365] block mb-1.5 flex items-center gap-1.5">
-                                <FileText size={13} className="text-[#a494e8]" /> 考生真实姓名
+                                <FileText size={13} className="text-[#a494e8]" /> 考生昵称
                             </label>
                             <input
                                 type="text"
                                 value={name}
                                 onChange={(e) => setName(e.target.value)}
-                                placeholder="如：张三"
+                                placeholder="如：小明、追梦少年"
                                 className="w-full bg-[#f8f6fc] rounded-2xl px-4 py-2.5 text-[13px] text-[#4a4365] outline-none border border-transparent focus:border-[#a494e8] transition-all"
                             />
                         </div>

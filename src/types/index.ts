@@ -9,9 +9,9 @@ export interface User {
 }
 
 export interface UserProfile {
-    name?: string;
+    name?: string; // 用户昵称 (Nickname)
     gender?: '男' | '女';
-    avatar?: string;
+    avatar?: string; // 支持 Emoji / 本地上传路径 / 外部图片 URL
     phone?: string;
     email?: string;
     province?: string;
@@ -20,6 +20,18 @@ export interface UserProfile {
     subjects?: string;
     specialConditions?: string;
     isVip?: boolean;
+}
+
+export interface AgentPersonaConfig {
+    name: string;
+    title: string;
+    avatar: string;
+}
+
+export interface AgentConfigData {
+    dr: AgentPersonaConfig;
+    lili: AgentPersonaConfig;
+    updatedAt?: string;
 }
 
 // --- Chat & Message Types ---

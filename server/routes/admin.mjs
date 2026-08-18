@@ -735,4 +735,66 @@ router.post('/campus-map', (req, res) => {
     }
 });
 
+// 10. AI Agent Personas & Avatar Customization API
+export const AGENT_CONFIG_FILE = path.join(dataDir, 'agent_avatars.json');
+
+export const DEFAULT_AGENT_CONFIG = {
+    dr: {
+        name: 'Dr. Elena',
+        title: '招生咨询顾问',
+        avatar: 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?q=80&w=200&auto=format&fit=crop'
+    },
+    lili: {
+        name: '丽丽学姐',
+        title: '校园智能伴游',
+        avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=400&auto=format&fit=crop'
+    }
+};
+
+export const loadAgentConfig = () => {
+    try {
+        if (fs.existsSync(AGENT_CONFIG_FILE)) {
+            const raw = fs.readFileSync(AGENT_CONFIG_FILE, 'utf8');
+            return { ...DEFAULT_AGENT_CONFIG, ...JSON.parse(raw) };
+        }
+    } catch (e) {
+        console.warn('⚠️ [Agent Config Load Warning]:', e.message);
+    }
+    return DEFAULT_AGENT_CONFIG;
+};
+
+export const saveAgentConfig = (config) => {
+    try {
+        if (!fs.existsSync(dataDir)) {
+            fs.mkdirSync(dataDir, { recursive: true });
+        }
+        fs.writeFileSync(AGENT_CONFIG_FILE, JSON.stringify(config, null, 2), 'utf8');
+        return true;
+    } catch (e) {
+        console.error('❌ [Agent Config Save Error]:', e);
+        return false;
+    }
+};
+
+router.get('/agent-config', (_req, res) => {
+    const config = loadAgentConfig();
+    res.json({ ok: true, data: config });
+});
+
+router.post('/agent-config', (req, res) => {
+    const { dr, lili } = req.body || {};
+    const current = loadAgentConfig();
+    const updated = {
+        dr: { ...current.dr, ...(dr || {}) },
+        lili: { ...current.lili, ...(lili || {}) },
+        updatedAt: new Date().toISOString()
+    };
+    const saved = saveAgentConfig(updated);
+    if (saved) {
+        res.json({ ok: true, message: '智能体形象与头像配置已成功保存！', data: updated });
+    } else {
+        res.status(500).json({ ok: false, error: '保存智能体形象配置失败' });
+    }
+});
+
 export default router;

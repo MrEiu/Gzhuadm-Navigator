@@ -34,6 +34,22 @@ export const ChatPage: React.FC<ChatPageProps> = ({ currentUser, onLogout, onSwi
     const [campusLocations, setCampusLocations] = useState<CampusLocation[]>(DEFAULT_CAMPUS_LOCATIONS);
     const [mapPinScale, setMapPinScale] = useState<number>(0.8);
 
+    const [agentConfig, setAgentConfig] = useState<AgentConfigData>({
+        dr: { name: ROLE.name, title: ROLE.title, avatar: ROLE.avatar },
+        lili: { name: '丽丽学姐', title: '校园智能伴游', avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=400&auto=format&fit=crop' }
+    });
+
+    useEffect(() => {
+        fetch(`${API_BASE}/api/agent-config`)
+            .then(res => res.json())
+            .then(data => {
+                if (data.ok && data.data) {
+                    setAgentConfig(data.data);
+                }
+            })
+            .catch(() => {});
+    }, [isProfileModalOpen]);
+
     useEffect(() => {
         if (isMapGuideOpen) {
             fetch(`${API_BASE}/api/campus-map`)
@@ -346,19 +362,27 @@ export const ChatPage: React.FC<ChatPageProps> = ({ currentUser, onLogout, onSwi
                                     isUser={isUser}
                                     bubbleStyle={bubbleStyle}
                                     roleColor={ROLE.color}
-                                    roleAvatar={ROLE.avatar}
-                                    roleName={ROLE.name}
+                                    roleAvatar={agentConfig.dr.avatar || ROLE.avatar}
+                                    roleName={agentConfig.dr.name || ROLE.name}
+                                    userAvatar={userProfile?.avatar || currentUser.profile?.avatar}
                                 />
                             );
                         })}
 
                         {typing && (
                             <div className="flex justify-start items-end gap-3 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                                <img src={ROLE.avatar} className="w-9 h-9 rounded-[14px] shadow-sm border border-white object-cover" alt="typing" />
+                                <img
+                                    src={agentConfig.dr.avatar || ROLE.avatar}
+                                    className="w-9 h-9 rounded-[14px] shadow-sm border border-white object-cover"
+                                    alt="typing"
+                                    onError={(e) => {
+                                        (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1559839734-2b71ea197ec2?q=80&w=200&auto=format&fit=crop";
+                                    }}
+                                />
                                 <div className="flex flex-col">
                                     <div className="flex items-center gap-1.5 mb-1.5 ml-1">
                                         <span className="text-[11px] font-black tracking-wider uppercase" style={{ color: ROLE.color }}>
-                                            {ROLE.name}
+                                            {agentConfig.dr.name || ROLE.name}
                                         </span>
                                         <span className="text-[10px] text-[#a494e8] font-bold bg-purple-50 px-2 py-0.5 rounded-full border border-purple-100 animate-pulse">
                                             正在思考中
@@ -395,6 +419,8 @@ export const ChatPage: React.FC<ChatPageProps> = ({ currentUser, onLogout, onSwi
                 onClose={() => setIsMapGuideOpen(false)}
                 onAskQuestion={handleAskLocationQuestion}
                 pinScale={mapPinScale}
+                liliAvatar={agentConfig.lili.avatar}
+                liliName={agentConfig.lili.name}
             />
 
             <UserProfileModal

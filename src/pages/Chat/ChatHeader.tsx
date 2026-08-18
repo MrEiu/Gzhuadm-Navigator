@@ -60,9 +60,15 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                 <button
                     onClick={onOpenProfileModal}
                     className="flex items-center gap-1.5 bg-white/80 hover:bg-white px-2.5 sm:px-3 py-1.5 rounded-2xl border border-white text-[12px] font-bold text-[#4a4365] transition-all shadow-xs cursor-pointer"
-                    title="点击查看/修改高考个人背景资料"
+                    title="点击查看/修改高考个人背景资料与头像"
                 >
-                    <UserIcon size={13} className="text-[#a494e8]" />
+                    {userProfile?.avatar && (userProfile.avatar.startsWith('http') || userProfile.avatar.startsWith('/uploads') || userProfile.avatar.startsWith('data:image')) ? (
+                        <img src={userProfile.avatar} alt="avatar" className="w-4 h-4 rounded-full object-cover shrink-0" />
+                    ) : userProfile?.avatar ? (
+                        <span className="text-xs shrink-0">{userProfile.avatar}</span>
+                    ) : (
+                        <UserIcon size={13} className="text-[#a494e8]" />
+                    )}
                     <span className="max-w-[70px] sm:max-w-[90px] truncate">{userProfile?.name || currentUser.username}</span>
                     {userProfile?.score ? (
                         <span className="text-[10px] px-1.5 py-0.5 rounded-md font-bold bg-purple-100 text-purple-700">

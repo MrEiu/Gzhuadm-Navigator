@@ -11,7 +11,7 @@ import authRouter from './routes/auth.mjs';
 import chatRouter from './routes/chat.mjs';
 import userRouter from './routes/user.mjs';
 import ragRouter from './routes/rag.mjs';
-import adminRouter, { loadCampusMapData } from './routes/admin.mjs';
+import adminRouter, { loadCampusMapData, loadAgentConfig } from './routes/admin.mjs';
 
 export const createApp = () => {
     const app = express();
@@ -57,6 +57,11 @@ export const createApp = () => {
 
     app.get('/api/campus-map', (_req, res) => {
         const data = loadCampusMapData();
+        res.json({ ok: true, data });
+    });
+
+    app.get('/api/agent-config', (_req, res) => {
+        const data = loadAgentConfig();
         res.json({ ok: true, data });
     });
 
