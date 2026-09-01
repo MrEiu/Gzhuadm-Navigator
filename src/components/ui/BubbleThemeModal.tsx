@@ -30,8 +30,8 @@ export const BubbleThemeModal: React.FC<BubbleThemeModalProps> = ({
     const markdownStyleList = Object.values(MARKDOWN_STYLES);
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
-            <div className="bg-white/95 backdrop-blur-2xl rounded-[36px] border border-white max-w-2xl w-full p-6 shadow-[0_20px_60px_rgba(74,67,101,0.25)] space-y-4 animate-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="bg-white/95 backdrop-blur-2xl rounded-[28px] sm:rounded-[36px] border border-white max-w-2xl w-full max-h-[92dvh] overflow-y-auto p-4 sm:p-6 shadow-[0_20px_60px_rgba(74,67,101,0.25)] space-y-3.5 sm:space-y-4 animate-in zoom-in-95 duration-200 hide-scrollbar">
                 {/* Header */}
                 <div className="flex items-center justify-between border-b border-purple-50 pb-3">
                     <div className="flex items-center gap-2.5">

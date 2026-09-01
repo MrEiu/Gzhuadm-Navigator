@@ -258,7 +258,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onLoginSuccess, settingsCo
 
     if (pendingAdminUser) {
         return (
-            <div className={`w-full max-w-[440px] ${THEME.glass} sm:rounded-[40px] p-7 sm:p-8 shadow-[0_45px_100px_rgba(186,175,215,0.4)] border-[6px] border-[#fdfcff] animate-in zoom-in-95 duration-400`}>
+            <div className={`w-full max-w-[440px] max-h-[92dvh] overflow-y-auto ${THEME.glass} rounded-[32px] sm:rounded-[40px] p-6 sm:p-8 shadow-[0_45px_100px_rgba(186,175,215,0.4)] border-4 sm:border-[6px] border-[#fdfcff] m-3 sm:m-0 animate-in zoom-in-95 duration-400 hide-scrollbar`}>
                 <div className="flex flex-col items-center text-center mb-6">
                     <div className="w-14 h-14 rounded-[22px] bg-gradient-to-br from-[#b3a4ed] to-[#f296b2] flex items-center justify-center shadow-[0_10px_25px_rgba(179,164,237,0.4)] border-2 border-white mb-3">
                         <ShieldCheck className="text-white" size={28} />
@@ -324,7 +324,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onLoginSuccess, settingsCo
     }
 
     return (
-        <div className={`w-full max-w-[400px] ${THEME.glass} sm:rounded-[40px] p-8 shadow-[0_45px_100px_rgba(186,175,215,0.4)] border-[6px] border-[#fdfcff] animate-in zoom-in-95 duration-500`}>
+        <div className={`w-full max-w-[400px] max-h-[92dvh] overflow-y-auto ${THEME.glass} rounded-[32px] sm:rounded-[40px] p-6 sm:p-8 shadow-[0_45px_100px_rgba(186,175,215,0.4)] border-4 sm:border-[6px] border-[#fdfcff] m-3 sm:m-0 animate-in zoom-in-95 duration-500 hide-scrollbar`}>
             <div className="flex flex-col items-center text-center mb-6">
                 <div className="w-14 h-14 rounded-[20px] bg-gradient-to-br from-[#b3a4ed] to-[#f296b2] flex items-center justify-center shadow-[0_10px_25px_rgba(179,164,237,0.4)] border-2 border-white mb-3">
                     <BrainCircuit className="text-white" size={30} />

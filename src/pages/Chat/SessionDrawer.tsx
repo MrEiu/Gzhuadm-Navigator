@@ -4,6 +4,7 @@ import { ChatSession } from '../../types';
 
 interface SessionDrawerProps {
     isOpen?: boolean;
+    onClose?: () => void;
     sessions: ChatSession[];
     activeSessionId: string | null;
     onSelectSession: (id: string) => void;
@@ -13,6 +14,7 @@ interface SessionDrawerProps {
 
 export const SessionDrawer: React.FC<SessionDrawerProps> = ({
     isOpen = true,
+    onClose,
     sessions,
     activeSessionId,
     onSelectSession,
@@ -25,7 +27,14 @@ export const SessionDrawer: React.FC<SessionDrawerProps> = ({
     const recentSessions = sessions.slice(1);
 
     return (
-        <aside className="w-full sm:w-56 md:w-60 h-[calc(100%-16px)] sm:h-[calc(100%-24px)] my-2 sm:my-3 ml-2 sm:ml-3 rounded-3xl bg-white/75 sm:bg-white/45 backdrop-blur-xl border border-white/80 shadow-[0_8px_30px_rgba(74,67,101,0.06)] flex flex-col p-2.5 sm:p-3 gap-2.5 shrink-0 animate-in slide-in-from-left duration-300 select-none">
+        <>
+            {/* Mobile Backdrop Overlay */}
+            <div
+                onClick={onClose}
+                className="fixed inset-0 z-30 bg-black/40 backdrop-blur-xs sm:hidden animate-in fade-in duration-200"
+            />
+
+            <aside className="fixed sm:static inset-y-2 left-2 z-40 sm:z-auto w-[82vw] max-w-[280px] sm:w-56 md:w-60 h-[calc(100%-16px)] sm:h-[calc(100%-24px)] my-0 sm:my-3 ml-0 sm:ml-3 rounded-3xl bg-white/95 sm:bg-white/45 backdrop-blur-2xl sm:backdrop-blur-xl border border-white/80 shadow-[0_12px_40px_rgba(74,67,101,0.2)] sm:shadow-[0_8px_30px_rgba(74,67,101,0.06)] flex flex-col p-2.5 sm:p-3 gap-2.5 shrink-0 animate-in slide-in-from-left duration-300 select-none">
             {/* 1. 主对话卡片 */}
             {mainSession && (
                 <div className="shrink-0">
@@ -168,5 +177,6 @@ export const SessionDrawer: React.FC<SessionDrawerProps> = ({
                 </div>
             )}
         </aside>
+        </>
     );
 };

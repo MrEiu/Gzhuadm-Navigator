@@ -49,7 +49,7 @@ export default function App() {
     };
 
     return (
-        <div className={`flex justify-center items-center h-screen ${THEME.bg} p-0 sm:p-6 selection:bg-indigo-100`}>
+        <div className={`flex justify-center items-center h-[100dvh] w-full ${THEME.bg} p-0 sm:p-6 overflow-hidden selection:bg-indigo-100`}>
             {/* 1. Unauthenticated: Auth Modal */}
             {!currentUser && (
                 <AuthModal onLoginSuccess={handleLoginSuccess} />

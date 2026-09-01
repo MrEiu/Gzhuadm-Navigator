@@ -76,33 +76,33 @@ export const ApiDiagnosticsDrawer: React.FC<ApiDiagnosticsDrawerProps> = ({
             <div className="relative w-full max-w-2xl h-full bg-slate-900/95 text-slate-100 shadow-2xl border-l border-slate-700/60 backdrop-blur-xl flex flex-col z-10 animate-slideLeft">
                 
                 {/* Header */}
-                <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/60 shrink-0">
-                    <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-xl bg-purple-600/20 border border-purple-500/30 flex items-center justify-center text-purple-400">
-                            <Cpu className="w-5 h-5" />
+                <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-slate-800 flex items-center justify-between gap-2 bg-slate-950/60 shrink-0">
+                    <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+                        <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-purple-600/20 border border-purple-500/30 flex items-center justify-center text-purple-400 shrink-0">
+                            <Cpu className="w-4 h-4 sm:w-5 sm:h-5" />
                         </div>
-                        <div>
-                            <div className="flex items-center gap-2">
-                                <h3 className="font-extrabold text-sm text-white flex items-center gap-1.5">
-                                    AI API 深度调试与参数审计
-                                    <span className="px-2 py-0.5 rounded-md bg-purple-500/20 text-purple-300 text-[10px] font-mono font-bold">
-                                        ADMIN DEBUG
+                        <div className="min-w-0">
+                            <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                                <h3 className="font-extrabold text-[13px] sm:text-sm text-white flex items-center gap-1.5 truncate">
+                                    AI API 深度调试
+                                    <span className="px-1.5 py-0.5 rounded-md bg-purple-500/20 text-purple-300 text-[9px] sm:text-[10px] font-mono font-bold">
+                                        DEBUG
                                     </span>
                                 </h3>
                             </div>
-                            <p className="text-[11px] text-slate-400 font-mono mt-0.5">
-                                Request ID: {diagnostics.requestId || `req_${Date.now()}`} · {diagnostics.timestamp ? new Date(diagnostics.timestamp).toLocaleTimeString() : new Date().toLocaleTimeString()}
+                            <p className="text-[10px] sm:text-[11px] text-slate-400 font-mono mt-0.5 truncate">
+                                Request ID: {diagnostics.requestId || `req_${Date.now()}`}
                             </p>
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
                         <button
                             onClick={() => handleCopy(JSON.stringify(diagnostics, null, 2), 'all_json')}
-                            className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition-all flex items-center gap-1.5 border border-slate-700/80 cursor-pointer"
+                            className="px-2.5 sm:px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] sm:text-xs font-bold transition-all flex items-center gap-1 sm:gap-1.5 border border-slate-700/80 cursor-pointer"
                         >
                             {copied === 'all_json' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                            <span>{copied === 'all_json' ? '已复制抓包 JSON' : '复制抓包 JSON'}</span>
+                            <span className="hidden xs:inline">{copied === 'all_json' ? '已复制' : '复制抓包'}</span>
                         </button>
                         <button
                             onClick={onClose}
@@ -114,7 +114,7 @@ export const ApiDiagnosticsDrawer: React.FC<ApiDiagnosticsDrawerProps> = ({
                 </div>
 
                 {/* Quick KPI Bar */}
-                <div className="px-6 py-2.5 bg-slate-950/40 border-b border-slate-800/80 grid grid-cols-4 gap-2 text-center text-xs shrink-0">
+                <div className="px-3 sm:px-6 py-2 sm:py-2.5 bg-slate-950/40 border-b border-slate-800/80 grid grid-cols-2 sm:grid-cols-4 gap-1.5 sm:gap-2 text-center text-xs shrink-0">
                     <div className="bg-slate-800/40 p-2 rounded-xl border border-slate-700/40">
                         <div className="text-[10px] text-slate-400 flex items-center justify-center gap-1">
                             <Zap className="w-3 h-3 text-amber-400" /> 调用模型

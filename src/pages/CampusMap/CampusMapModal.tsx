@@ -153,37 +153,48 @@ export const CampusMapModal: React.FC<CampusMapModalProps> = ({
     };
 
     return (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-md flex justify-center items-center p-2 sm:p-5 animate-in fade-in duration-200">
-            <div className="bg-white/95 backdrop-blur-2xl rounded-[36px] w-full max-w-6xl h-[90vh] flex flex-col shadow-[0_25px_80px_rgba(74,67,101,0.35)] border border-white/80 overflow-hidden relative">
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-md flex justify-center items-center p-0 sm:p-5 animate-in fade-in duration-200">
+            <div className="bg-white/95 backdrop-blur-2xl rounded-none sm:rounded-[36px] w-full max-w-6xl h-[100dvh] sm:h-[90vh] flex flex-col shadow-[0_25px_80px_rgba(74,67,101,0.35)] border-0 sm:border border-white/80 overflow-hidden relative">
 
                 {/* 1. Top Header Bar */}
-                <div className="px-5 sm:px-7 py-3.5 border-b border-purple-100/60 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-gradient-to-r from-purple-50/80 via-white to-indigo-50/60 shrink-0">
+                <div className="px-3.5 sm:px-7 py-2.5 sm:py-3.5 border-b border-purple-100/60 flex flex-col md:flex-row md:items-center justify-between gap-2 sm:gap-3 bg-gradient-to-r from-purple-50/80 via-white to-indigo-50/60 shrink-0">
                     
-                    {/* Lili Agent Header Card */}
-                    <div className="flex items-center gap-3">
-                        <div className="relative">
-                            <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-[#b3a4ed] to-[#f296b2] p-0.5 shadow-md flex items-center justify-center">
-                                <img
-                                    src={LILI_GUIDE_AGENT.avatar}
-                                    alt={LILI_GUIDE_AGENT.name}
-                                    className="w-full h-full object-cover rounded-[14px]"
-                                />
+                    {/* Lili Agent Header Card + Close on mobile */}
+                    <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+                            <div className="relative shrink-0">
+                                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-tr from-[#b3a4ed] to-[#f296b2] p-0.5 shadow-md flex items-center justify-center">
+                                    <img
+                                        src={LILI_GUIDE_AGENT.avatar}
+                                        alt={LILI_GUIDE_AGENT.name}
+                                        className="w-full h-full object-cover rounded-[14px]"
+                                    />
+                                </div>
+                                <span className="absolute -bottom-1 -right-1 w-3 h-3 sm:w-3.5 sm:h-3.5 bg-emerald-500 border-2 border-white rounded-full animate-pulse" />
                             </div>
-                            <span className="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-emerald-500 border-2 border-white rounded-full animate-pulse" />
+
+                            <div className="min-w-0">
+                                <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                                    <h3 className="text-[14.5px] sm:text-[16px] font-black text-[#4a4365] tracking-tight truncate">{LILI_GUIDE_AGENT.name} 伴游导览</h3>
+                                    <span className="bg-gradient-to-r from-[#a494e8]/20 to-purple-100 text-[#6c5aa8] text-[9.5px] sm:text-[10.5px] font-black px-2 py-0.5 rounded-full border border-purple-200/50 flex items-center gap-1 shrink-0">
+                                        <Sparkles size={11} className="text-purple-600" />
+                                        大学城校区
+                                    </span>
+                                </div>
+                                <p className="text-[10px] sm:text-[11.5px] text-[#7a7398] font-medium mt-0.5 line-clamp-1">
+                                    {LILI_GUIDE_AGENT.role} · 陪伴你沉浸式漫游广大
+                                </p>
+                            </div>
                         </div>
 
-                        <div>
-                            <div className="flex items-center gap-2">
-                                <h3 className="text-[16px] font-black text-[#4a4365] tracking-tight">{LILI_GUIDE_AGENT.name} 校园伴游导览</h3>
-                                <span className="bg-gradient-to-r from-[#a494e8]/20 to-purple-100 text-[#6c5aa8] text-[10.5px] font-black px-2.5 py-0.5 rounded-full border border-purple-200/50 flex items-center gap-1">
-                                    <Sparkles size={11} className="text-purple-600" />
-                                    广州大学大学城校区
-                                </span>
-                            </div>
-                            <p className="text-[11.5px] text-[#7a7398] font-medium mt-0.5 line-clamp-1">
-                                {LILI_GUIDE_AGENT.role} · 陪伴你沉浸式漫游大美广大
-                            </p>
-                        </div>
+                        {/* Close button on mobile top right */}
+                        <button
+                            onClick={onClose}
+                            className="p-1.5 rounded-2xl text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors cursor-pointer border border-transparent hover:border-red-100 md:hidden shrink-0"
+                            title="关闭导览"
+                        >
+                            <X size={18} />
+                        </button>
                     </div>
 
                     {/* Header Action Controls */}
@@ -196,7 +207,7 @@ export const CampusMapModal: React.FC<CampusMapModalProps> = ({
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
                                 placeholder="搜索地标、自习室、饭堂..."
-                                className="w-full bg-white/90 border border-purple-100/80 rounded-2xl pl-9 pr-8 py-2 text-[12px] text-[#4a4365] focus:ring-2 focus:ring-[#a494e8] outline-none shadow-2xs"
+                                className="w-full bg-white/90 border border-purple-100/80 rounded-2xl pl-9 pr-8 py-1.5 sm:py-2 text-[12px] text-[#4a4365] focus:ring-2 focus:ring-[#a494e8] outline-none shadow-2xs"
                             />
                             {searchQuery && (
                                 <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer">
@@ -209,7 +220,7 @@ export const CampusMapModal: React.FC<CampusMapModalProps> = ({
                         <div className="bg-purple-100/40 p-1 rounded-2xl flex items-center gap-1 border border-purple-200/40 shrink-0">
                             <button
                                 onClick={() => setViewMode('map')}
-                                className={`px-3 py-1.5 rounded-xl text-[12px] font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                                className={`px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl text-[11.5px] sm:text-[12px] font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
                                     viewMode === 'map' ? 'bg-white text-[#4a4365] shadow-xs' : 'text-[#8a84a4] hover:text-[#4a4365]'
                                 }`}
                             >
@@ -218,7 +229,7 @@ export const CampusMapModal: React.FC<CampusMapModalProps> = ({
                             </button>
                             <button
                                 onClick={() => setViewMode('grid')}
-                                className={`px-3 py-1.5 rounded-xl text-[12px] font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                                className={`px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl text-[11.5px] sm:text-[12px] font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
                                     viewMode === 'grid' ? 'bg-white text-[#4a4365] shadow-xs' : 'text-[#8a84a4] hover:text-[#4a4365]'
                                 }`}
                             >
@@ -227,10 +238,10 @@ export const CampusMapModal: React.FC<CampusMapModalProps> = ({
                             </button>
                         </div>
 
-                        {/* Close Modal */}
+                        {/* Close Modal (Desktop) */}
                         <button
                             onClick={onClose}
-                            className="p-2 rounded-2xl text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors cursor-pointer border border-transparent hover:border-red-100 ml-1"
+                            className="hidden md:block p-2 rounded-2xl text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors cursor-pointer border border-transparent hover:border-red-100 ml-1"
                             title="关闭导览"
                         >
                             <X size={18} />
@@ -551,7 +562,7 @@ export const CampusMapModal: React.FC<CampusMapModalProps> = ({
 
                     {/* 4. Right Companion & POI Detail Drawer */}
                     {selectedLoc && (
-                        <div className="w-full md:w-96 bg-white/95 backdrop-blur-xl border-t md:border-t-0 md:border-l border-purple-100/80 shadow-2xl flex flex-col h-[52vh] md:h-full overflow-hidden shrink-0 z-30 animate-in slide-in-from-right-10 duration-300">
+                        <div className="w-full md:w-96 bg-white/95 backdrop-blur-xl border-t md:border-t-0 md:border-l border-purple-100/80 shadow-2xl flex flex-col h-[52dvh] md:h-full overflow-hidden shrink-0 z-30 animate-in slide-in-from-bottom-5 md:slide-in-from-right-10 duration-300">
                             
                             {/* Drawer Header with Lili Avatar & Voice Action */}
                             <div className="p-4 sm:p-5 border-b border-purple-100/60 bg-gradient-to-br from-purple-50/70 to-indigo-50/50 flex items-start justify-between gap-3 shrink-0">

@@ -538,28 +538,39 @@ export const ChatPage: React.FC<ChatPageProps> = ({ currentUser, onLogout, onSwi
                 {/* Session Sidebar Drawer */}
                 <SessionDrawer
                     isOpen={isSidebarOpen}
+                    onClose={() => setIsSidebarOpen(false)}
                     sessions={sessions}
                     activeSessionId={activeSessionId}
-                    onSelectSession={handleSelectSession}
+                    onSelectSession={(id) => {
+                        handleSelectSession(id);
+                        if (window.innerWidth < 640) {
+                            setIsSidebarOpen(false);
+                        }
+                    }}
                     onDeleteSession={handleDeleteSession}
-                    onOpenMapGuide={() => setIsMapGuideOpen(true)}
+                    onOpenMapGuide={() => {
+                        setIsMapGuideOpen(true);
+                        if (window.innerWidth < 640) {
+                            setIsSidebarOpen(false);
+                        }
+                    }}
                 />
 
                 {/* Chat Area */}
                 <div className="flex-1 flex flex-col h-full bg-transparent overflow-hidden relative">
                     <main
                         ref={scrollRef}
-                        className="flex-1 overflow-y-auto px-4 sm:px-8 py-4 space-y-4"
+                        className="flex-1 overflow-y-auto px-3 sm:px-8 py-3 sm:py-4 space-y-3.5 sm:space-y-4"
                     >
                         {/* Admin Real-time API Monitor Bar */}
                         {currentUser.role === 'admin' && (
-                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-4 py-2.5 bg-slate-900/90 backdrop-blur-md rounded-2xl border border-purple-500/30 text-white text-xs shadow-lg shadow-purple-950/20 animate-fadeIn">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                    <span className="px-2 py-0.5 rounded-md bg-purple-500/20 text-purple-300 font-mono font-bold text-[10px] flex items-center gap-1 border border-purple-500/30">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 bg-slate-900/90 backdrop-blur-md rounded-2xl border border-purple-500/30 text-white text-xs shadow-lg shadow-purple-950/20 animate-fadeIn">
+                                <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                                    <span className="px-2 py-0.5 rounded-md bg-purple-500/20 text-purple-300 font-mono font-bold text-[10px] flex items-center gap-1 border border-purple-500/30 shrink-0">
                                         <Cpu size={12} className="text-purple-400" />
-                                        ADMIN API 实时抓包审计
+                                        ADMIN API 抓包
                                     </span>
-                                    <span className="text-slate-300 text-[11px]">
+                                    <span className="text-slate-300 text-[10.5px] sm:text-[11px] break-all">
                                         {latestDiagnostics ? (
                                             <>
                                                 模型: <b className="text-white font-mono">{latestDiagnostics.requestPayload?.model || 'deepseek-chat'}</b> · 
@@ -568,22 +579,18 @@ export const ChatPage: React.FC<ChatPageProps> = ({ currentUser, onLogout, onSwi
                                                 角色: <b className="text-pink-300">{latestDiagnostics.targetAgent?.name || 'Dr. Elena'}</b>
                                             </>
                                         ) : (
-                                            '就绪 · 发送提问即时抓包请求体与 RAG 向量'
+                                            <span>等待首次对话触发网络请求审计...</span>
                                         )}
                                     </span>
                                 </div>
-
                                 {latestDiagnostics && (
                                     <button
                                         type="button"
-                                        onClick={() => {
-                                            setActiveDiagnostics(latestDiagnostics);
-                                            setIsDiagnosticsOpen(true);
-                                        }}
-                                        className="px-3 py-1 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-[11px] flex items-center gap-1.5 transition-all shadow-xs cursor-pointer shrink-0"
+                                        onClick={handleOpenDiagnostics}
+                                        className="px-2.5 py-1 rounded-xl bg-purple-500/30 hover:bg-purple-500/50 text-purple-200 font-bold text-[10.5px] transition-colors border border-purple-400/40 flex items-center gap-1 self-end sm:self-auto cursor-pointer shrink-0"
                                     >
-                                        <Zap size={12} className="text-amber-300" />
-                                        <span>查看最新 API 参数详情</span>
+                                        <span>审计详情</span>
+                                        <ArrowUpRight size={11} />
                                     </button>
                                 )}
                             </div>

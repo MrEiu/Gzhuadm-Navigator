@@ -151,28 +151,28 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
     };
 
     return (
-        <footer className="w-full px-3 sm:px-8 pb-3 sm:pb-6 pt-1 shrink-0 relative bg-transparent pointer-events-auto">
-            <div className="w-full max-w-[840px] mx-auto flex flex-col gap-2">
+        <footer className="w-full px-2.5 sm:px-8 pb-2.5 sm:pb-6 pt-1 shrink-0 relative bg-transparent pointer-events-auto">
+            <div className="w-full max-w-[840px] mx-auto flex flex-col gap-1.5 sm:gap-2">
                 {/* Pending Attachments Tray */}
                 {pendingAttachments.length > 0 && (
-                    <div className="flex flex-wrap gap-2 px-2">
+                    <div className="flex flex-wrap gap-1.5 sm:gap-2 px-2">
                         {pendingAttachments.map((att, idx) => (
                             <div
                                 key={idx}
-                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-white border border-purple-200 shadow-sm text-xs text-[#4a4365] animate-in fade-in zoom-in-95"
+                                className="flex items-center gap-1.5 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-2xl bg-white border border-purple-200 shadow-sm text-xs text-[#4a4365] animate-in fade-in zoom-in-95"
                             >
                                 {att.type === 'image' ? (
-                                    <ImageIcon size={14} className="text-purple-600 shrink-0" />
+                                    <ImageIcon size={13} className="text-purple-600 shrink-0" />
                                 ) : (
-                                    <FileText size={14} className="text-indigo-600 shrink-0" />
+                                    <FileText size={13} className="text-indigo-600 shrink-0" />
                                 )}
-                                <span className="max-w-[120px] truncate font-medium">{att.name}</span>
+                                <span className="max-w-[100px] sm:max-w-[120px] truncate font-medium">{att.name}</span>
                                 <button
                                     type="button"
                                     onClick={() => handleRemoveAttachment(idx)}
                                     className="p-0.5 rounded-full hover:bg-gray-100 text-gray-400 hover:text-red-500 transition-colors ml-1 cursor-pointer"
                                 >
-                                    <X size={13} />
+                                    <X size={12} />
                                 </button>
                             </div>
                         ))}
@@ -188,7 +188,7 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
                 )}
 
                 {/* 悬浮一体式胶囊输入框 */}
-                <form onSubmit={handleFormSubmit} className="w-full bg-white/90 backdrop-blur-2xl rounded-[28px] p-1.5 sm:p-2 border border-white shadow-[0_12px_36px_rgba(74,67,101,0.12)] hover:shadow-[0_16px_46px_rgba(74,67,101,0.16)] transition-all flex items-center gap-1.5 sm:gap-2 relative">
+                <form onSubmit={handleFormSubmit} className="w-full bg-white/95 backdrop-blur-2xl rounded-[28px] p-1 sm:p-2 border border-white shadow-[0_12px_36px_rgba(74,67,101,0.12)] hover:shadow-[0_16px_46px_rgba(74,67,101,0.16)] transition-all flex items-center gap-1 sm:gap-2 relative">
                     {/* Plus Attachment Actions Menu (左侧功能按键) */}
                     <div className="relative shrink-0" ref={menuRef}>
                         <button
@@ -197,19 +197,19 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
                                 setIsMenuOpen(!isMenuOpen);
                                 setIsEmojiPickerOpen(false);
                             }}
-                            className={`w-9 h-9 sm:w-10 sm:h-10 rounded-2xl flex items-center justify-center transition-all cursor-pointer ${
+                            className={`w-8 h-8 sm:w-10 sm:h-10 rounded-2xl flex items-center justify-center transition-all cursor-pointer ${
                                 isMenuOpen
                                     ? 'bg-[#4a4365] text-white shadow-md rotate-45'
                                     : 'bg-[#f5f1fc] hover:bg-purple-100 text-purple-700 hover:text-purple-900 border border-purple-100/60 shadow-2xs'
                             }`}
                             title="上传图片/文件/文档"
                         >
-                            <Plus size={19} className="transition-transform duration-200" />
+                            <Plus size={18} className="transition-transform duration-200" />
                         </button>
 
                         {/* Plus Popover */}
                         {isMenuOpen && (
-                            <div className="absolute bottom-14 left-0 z-40 bg-white/95 backdrop-blur-2xl rounded-3xl border border-white p-2.5 shadow-[0_20px_50px_rgba(74,67,101,0.25)] min-w-[210px] flex flex-col gap-1 animate-in slide-in-from-bottom-2 duration-200">
+                            <div className="absolute bottom-12 sm:bottom-14 left-0 z-40 bg-white/95 backdrop-blur-2xl rounded-3xl border border-white p-2.5 shadow-[0_20px_50px_rgba(74,67,101,0.25)] min-w-[200px] max-w-[calc(100vw-32px)] flex flex-col gap-1 animate-in slide-in-from-bottom-2 duration-200">
                                 <div className="text-[10px] font-black text-[#8a84a4] uppercase px-3 py-1 tracking-wider border-b border-purple-50">
                                     快捷功能与附件
                                 </div>
@@ -261,8 +261,8 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
                         value={inputText}
                         onChange={handleInputChange}
                         onPaste={handlePaste}
-                        placeholder={allowMediaUpload ? "输入高招咨询问题，支持粘贴截图或点击加号上传附件..." : "请输入您想咨询的高招录取、专业、学费问题..."}
-                        className="flex-1 bg-transparent border-none px-2 sm:px-3 py-2 text-[14px] text-[#4a4365] placeholder:text-gray-400 outline-none min-w-0"
+                        placeholder={allowMediaUpload ? "输入高招咨询问题..." : "输入高招录取、专业、学费等咨询问题..."}
+                        className="flex-1 bg-transparent border-none px-2 sm:px-3 py-1.5 sm:py-2 text-[13.5px] sm:text-[14px] text-[#4a4365] placeholder:text-gray-400 outline-none min-w-0"
                     />
 
                     {/* Emoji & Meme Sticker Picker Button (移动到文本输入框右侧) */}
@@ -273,14 +273,14 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
                                 setIsEmojiPickerOpen(!isEmojiPickerOpen);
                                 setIsMenuOpen(false);
                             }}
-                            className={`w-9 h-9 sm:w-10 sm:h-10 rounded-2xl flex items-center justify-center transition-all cursor-pointer ${
+                            className={`w-8 h-8 sm:w-10 sm:h-10 rounded-2xl flex items-center justify-center transition-all cursor-pointer ${
                                 isEmojiPickerOpen
                                     ? 'bg-purple-600 text-white shadow-md'
                                     : 'bg-transparent hover:bg-purple-50 text-[#8a84a4] hover:text-purple-700'
                             }`}
                             title="打开表情包与 Emoji 选择器"
                         >
-                            <Smile size={20} />
+                            <Smile size={19} />
                         </button>
 
                         <EmojiStickerPicker

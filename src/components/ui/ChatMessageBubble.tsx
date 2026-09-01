@@ -147,34 +147,34 @@ export const ChatMessageBubble = React.memo(({
     const hasThinkingBox = !isUser && Boolean(msg.reasoningText);
 
     return (
-        <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} group animate-in slide-in-from-bottom-3 duration-300`}>
-            <div className={`flex max-w-[92%] sm:max-w-[85%] ${isUser ? 'flex-row-reverse' : 'flex-row'} items-end gap-2.5`}>
+        <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} group animate-in slide-in-from-bottom-3 duration-300 w-full`}>
+            <div className={`flex max-w-[96%] sm:max-w-[85%] ${isUser ? 'flex-row-reverse' : 'flex-row'} items-end gap-1.5 sm:gap-2.5 min-w-0`}>
                 {/* Avatar */}
                 {isUser ? (
                     isUserImg ? (
                         <img
                             src={userAvatar}
-                            className="w-9 h-9 rounded-2xl shadow-xs border border-white object-cover shrink-0"
+                            className="w-8 h-8 sm:w-9 sm:h-9 rounded-2xl shadow-xs border border-white object-cover shrink-0"
                             alt="user avatar"
                             onError={(e) => {
                                 (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?q=80&w=200&auto=format&fit=crop";
                             }}
                         />
                     ) : userAvatar ? (
-                        <div className="w-9 h-9 rounded-2xl shadow-xs border border-white bg-gradient-to-tr from-purple-200 to-indigo-100 flex items-center justify-center text-base shrink-0 select-none">
+                        <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-2xl shadow-xs border border-white bg-gradient-to-tr from-purple-200 to-indigo-100 flex items-center justify-center text-sm sm:text-base shrink-0 select-none">
                             {userAvatar}
                         </div>
                     ) : (
                         <img
                             src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?q=80&w=200&auto=format&fit=crop"
-                            className="w-9 h-9 rounded-2xl shadow-xs border border-white object-cover shrink-0"
+                            className="w-8 h-8 sm:w-9 sm:h-9 rounded-2xl shadow-xs border border-white object-cover shrink-0"
                             alt="user avatar"
                         />
                     )
                 ) : (
                     <img
                         src={effectiveAvatar}
-                        className="w-9 h-9 rounded-2xl shadow-xs border border-white object-cover shrink-0"
+                        className="w-8 h-8 sm:w-9 sm:h-9 rounded-2xl shadow-xs border border-white object-cover shrink-0"
                         alt="bot avatar"
                         onError={(e) => {
                             (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1559839734-2b71ea197ec2?q=80&w=200&auto=format&fit=crop";
@@ -182,7 +182,7 @@ export const ChatMessageBubble = React.memo(({
                     />
                 )}
 
-                <div className="flex flex-col">
+                <div className="flex flex-col min-w-0 max-w-full">
                     {/* Header line for Bot (Name + Role Badge + Mode / Thought Clones Badge) */}
                     {!isUser && (
                         <div className="flex items-center gap-1.5 mb-1.5 ml-1 flex-wrap">
@@ -278,7 +278,7 @@ export const ChatMessageBubble = React.memo(({
                     {/* Message Bubble Body (Skin & Custom Parameters Applied) */}
                     {cleanText && (
                         <div
-                            className={`px-5 py-3.5 sm:px-6 sm:py-4 relative transition-all ${
+                            className={`px-4 py-3 sm:px-6 sm:py-4 relative transition-all max-w-full overflow-hidden break-words ${
                                 isUser ? themeConfig.userClass : themeConfig.botClass
                             }`}
                             style={{
@@ -302,7 +302,7 @@ export const ChatMessageBubble = React.memo(({
 
                             {/* Floating Action Toolbar on Hover (Copy, Audio Voice) */}
                             {!isUser && settings.showActions && (
-                                <div className="flex items-center justify-end gap-1.5 mt-2 pt-1 border-t border-black/5 opacity-80 group-hover:opacity-100 transition-opacity text-[11px]">
+                                <div className="flex items-center justify-end gap-1.5 mt-2 pt-1 border-t border-black/5 opacity-80 group-hover:opacity-100 transition-opacity text-[11px] flex-wrap">
                                     <button
                                         type="button"
                                         onClick={handleCopyText}

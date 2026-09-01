@@ -58,29 +58,29 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
     }, [isUserMenuOpen]);
 
     return (
-        <header className="pt-3.5 pb-2.5 px-4 sm:px-8 flex flex-col gap-2 z-20 bg-white/70 backdrop-blur-md border-b border-white/70 shrink-0">
+        <header className="pt-2.5 sm:pt-3.5 pb-2 sm:pb-2.5 px-3 sm:px-8 flex flex-col gap-2 z-20 bg-white/80 backdrop-blur-md border-b border-white/70 shrink-0">
             {/* Top Row: Brand / Title (Left) + Utility Action Buttons (Right) */}
-            <div className="flex items-center justify-between gap-3">
-                {/* Left Brand / Avatar + Mode Selector */}
-                <div className="flex items-center gap-2.5 sm:gap-3.5 min-w-0">
-                    <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-[16px] flex items-center justify-center border border-white/80 shadow-2xs transition-all shrink-0 bg-gradient-to-tr from-[#b3a4ed] via-[#c7b8f9] to-[#f296b2] text-white">
-                        <Building2 size={19} className="drop-shadow-xs" />
+            <div className="flex items-center justify-between gap-2 sm:gap-3">
+                {/* Left Brand / Avatar + Mode Selector (Desktop) */}
+                <div className="flex items-center gap-2 sm:gap-3.5 min-w-0">
+                    <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-[14px] sm:rounded-[16px] flex items-center justify-center border border-white/80 shadow-2xs transition-all shrink-0 bg-gradient-to-tr from-[#b3a4ed] via-[#c7b8f9] to-[#f296b2] text-white">
+                        <Building2 size={17} className="sm:w-[19px] sm:h-[19px] drop-shadow-xs" />
                     </div>
 
                     <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                            <h1 className="font-bold text-[#4a4365] text-[15px] sm:text-[16px] tracking-tight truncate">
+                        <div className="flex items-center gap-1.5">
+                            <h1 className="font-bold text-[#4a4365] text-[14px] sm:text-[16px] tracking-tight truncate">
                                 Gzadm Navigator
                             </h1>
                         </div>
-                        <p className="text-[9.5px] sm:text-[10px] text-gray-400 font-normal tracking-wide truncate">
+                        <p className="text-[9px] sm:text-[10px] text-gray-400 font-normal tracking-wide truncate hidden xs:block">
                             广州大学招生与志愿填报智能顾问
                         </p>
                     </div>
 
-                    {/* Mode Selector (放回左上角标签右侧) */}
+                    {/* Mode Selector (Desktop only) */}
                     {onChangeAdvisorMode && (
-                        <div className="inline-flex p-0.5 bg-[#f6f3fc] rounded-2xl border border-purple-100/70 shadow-2xs shrink-0 ml-1 sm:ml-2">
+                        <div className="hidden md:inline-flex p-0.5 bg-[#f6f3fc] rounded-2xl border border-purple-100/70 shadow-2xs shrink-0 ml-1 sm:ml-2">
                             <button
                                 type="button"
                                 onClick={() => onChangeAdvisorMode('lightweight')}
@@ -111,7 +111,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                 </div>
 
                 {/* Right Action Icons */}
-                <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
+                <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
                     {/* Bubble Skin / Theme Switcher */}
                     {onOpenThemeModal && (
                         <button
@@ -262,6 +262,35 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                     </div>
                 </div>
             </div>
+
+            {/* Mobile Mode Selector Row (Only shown on mobile < md) */}
+            {onChangeAdvisorMode && (
+                <div className="flex md:hidden w-full p-0.5 bg-[#f6f3fc] rounded-2xl border border-purple-100/70 shadow-2xs">
+                    <button
+                        type="button"
+                        onClick={() => onChangeAdvisorMode('lightweight')}
+                        className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-xl text-[12px] transition-all cursor-pointer ${advisorMode === 'lightweight'
+                                ? 'bg-white text-amber-800 shadow-2xs font-bold'
+                                : 'text-gray-500 hover:text-[#4a4365] font-medium'
+                            }`}
+                    >
+                        <Zap size={13} className={advisorMode === 'lightweight' ? 'text-amber-600 fill-amber-500' : 'text-gray-400'} />
+                        <span>极速轻量模式</span>
+                    </button>
+
+                    <button
+                        type="button"
+                        onClick={() => onChangeAdvisorMode('agent')}
+                        className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-xl text-[12px] transition-all cursor-pointer ${advisorMode === 'agent'
+                                ? 'bg-white text-purple-700 shadow-2xs font-bold'
+                                : 'text-gray-500 hover:text-[#4a4365] font-medium'
+                            }`}
+                    >
+                        <Sparkles size={13} className={advisorMode === 'agent' ? 'text-purple-600' : 'text-gray-400'} />
+                        <span>深度智能体模式</span>
+                    </button>
+                </div>
+            )}
         </header>
     );
 };

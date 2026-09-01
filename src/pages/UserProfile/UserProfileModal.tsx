@@ -227,13 +227,13 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
     const AVATARS = ['🎓', '⚡', '🌟', '🚀', '💡', '🎨', '🔥', '🏆', '🎯', '✨', '🍀', '☕'];
 
     return (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-md flex justify-center items-center p-4 animate-in fade-in duration-300">
-            <div className="bg-white/95 backdrop-blur-2xl rounded-[36px] max-w-[600px] w-full max-h-[92vh] overflow-y-auto p-6 sm:p-7 shadow-2xl border-4 border-white space-y-5 animate-in zoom-in-95 duration-300 hide-scrollbar">
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-md flex justify-center items-center p-3 sm:p-4 animate-in fade-in duration-300">
+            <div className="bg-white/95 backdrop-blur-2xl rounded-[28px] sm:rounded-[36px] max-w-[600px] w-full max-h-[92dvh] overflow-y-auto p-4 sm:p-7 shadow-2xl border-4 border-white space-y-4 sm:space-y-5 animate-in zoom-in-95 duration-300 hide-scrollbar">
 
                 {/* Header Hero Banner (去渐变，采用沉稳纯色) */}
-                <div className="relative bg-[#4a4365] rounded-3xl p-5 text-white shadow-xs border border-[#3d3753] flex items-center justify-between overflow-hidden">
-                    <div className="flex items-center gap-3.5 z-10">
-                        <div className="w-14 h-14 rounded-2xl bg-white/20 backdrop-blur-md border-2 border-white/80 overflow-hidden flex items-center justify-center shadow-md shrink-0">
+                <div className="relative bg-[#4a4365] rounded-2xl sm:rounded-3xl p-4 sm:p-5 text-white shadow-xs border border-[#3d3753] flex items-center justify-between overflow-hidden">
+                    <div className="flex items-center gap-3 z-10 min-w-0">
+                        <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-white/20 backdrop-blur-md border-2 border-white/80 overflow-hidden flex items-center justify-center shadow-md shrink-0">
                             {isCustomImageAvatar ? (
                                 <img
                                     src={formData.avatar}
@@ -242,21 +242,21 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                                     onError={() => setFormData(prev => ({ ...prev, avatar: '🎓' }))}
                                 />
                             ) : (
-                                <span className="text-2xl">{formData.avatar || '🎓'}</span>
+                                <span className="text-xl sm:text-2xl">{formData.avatar || '🎓'}</span>
                             )}
                         </div>
-                        <div>
-                            <div className="flex items-center gap-2">
-                                <h3 className="font-black text-[18px] tracking-tight">{formData.name || currentUser?.username}</h3>
-                                <span className="text-[10px] bg-white/20 backdrop-blur-md px-2 py-0.5 rounded-full font-bold">
+                        <div className="min-w-0">
+                            <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                                <h3 className="font-black text-[16px] sm:text-[18px] tracking-tight truncate">{formData.name || currentUser?.username}</h3>
+                                <span className="text-[9.5px] sm:text-[10px] bg-white/20 backdrop-blur-md px-2 py-0.5 rounded-full font-bold">
                                     {currentUser?.role === 'admin' ? '系统管理员' : '高考考生'}
                                 </span>
                             </div>
-                            <p className="text-[11.5px] opacity-90 font-mono mt-0.5">账号: @{currentUser?.username}</p>
+                            <p className="text-[11px] sm:text-[11.5px] opacity-90 font-mono mt-0.5 truncate">账号: @{currentUser?.username}</p>
                         </div>
                     </div>
 
-                    <button onClick={onClose} className="p-2 rounded-2xl bg-white/20 hover:bg-white/30 text-white z-10 transition-all cursor-pointer">
+                    <button onClick={onClose} className="p-2 rounded-2xl bg-white/20 hover:bg-white/30 text-white z-10 transition-all cursor-pointer shrink-0 ml-2">
                         <X size={18} />
                     </button>
                 </div>
@@ -266,7 +266,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                     <button
                         type="button"
                         onClick={() => setActiveTab('profile')}
-                        className={`flex-1 py-2.5 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-2 ${activeTab === 'profile' ? 'bg-white text-[#4a4365] shadow-xs' : 'text-[#8a84a4]'
+                        className={`flex-1 py-2 sm:py-2.5 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 sm:gap-2 ${activeTab === 'profile' ? 'bg-white text-[#4a4365] shadow-xs' : 'text-[#8a84a4]'
                             }`}
                     >
                         <UserIcon size={15} /> 个人资料
@@ -274,7 +274,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                     <button
                         type="button"
                         onClick={() => setActiveTab('account')}
-                        className={`flex-1 py-2.5 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-2 ${activeTab === 'account' ? 'bg-white text-[#4a4365] shadow-xs' : 'text-[#8a84a4]'
+                        className={`flex-1 py-2 sm:py-2.5 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 sm:gap-2 ${activeTab === 'account' ? 'bg-white text-[#4a4365] shadow-xs' : 'text-[#8a84a4]'
                             }`}
                     >
                         <Settings size={15} /> 账号设置
@@ -284,7 +284,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                 {/* ================= TAB 1: 个人资料 (高考背景画像) ================= */}
                 {activeTab === 'profile' && (
                     <form onSubmit={handleProfileSubmit} className="space-y-4 animate-in fade-in">
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <div>
                                 <label className="text-[12px] font-bold text-[#4a4365] block mb-1">
                                     考生昵称 <span className="text-red-500">*</span>
