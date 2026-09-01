@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Clock, Sparkles, Building2, HelpCircle, MessageSquare, Compass, ShieldAlert, GraduationCap, Coffee, ArrowUpRight, Cpu, Zap } from 'lucide-react';
-import { User, UserProfile, ChatSession, ChatMessage, ChatMode, MultiAgentRoster, ChatAttachment, BubbleThemeId, BubbleCustomSettings, ApiDiagnostics, AdvisorMode } from '../../types';
+import { User, UserProfile, ChatSession, ChatMessage, ChatMode, MultiAgentRoster, ChatAttachment, BubbleThemeId, BubbleCustomSettings, ApiDiagnostics, AdvisorMode, MarkdownStyleId } from '../../types';
 import { THEME, ROLE } from '../../constants/theme';
 import { INITIAL_MESSAGES } from '../../constants/initialMessages';
 import { DEFAULT_CAMPUS_LOCATIONS } from '../../constants/campusLocations';
+import { DEFAULT_BUBBLE_SETTINGS } from '../../constants/bubbleThemes';
 import { API_BASE } from '../../api/config';
 import { ChatHeader } from './ChatHeader';
 import { SessionDrawer } from './SessionDrawer';

@@ -90,7 +90,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ currentUser, onLogout,
             label: '高频问答模板库',
             subtitle: '极速轻量问答与意图匹配',
             icon: Zap,
-            badge: '⚡极速'
+            badge: null
         },
         {
             id: 'sync',
@@ -169,27 +169,24 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ currentUser, onLogout,
                                     key={item.id}
                                     type="button"
                                     onClick={() => setActiveTab(item.id as any)}
-                                    className={`w-full flex items-center justify-between p-3 rounded-2xl transition-all cursor-pointer group text-left ${
-                                        isActive
+                                    className={`w-full flex items-center justify-between p-3 rounded-2xl transition-all cursor-pointer group text-left ${isActive
                                             ? 'bg-white shadow-[0_8px_25px_rgba(164,148,232,0.22)] border border-purple-100/80'
                                             : 'hover:bg-white/60 border border-transparent'
-                                    }`}
+                                        }`}
                                 >
                                     <div className="flex items-center gap-3">
                                         <div
-                                            className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all ${
-                                                isActive
+                                            className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all ${isActive
                                                     ? 'bg-gradient-to-tr from-[#9d8ee0] to-[#c4b5fd] text-white shadow-sm'
                                                     : 'bg-[#f4f0fb] text-[#8a84a4] group-hover:text-purple-600 group-hover:bg-purple-50'
-                                            }`}
+                                                }`}
                                         >
                                             <Icon size={18} />
                                         </div>
                                         <div>
                                             <div
-                                                className={`text-[13px] font-black tracking-tight leading-tight ${
-                                                    isActive ? 'text-[#4a4365]' : 'text-[#6b6488] group-hover:text-[#4a4365]'
-                                                }`}
+                                                className={`text-[13px] font-black tracking-tight leading-tight ${isActive ? 'text-[#4a4365]' : 'text-[#6b6488] group-hover:text-[#4a4365]'
+                                                    }`}
                                             >
                                                 {item.label}
                                             </div>
@@ -201,11 +198,10 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ currentUser, onLogout,
 
                                     {item.badge && (
                                         <span
-                                            className={`text-[10px] px-2 py-0.5 rounded-full font-bold transition-all ${
-                                                isActive
+                                            className={`text-[10px] px-2 py-0.5 rounded-full font-bold transition-all ${isActive
                                                     ? 'bg-purple-100 text-purple-700 font-black'
                                                     : 'bg-purple-50 text-[#a494e8] group-hover:bg-purple-100 group-hover:text-purple-600'
-                                            }`}
+                                                }`}
                                         >
                                             {item.badge}
                                         </span>

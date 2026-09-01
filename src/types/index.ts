@@ -1,10 +1,11 @@
 export interface User {
     username: string;
-    role: 'admin' | 'guest';
+    role: 'admin' | 'user' | 'guest';
     name?: string;
     avatar?: string;
     phone?: string;
     email?: string;
+    profile?: UserProfile;
 }
 
 export interface UserProfile {
@@ -31,7 +32,7 @@ export interface RagItem {
     type?: 'text' | 'table';
     content: string;
     tableData?: any;
-    imageAttachments?: string[];
+    imageAttachments?: Array<{ url: string; name?: string; caption?: string } | any>;
     targetAgent?: string; // 'all' | 'dr' | 'dorm' | 'counselor' | 'senior_boy' | 'senior_girl'
     tags?: string[];
     createdAt?: string;
@@ -46,7 +47,7 @@ export interface DocumentChunk {
     targetAgent?: string;
     content: string;
     tableData?: any;
-    imageAttachments?: string[];
+    imageAttachments?: Array<{ url: string; name?: string; caption?: string } | any>;
     tags?: string[];
     saved?: boolean;
 }
@@ -56,11 +57,17 @@ export type PersonalRagItem = PersonalRagMemory;
 export interface CampusLocation {
     id: string;
     name: string;
-    category: 'teaching' | 'dorm' | 'canteen' | 'sports' | 'scenic' | 'facility';
-    x: number; // Percentage on map (0-100)
-    y: number; // Percentage on map (0-100)
+    category: string;
+    x?: number; // Percentage on map (0-100)
+    y?: number; // Percentage on map (0-100)
+    coordinates?: { x: number; y: number };
     description: string;
+    images?: Array<string | { url: string; name?: string; caption?: string } | any>;
+    terms?: string[];
+    highlights?: string[];
     openingHours?: string;
+    liliNarrative?: string;
+    liliTips?: string[];
     tags?: string[];
 }
 
@@ -245,4 +252,144 @@ export interface ChatSession {
     messages: ChatMessage[];
     createdAt: string;
     updatedAt?: string;
+}
+
+export type MultiAgentRoster = Record<string, AgentProfile>;
+
+export interface DashboardStats {
+    totalUsers?: number;
+    vipUsers?: number;
+    totalRagItems?: number;
+    todayQueriesCount?: number;
+    totalMessagesCount?: number;
+    provinceDistribution?: Array<{ province: string; count: number; percentage: number }>;
+    popularMajors?: Array<{ major: string; count: number }>;
+    aiGateway?: {
+        defaultModel?: string;
+        fastModel?: string;
+        provider?: string;
+    };
+    systemHealth?: {
+        postgres?: { status?: string; latencyMs?: number };
+        redis?: { status?: string; type?: string };
+        onnx?: { status?: string; latencyMs?: number };
+    };
+    searchEngine?: {
+        provider?: string;
+    };
+}
+
+export interface RagSearchResult {
+    id?: string | number;
+    title?: string;
+    category?: string;
+    content?: string;
+    similarityScore?: number;
+    score?: number;
+    targetAgent?: string;
+    tags?: string[];
+    tableData?: any;
+    imageAttachments?: any[];
+    item?: any;
+    breakdown?: any;
+}
+
+export interface WebSearchResultItem {
+    title: string;
+    url: string;
+    snippet: string;
+    source?: string;
+    images?: string[];
+}
+
+export interface QaRecord {
+    id: string | number;
+    question: string;
+    answer: string;
+    sessionTitle?: string;
+    timestamp?: string;
+    createdAt?: string;
+    username?: string;
+    agentName?: string;
+    category?: string;
+    sources?: any[];
+}
+
+export interface WordAnalyticsDb {
+    wordCounts?: Record<string, number>;
+    totalTokens?: number;
+    lastUpdated?: string;
+}
+
+export interface SettingsConfig {
+    aiBaseUrl?: string;
+    aiApiKey?: string;
+    defaultModel?: string;
+    fastModel?: string;
+    aiProtocolMode?: string;
+    enableNativeSearch?: boolean;
+    searchProvider?: string;
+    tavilyApiKey?: string;
+    bochaApiKey?: string;
+    authRegistrationMode?: 'username' | 'phone' | 'email';
+    tencentSmsSecretId?: string;
+    tencentSmsSecretKey?: string;
+    tencentSmsSdkAppId?: string;
+    tencentSmsSignName?: string;
+    tencentSmsTemplateId?: string;
+    smtpHost?: string;
+    smtpPort?: string;
+    smtpUser?: string;
+    smtpPass?: string;
+    mailFrom?: string;
+    mailFromName?: string;
+    smtpSecureEnabled?: string;
+    ttsEngine?: string;
+    msedgeVoice?: string;
+    onnxModelPath?: string;
+    onnxSpeed?: string | number;
+    ttsApiUrl?: string;
+    ttsApiKey?: string;
+    ttsApiModel?: string;
+    ttsApiVoice?: string;
+    systemPrompt?: string;
+    drPersona?: {
+        name?: string;
+        title?: string;
+        avatar?: string;
+        systemPrompt?: string;
+    };
+    liliPersona?: {
+        name?: string;
+        title?: string;
+        avatar?: string;
+        welcomeSpeech?: string;
+        prompt?: string;
+        voice?: string;
+        speed?: number;
+    };
+    campusMap?: {
+        pinScale?: number;
+    };
+    providerPool?: any[];
+}
+
+export interface TTSPresetVoice {
+    id: string;
+    name: string;
+    role?: string;
+    gender?: string;
+    desc?: string;
+    sampleText?: string;
+}
+
+export interface CampusTourRoute {
+    id: string;
+    title: string;
+    subtitle?: string;
+    icon: string;
+    color?: string;
+    duration: string;
+    description: string;
+    locationIds: string[];
 }

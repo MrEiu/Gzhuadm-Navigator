@@ -110,9 +110,9 @@ export const AnalyticsTab: React.FC<AnalyticsTabProps> = ({ onRefreshStats }) =>
             (rec?.username || '').toLowerCase().includes(q);
     });
 
-    const handleCopy = (id: string, text: string) => {
+    const handleCopy = (id: string | number, text: string) => {
         navigator.clipboard.writeText(text);
-        setCopiedId(id);
+        setCopiedId(String(id));
         setTimeout(() => setCopiedId(null), 2000);
     };
 
