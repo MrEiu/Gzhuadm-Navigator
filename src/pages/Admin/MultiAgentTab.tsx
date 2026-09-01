@@ -291,17 +291,20 @@ export const MultiAgentTab: React.FC = () => {
     const handleTestVoice = async (voiceId: string, testText: string) => {
         setTestingVoice(true);
         try {
-            const res = await fetch(`${API_BASE}/api/chat/tts`, {
+            const res = await fetch(`${API_BASE}/api/tts/synthesize`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ text: testText, voice: voiceId })
             });
-            const data = await res.json();
-            if (data.ok && data.audioUrl) {
+            if (res.ok) {
+                const blob = await res.blob();
+                const audioUrl = URL.createObjectURL(blob);
                 if (audioRef.current) {
-                    audioRef.current.src = data.audioUrl.startsWith('http') ? data.audioUrl : `${API_BASE}${data.audioUrl}`;
+                    audioRef.current.src = audioUrl;
                     audioRef.current.play();
                 }
+            } else {
+                console.warn('TTS API error');
             }
         } catch (err) {
             console.error('Voice test failed:', err);

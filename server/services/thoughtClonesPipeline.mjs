@@ -1,4 +1,5 @@
 import { globalOpenAIClient, getAiConfig } from '../config/env.mjs';
+import { loadAgentsConfig } from '../config/agentsConfig.mjs';
 import { searchRagEngine, searchAgentRag, formatRagContext } from './ragEngine.mjs';
 import { performWebSearch } from './webSearch.mjs';
 import { loadThoughtClonesConfig, selectActiveRoleIds } from '../config/thoughtClonesRegistry.mjs';
@@ -112,10 +113,19 @@ export const executeLightweightChat = async ({ username, userProfile, incomingMe
         const latencyMs = Date.now() - startTime;
         console.log(`⚡ [FAQ Fast Match Hit] Standard QA: "${template.standardQuestion}" (${latencyMs}ms, Score: ${faqMatch.score?.toFixed(3)})`);
 
+        const agents = loadAgentsConfig();
+        const drConfig = agents.dr || {};
+
         return {
             ok: true,
             reply: directReply,
             mode: 'lightweight',
+            agentKey: 'dr',
+            agentName: drConfig.name || 'Dr. Elena',
+            agentTitle: drConfig.title || '首席招生咨询顾问',
+            agentAvatar: drConfig.avatar || 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?q=80&w=400&auto=format&fit=crop',
+            agentColor: drConfig.bubbleColor || '#8b5cf6',
+            agentVoice: drConfig.voice || 'zh-CN-XiaoxiaoNeural',
             source: 'faq-template-direct',
             faqTemplate: {
                 id: template.id,
@@ -196,11 +206,19 @@ export const executeLightweightChat = async ({ username, userProfile, incomingMe
     }
 
     const latencyMs = Date.now() - startTime;
+    const agents = loadAgentsConfig();
+    const drConfig = agents.dr || {};
 
     return {
         ok: true,
         reply,
         mode: 'lightweight',
+        agentKey: 'dr',
+        agentName: drConfig.name || 'Dr. Elena',
+        agentTitle: drConfig.title || '首席招生咨询顾问',
+        agentAvatar: drConfig.avatar || 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?q=80&w=400&auto=format&fit=crop',
+        agentColor: drConfig.bubbleColor || '#8b5cf6',
+        agentVoice: drConfig.voice || 'zh-CN-XiaoxiaoNeural',
         source: 'lightweight-fast-rag',
         diagnostics: {
             requestId: `req_light_${Date.now()}`,
@@ -329,13 +347,21 @@ ${webContext}`;
     }
 
     const totalLatencyMs = Date.now() - startTime;
+    const agents = loadAgentsConfig();
+    const drConfig = agents.dr || {};
 
     return {
         ok: true,
         reply: finalReply,
         mode: 'agent',
+        agentKey: 'dr',
+        agentName: drConfig.name || 'Dr. Elena',
+        agentTitle: drConfig.title || '首席招生咨询顾问',
+        agentAvatar: drConfig.avatar || 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?q=80&w=400&auto=format&fit=crop',
+        agentColor: drConfig.bubbleColor || '#8b5cf6',
+        agentVoice: drConfig.voice || 'zh-CN-XiaoxiaoNeural',
         source: 'agent-thought-clones-pipeline',
-        activeClones: cloneThoughts.map(c => ({ roleId: c.roleId, name: c.name, tag: c.tag })),
+        activeClones: cloneThoughts.map(c => ({ roleId: c.roleId, name: c.name, tag: c.tag, color: c.color })),
         diagnostics: {
             requestId: `req_agent_${Date.now()}`,
             timestamp: new Date().toISOString(),

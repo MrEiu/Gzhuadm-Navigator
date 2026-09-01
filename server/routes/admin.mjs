@@ -991,4 +991,29 @@ router.post('/campus-map/upload-image', (req, res) => {
     }
 });
 
+// --- 智能体 / 分身 Prompt 单体测试 API ---
+router.post('/test-prompt', async (req, res) => {
+    try {
+        const { prompt, userQuery } = req.body || {};
+        const { aiApiKey, defaultModel } = getAiConfig();
+        if (globalOpenAIClient && aiApiKey) {
+            const completion = await globalOpenAIClient.chat.completions.create({
+                model: defaultModel,
+                messages: [
+                    { role: 'system', content: prompt || '你是一个专业招生咨询顾问。' },
+                    { role: 'user', content: userQuery || '请给出你的专业研判。' }
+                ],
+                max_tokens: 300,
+                temperature: 0.5
+            });
+            const reply = completion.choices?.[0]?.message?.content?.trim();
+            return res.json({ ok: true, reply });
+        }
+        res.json({ ok: true, reply: `[本地模拟输出] 基于该智能体视角：建议针对该问题结合考生分数段与招生政策进行客观研判。` });
+    } catch (err) {
+        console.error('Test prompt failed:', err);
+        res.json({ ok: false, error: err.message, reply: `调用异常: ${err.message}` });
+    }
+});
+
 export default router;

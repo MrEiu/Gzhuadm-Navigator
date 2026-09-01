@@ -42,7 +42,7 @@ export const createApp = () => {
     // Multi-Agent Public Config
     app.get('/api/agents-config', (_req, res) => {
         const data = loadAgentsConfig();
-        res.json({ ok: true, data });
+        res.json({ ok: true, data, agents: data });
     });
 
     // Mount Modular Routes

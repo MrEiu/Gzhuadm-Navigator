@@ -230,24 +230,27 @@ export const ChatPage: React.FC<ChatPageProps> = ({ currentUser, onLogout, onSwi
             })
             .catch(() => { });
 
-        fetch(`${API_BASE}/api/admin/agents-config`)
+        fetch(`${API_BASE}/api/agents-config`)
             .then(res => res.json())
             .then(data => {
-                if (data.ok && data.agents) {
-                    setAgentsRoster(data.agents);
-                    localStorage.setItem('aurasense_agents_config', JSON.stringify(data.agents));
+                const agents = data.agents || data.data;
+                if (data.ok && agents) {
+                    setAgentsRoster(agents);
+                    localStorage.setItem('aurasense_agents_config', JSON.stringify(agents));
                 }
             })
             .catch(() => { });
 
-        fetch(`${API_BASE}/api/admin/campus-map`)
+        fetch(`${API_BASE}/api/campus-map`)
             .then(res => res.json())
             .then(data => {
-                if (data.ok && Array.isArray(data.locations) && data.locations.length > 0) {
-                    setCampusLocations(data.locations);
+                const locations = data.locations || (Array.isArray(data.data) ? data.data : data.data?.locations);
+                if (data.ok && Array.isArray(locations) && locations.length > 0) {
+                    setCampusLocations(locations);
                 }
-                if (data.ok && typeof data.pinScale === 'number') {
-                    setMapPinScale(data.pinScale);
+                const scale = typeof data.pinScale === 'number' ? data.pinScale : data.data?.pinScale;
+                if (typeof scale === 'number') {
+                    setMapPinScale(scale);
                 }
             })
             .catch(() => { });
@@ -382,16 +385,18 @@ export const ChatPage: React.FC<ChatPageProps> = ({ currentUser, onLogout, onSwi
             const data = await response.json();
             const reply = data?.reply || '抱歉，我刚刚有些走神，请您再试一次。';
 
+            const currentDr = agentsRoster?.dr;
+
             const botMsg: ChatMessage = {
                 id: Date.now() + 1,
                 sender: 'bot',
                 text: reply,
-                senderAgentKey: data.agentKey || 'dr',
-                senderName: data.agentName || ROLE.name,
-                senderTitle: data.agentTitle || ROLE.title,
-                senderAvatar: data.agentAvatar || ROLE.avatar,
-                senderColor: data.agentColor || ROLE.color,
-                senderVoice: data.agentVoice || undefined,
+                senderAgentKey: data.agentKey || currentDr?.key || 'dr',
+                senderName: data.agentName || currentDr?.name || ROLE.name,
+                senderTitle: data.agentTitle || currentDr?.title || ROLE.title,
+                senderAvatar: data.agentAvatar || currentDr?.avatar || ROLE.avatar,
+                senderColor: data.agentColor || currentDr?.bubbleColor || ROLE.color,
+                senderVoice: data.agentVoice || currentDr?.voice || undefined,
                 instant: true,
                 mode: data.mode || advisorMode,
                 activeClones: data.activeClones || undefined,
