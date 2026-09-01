@@ -5,7 +5,8 @@ import {
     Save, Wifi, WifiOff, Eye, EyeOff, Layers, FileText, Check, Database,
     Users, Compass, Palette, Smile, Mic, UserCheck, MessageSquareText,
     CheckSquare, Square, History, ExternalLink, RotateCcw, ArrowRightLeft,
-    CheckCheck, AlertTriangle
+    CheckCheck, AlertTriangle, ShieldAlert, Download, Upload, Undo2,
+    Lock, Sparkles, Trash2, Camera
 } from 'lucide-react';
 import { API_BASE } from '../../api/config';
 
@@ -32,6 +33,14 @@ interface SnapshotItem {
     author: string;
     summary: string;
     updatedDomains?: string[];
+}
+
+interface LocalBackupItem {
+    id: string;
+    timestamp: string;
+    timeStr: string;
+    reason: string;
+    domainStats?: Record<string, any>;
 }
 
 interface DomainItem {
@@ -156,9 +165,11 @@ export const CloudSyncTab: React.FC = () => {
     const [saving, setSaving] = useState<boolean>(false);
     const [saveSuccess, setSaveSuccess] = useState<boolean>(false);
 
-    // Snapshot History State
+    // Snapshot & Local Backups State
     const [snapshots, setSnapshots] = useState<SnapshotItem[]>([]);
     const [loadingSnapshots, setLoadingSnapshots] = useState<boolean>(false);
+    const [localBackups, setLocalBackups] = useState<LocalBackupItem[]>([]);
+    const [loadingBackups, setLoadingBackups] = useState<boolean>(false);
 
     // Test Connection State
     const [testingConnection, setTestingConnection] = useState<boolean>(false);
@@ -174,8 +185,9 @@ export const CloudSyncTab: React.FC = () => {
     const [syncingAction, setSyncingAction] = useState<string | null>(null);
     const [actionMessage, setActionMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-    // Show/Hide Secret
+    // Show/Hide Secret & Show Danger Zone
     const [showSecret, setShowSecret] = useState<boolean>(false);
+    const [showDangerZone, setShowDangerZone] = useState<boolean>(false);
 
     // Fetch local config & status
     const fetchConfig = async () => {
@@ -183,9 +195,9 @@ export const CloudSyncTab: React.FC = () => {
         try {
             const res = await fetch(`${API_BASE}/api/sync/config`);
             const data = await res.json();
-            if (data.ok && data.config) {
+            if (data.ok) {
                 setConfig(data.config);
-                if (Array.isArray(data.config.selectedDomains) && data.config.selectedDomains.length > 0) {
+                if (data.config.selectedDomains && Array.isArray(data.config.selectedDomains)) {
                     setSelectedDomains(data.config.selectedDomains);
                 }
                 if (data.localStats?.domainCounts) {
@@ -212,6 +224,22 @@ export const CloudSyncTab: React.FC = () => {
             console.error('Fetch snapshots error:', err);
         } finally {
             setLoadingSnapshots(false);
+        }
+    };
+
+    // Fetch Local Backups List
+    const fetchLocalBackups = async () => {
+        setLoadingBackups(true);
+        try {
+            const res = await fetch(`${API_BASE}/api/sync/backups`);
+            const data = await res.json();
+            if (data.ok && Array.isArray(data.backups)) {
+                setLocalBackups(data.backups);
+            }
+        } catch (err) {
+            console.error('Fetch backups error:', err);
+        } finally {
+            setLoadingBackups(false);
         }
     };
 
@@ -247,6 +275,7 @@ export const CloudSyncTab: React.FC = () => {
     useEffect(() => {
         fetchConfig();
         fetchSnapshots();
+        fetchLocalBackups();
         probeCloudMetrics();
     }, []);
 
@@ -336,7 +365,7 @@ export const CloudSyncTab: React.FC = () => {
         setSelectedDomains([]);
     };
 
-    // 3. Trigger Push
+    // 3. Trigger Smart Incremental Push
     const handlePush = async () => {
         if (selectedDomains.length === 0) {
             alert('请至少勾选一个需要同步的数据模块！');
@@ -358,7 +387,7 @@ export const CloudSyncTab: React.FC = () => {
             if (data.ok) {
                 setActionMessage({
                     type: 'success',
-                    text: `✅ 推送成功！已同步 ${data.pushedCount} 项数据，智能跳过 ${data.skippedCount} 项已有数据。`
+                    text: `✅ 增量上传成功！已向云端推送 ${data.pushedCount} 项更新，智能跳过 ${data.skippedCount} 项未变动数据。`
                 });
                 fetchConfig();
                 fetchSnapshots();
@@ -366,17 +395,17 @@ export const CloudSyncTab: React.FC = () => {
             } else {
                 setActionMessage({
                     type: 'error',
-                    text: `❌ 推送失败: ${data.error || '云端服务异常'}`
+                    text: `❌ 增量上传失败: ${data.error || '云端服务异常'}`
                 });
             }
         } catch (err: any) {
-            setActionMessage({ type: 'error', text: `❌ 推送异常: ${err.message}` });
+            setActionMessage({ type: 'error', text: `❌ 增量上传异常: ${err.message}` });
         } finally {
             setSyncingAction(null);
         }
     };
 
-    // 4. Trigger Pull
+    // 4. Trigger Smart Incremental Pull (Non-destructive merge)
     const handlePull = async () => {
         if (selectedDomains.length === 0) {
             alert('请至少勾选一个需要同步的数据模块！');
@@ -398,25 +427,26 @@ export const CloudSyncTab: React.FC = () => {
             if (data.ok) {
                 setActionMessage({
                     type: 'success',
-                    text: `✅ 增量拉取完成！已从云端同步 ${data.pulledCount} 项权威设置与数据到本地。`
+                    text: `✅ 增量下载完成！已智能合并 ${data.pulledCount} 项云端最新数据（本地独有自建配置完好保留，拉取前已自动生成本地安全快照）。`
                 });
                 fetchConfig();
+                fetchLocalBackups();
                 fetchSnapshots();
                 probeCloudMetrics();
             } else {
                 setActionMessage({
                     type: 'error',
-                    text: `❌ 拉取失败: ${data.error || '云端服务异常'}`
+                    text: `❌ 增量下载失败: ${data.error || '云端服务异常'}`
                 });
             }
         } catch (err: any) {
-            setActionMessage({ type: 'error', text: `❌ 拉取异常: ${err.message}` });
+            setActionMessage({ type: 'error', text: `❌ 增量下载异常: ${err.message}` });
         } finally {
             setSyncingAction(null);
         }
     };
 
-    // 5. Trigger Full Sync
+    // 5. Trigger Smart Bidirectional Union Sync
     const handleFullSync = async () => {
         if (selectedDomains.length === 0) {
             alert('请至少勾选一个需要同步的数据模块！');
@@ -438,15 +468,16 @@ export const CloudSyncTab: React.FC = () => {
             if (data.ok) {
                 setActionMessage({
                     type: 'success',
-                    text: `🎉 双向全要素同步完成！(拉取: ${data.pull?.pulledCount || 0} 项, 推送: ${data.push?.pushedCount || 0} 项)`
+                    text: `🎉 双向智能合并完成！两端数据取并集互补 (下载合并: ${data.pull?.pulledCount || 0} 项, 上传同步: ${data.push?.pushedCount || 0} 项)`
                 });
                 fetchConfig();
+                fetchLocalBackups();
                 fetchSnapshots();
                 probeCloudMetrics();
             } else {
                 setActionMessage({
                     type: 'error',
-                    text: `❌ 同步过程中存在异常，请检查网络或密钥`
+                    text: `❌ 双向同步过程中存在异常，请检查网络或密钥`
                 });
             }
         } catch (err: any) {
@@ -456,9 +487,144 @@ export const CloudSyncTab: React.FC = () => {
         }
     };
 
-    // 6. Rollback Snapshot
-    const handleRollback = async (snapshot: SnapshotItem) => {
-        if (!confirm(`确定要将云端与本地数据恢复至 [${snapshot.timeStr}] 的历史快照吗？`)) {
+    // 6. Trigger Force Overwrite Cloud (Force Push)
+    const handleForcePush = async () => {
+        if (selectedDomains.length === 0) {
+            alert('请至少勾选一个需要覆盖上传的数据模块！');
+            return;
+        }
+        const domainNames = selectedDomains.map(d => DOMAINS.find(item => item.id === d)?.badge || d).join('、');
+        if (!confirm(`⚠️【危险操作警告 · 覆盖上传】\n\n确定要将本地当前【${domainNames}】的数据 100% 强制覆盖至云端基准吗？\n\n云端已有的独有数据将被重置为本地版本！`)) {
+            return;
+        }
+
+        setSyncingAction('force_push');
+        setActionMessage(null);
+        try {
+            const res = await fetch(`${API_BASE}/api/sync/force-push`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    cloudServerUrl: config.cloudServerUrl,
+                    syncSecret: config.syncSecret,
+                    domains: selectedDomains
+                })
+            });
+            const data = await res.json();
+            if (data.ok) {
+                setActionMessage({
+                    type: 'success',
+                    text: `🚨 覆盖上传完成！已成功将本地选中领域的数据【强制覆盖】同步为云端最新基准。`
+                });
+                fetchConfig();
+                fetchSnapshots();
+                probeCloudMetrics();
+            } else {
+                setActionMessage({ type: 'error', text: `❌ 覆盖上传失败: ${data.error}` });
+            }
+        } catch (err: any) {
+            setActionMessage({ type: 'error', text: `❌ 覆盖上传异常: ${err.message}` });
+        } finally {
+            setSyncingAction(null);
+        }
+    };
+
+    // 7. Trigger Force Overwrite Local (Force Pull)
+    const handleForcePull = async () => {
+        if (selectedDomains.length === 0) {
+            alert('请至少勾选一个需要覆盖下载的数据模块！');
+            return;
+        }
+        const domainNames = selectedDomains.map(d => DOMAINS.find(item => item.id === d)?.badge || d).join('、');
+        if (!confirm(`⚠️【危险操作警告 · 覆盖下载】\n\n确定要从云端拉取权威数据并 100% 强制覆盖本地【${domainNames}】吗？\n\n本地未同步的修改将被重置（系统会自动在此前生成一份本地备份快照，可随时撤销还原）。`)) {
+            return;
+        }
+
+        setSyncingAction('force_pull');
+        setActionMessage(null);
+        try {
+            const res = await fetch(`${API_BASE}/api/sync/force-pull`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    cloudServerUrl: config.cloudServerUrl,
+                    syncSecret: config.syncSecret,
+                    domains: selectedDomains
+                })
+            });
+            const data = await res.json();
+            if (data.ok) {
+                setActionMessage({
+                    type: 'success',
+                    text: `🚨 覆盖下载完成！本地已完全镜像重置为云端权威数据 (重置 ${data.overwrittenCount} 项，覆盖前已自动生成本地安全快照)。`
+                });
+                fetchConfig();
+                fetchLocalBackups();
+                fetchSnapshots();
+                probeCloudMetrics();
+            } else {
+                setActionMessage({ type: 'error', text: `❌ 覆盖下载失败: ${data.error}` });
+            }
+        } catch (err: any) {
+            setActionMessage({ type: 'error', text: `❌ 覆盖下载异常: ${err.message}` });
+        } finally {
+            setSyncingAction(null);
+        }
+    };
+
+    // 8. Create Manual Local Backup
+    const handleCreateLocalBackup = async () => {
+        try {
+            const res = await fetch(`${API_BASE}/api/sync/backups/create`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ reason: '管理员手动备份快照' })
+            });
+            const data = await res.json();
+            if (data.ok) {
+                setActionMessage({
+                    type: 'success',
+                    text: `📸 本地快照备份创建成功！[${data.timeStr}]`
+                });
+                fetchLocalBackups();
+            } else {
+                alert('创建备份失败: ' + data.error);
+            }
+        } catch (err: any) {
+            alert('创建备份异常: ' + err.message);
+        }
+    };
+
+    // 9. Restore Local Backup
+    const handleRestoreLocalBackup = async (backup: LocalBackupItem) => {
+        if (!confirm(`确定要将本地全部数据恢复至快照 [${backup.timeStr} · ${backup.reason}] 吗？`)) {
+            return;
+        }
+        try {
+            const res = await fetch(`${API_BASE}/api/sync/backups/restore`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ backupId: backup.id })
+            });
+            const data = await res.json();
+            if (data.ok) {
+                setActionMessage({
+                    type: 'success',
+                    text: `🎉 成功还原至本地快照 [${backup.timeStr}]！`
+                });
+                fetchConfig();
+                fetchLocalBackups();
+            } else {
+                alert('还原备份失败: ' + data.error);
+            }
+        } catch (err: any) {
+            alert('还原备份异常: ' + err.message);
+        }
+    };
+
+    // 10. Rollback Cloud Snapshot
+    const handleRollbackCloudSnapshot = async (snapshot: SnapshotItem) => {
+        if (!confirm(`确定要将云端中枢恢复至 [${snapshot.timeStr}] 的历史快照吗？`)) {
             return;
         }
         try {
@@ -469,7 +635,7 @@ export const CloudSyncTab: React.FC = () => {
             });
             const data = await res.json();
             if (data.ok) {
-                alert(`🎉 成功恢复至 [${snapshot.timeStr}] 快照状态！本地已完成同步。`);
+                alert(`🎉 云端中枢已成功恢复至 [${snapshot.timeStr}] 快照状态！`);
                 fetchConfig();
                 fetchSnapshots();
                 probeCloudMetrics();
@@ -507,10 +673,10 @@ export const CloudSyncTab: React.FC = () => {
                         <div className="flex items-center gap-2">
                             <h2 className="text-xl font-black text-[#4a4365] tracking-tight">云端数据中枢与多端同步工作台</h2>
                             <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 font-bold flex items-center gap-1">
-                                <History size={11} /> 统一权威副本模式
+                                <History size={11} /> 智能增量合并与安全快照
                             </span>
                         </div>
-                        <p className="text-xs text-[#8a84a4]">除知识库外，5 位 Agent 人设、手绘地图、UI 皮肤与语音配置自动共享同一份云端权威设置</p>
+                        <p className="text-xs text-[#8a84a4]">支持细粒度智能增量合并、覆盖上传、覆盖下载与本地自动快照一键撤销</p>
                     </div>
                 </div>
 
@@ -594,8 +760,8 @@ export const CloudSyncTab: React.FC = () => {
                             <div className="font-bold text-indigo-700 text-sm">{cloudServerStats.totalPulls || 0} 次</div>
                         </div>
                         <div>
-                            <span className="text-[#8a84a4] text-[10px]">云端服务版本:</span>
-                            <div className="font-bold text-slate-700 text-sm">v2.0.0 (High-Speed DB)</div>
+                            <span className="text-[#8a84a4] text-[10px]">云端服务架构:</span>
+                            <div className="font-bold text-slate-700 text-sm">v2.5.0 (Smart Merge + Force Push/Pull)</div>
                         </div>
                         <div>
                             <span className="text-[#8a84a4] text-[10px]">通信协议鉴权:</span>
@@ -704,8 +870,8 @@ export const CloudSyncTab: React.FC = () => {
                     <div className="flex items-center gap-2">
                         <Activity size={16} className="text-purple-600" />
                         <div>
-                            <div className="text-[12.5px] font-bold text-[#4a4365]">服务启动时自动无感增量拉取权威配置</div>
-                            <div className="text-[10px] text-[#8a84a4]">本地 Node 后端启动时静默向云端拉取最新的权威设置</div>
+                            <div className="text-[12.5px] font-bold text-[#4a4365]">服务启动时自动无感增量合并权威配置</div>
+                            <div className="text-[10px] text-[#8a84a4]">本地 Node 后端启动时静默向云端拉取最新的权威设置并平滑合并</div>
                         </div>
                     </div>
                     <label className="relative inline-flex items-center cursor-pointer">
@@ -819,75 +985,232 @@ export const CloudSyncTab: React.FC = () => {
                 </div>
             </div>
 
-            {/* 3 Action Buttons */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {/* Button 1: Incremental Pull */}
-                <button
-                    type="button"
-                    onClick={handlePull}
-                    disabled={Boolean(syncingAction)}
-                    className="p-5 rounded-[28px] bg-white hover:bg-purple-50/50 border-2 border-purple-100 hover:border-purple-300 shadow-sm transition-all text-left flex items-start gap-4 cursor-pointer disabled:opacity-50 group"
-                >
-                    <div className="w-12 h-12 rounded-2xl bg-purple-100 text-purple-700 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-                        {syncingAction === 'pull' ? <RefreshCw size={22} className="animate-spin" /> : <ArrowDownToLine size={22} />}
-                    </div>
+            {/* 3 Safe Core Operations */}
+            <div className="bg-white/85 backdrop-blur-xl rounded-[32px] p-6 border border-white/80 shadow-sm space-y-4">
+                <div className="flex items-center justify-between border-b border-purple-50 pb-3">
                     <div>
-                        <div className="font-black text-[#4a4365] text-sm flex items-center gap-1.5">
-                            <span>⬇️ 拉取云端权威设置</span>
-                        </div>
-                        <div className="text-[11px] text-[#8a84a4] mt-1">
-                            自动拉取云端唯一的权威设置与知识库并覆盖热更新本地
-                        </div>
+                        <h3 className="font-black text-[#4a4365] text-[15px] flex items-center gap-2">
+                            <Sparkles size={17} className="text-purple-600" />
+                            <span>日常常用操作 · 智能增量同步 (非破坏性合并 · 安全推荐)</span>
+                        </h3>
+                        <p className="text-[10.5px] text-[#8a84a4]">采用时间戳细粒度比对，绝不抹除本地自建新条目与未上传修改</p>
                     </div>
-                </button>
+                </div>
 
-                {/* Button 2: Smart Deduplication Push */}
-                <button
-                    type="button"
-                    onClick={handlePush}
-                    disabled={Boolean(syncingAction)}
-                    className="p-5 rounded-[28px] bg-white hover:bg-indigo-50/50 border-2 border-indigo-100 hover:border-indigo-300 shadow-sm transition-all text-left flex items-start gap-4 cursor-pointer disabled:opacity-50 group"
-                >
-                    <div className="w-12 h-12 rounded-2xl bg-indigo-100 text-indigo-700 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-                        {syncingAction === 'push' ? <RefreshCw size={22} className="animate-spin" /> : <ArrowUpFromLine size={22} />}
-                    </div>
-                    <div>
-                        <div className="font-black text-[#4a4365] text-sm flex items-center gap-1.5">
-                            <span>⬆️ 智能推送并打快照</span>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {/* Button 1: Incremental Pull */}
+                    <button
+                        type="button"
+                        onClick={handlePull}
+                        disabled={Boolean(syncingAction)}
+                        className="p-5 rounded-[28px] bg-white hover:bg-purple-50/60 border-2 border-purple-100 hover:border-purple-300 shadow-sm transition-all text-left flex items-start gap-4 cursor-pointer disabled:opacity-50 group"
+                    >
+                        <div className="w-12 h-12 rounded-2xl bg-purple-100 text-purple-700 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                            {syncingAction === 'pull' ? <RefreshCw size={22} className="animate-spin" /> : <ArrowDownToLine size={22} />}
                         </div>
-                        <div className="text-[11px] text-[#8a84a4] mt-1">
-                            将本地更新推送至云端中枢，自动记录时间戳快照
+                        <div>
+                            <div className="font-black text-[#4a4365] text-sm flex items-center gap-1.5">
+                                <span>⬇️ 增量下载 (智能合并)</span>
+                            </div>
+                            <div className="text-[11px] text-[#8a84a4] mt-1">
+                                从云端拉取较新权威数据合并至本地，本地独有条目完好保留
+                            </div>
                         </div>
-                    </div>
-                </button>
+                    </button>
 
-                {/* Button 3: Full Bidirectional Sync */}
-                <button
-                    type="button"
-                    onClick={handleFullSync}
-                    disabled={Boolean(syncingAction)}
-                    className="p-5 rounded-[28px] bg-gradient-to-tr from-purple-600 via-indigo-600 to-blue-600 text-white shadow-md hover:shadow-lg transition-all text-left flex items-start gap-4 cursor-pointer disabled:opacity-50 group"
-                >
-                    <div className="w-12 h-12 rounded-2xl bg-white/20 text-white flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-                        {syncingAction === 'full' ? <RefreshCw size={22} className="animate-spin" /> : <RefreshCw size={22} />}
-                    </div>
-                    <div>
-                        <div className="font-black text-white text-sm flex items-center gap-1.5">
-                            <span>🔄 一键双向全要素同步</span>
+                    {/* Button 2: Smart Deduplication Push */}
+                    <button
+                        type="button"
+                        onClick={handlePush}
+                        disabled={Boolean(syncingAction)}
+                        className="p-5 rounded-[28px] bg-white hover:bg-indigo-50/60 border-2 border-indigo-100 hover:border-indigo-300 shadow-sm transition-all text-left flex items-start gap-4 cursor-pointer disabled:opacity-50 group"
+                    >
+                        <div className="w-12 h-12 rounded-2xl bg-indigo-100 text-indigo-700 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                            {syncingAction === 'push' ? <RefreshCw size={22} className="animate-spin" /> : <ArrowUpFromLine size={22} />}
                         </div>
-                        <div className="text-[11px] text-white/80 mt-1">
-                            先拉取云端权威版，再将本地修改合并上传并生成时间点快照
+                        <div>
+                            <div className="font-black text-[#4a4365] text-sm flex items-center gap-1.5">
+                                <span>⬆️ 增量上传 (指纹去重)</span>
+                            </div>
+                            <div className="text-[11px] text-[#8a84a4] mt-1">
+                                仅将本地新增或修改的条目推送到云端，自动跳过未修改项
+                            </div>
                         </div>
-                    </div>
-                </button>
+                    </button>
+
+                    {/* Button 3: Full Bidirectional Sync */}
+                    <button
+                        type="button"
+                        onClick={handleFullSync}
+                        disabled={Boolean(syncingAction)}
+                        className="p-5 rounded-[28px] bg-gradient-to-tr from-purple-600 via-indigo-600 to-blue-600 text-white shadow-md hover:shadow-lg transition-all text-left flex items-start gap-4 cursor-pointer disabled:opacity-50 group"
+                    >
+                        <div className="w-12 h-12 rounded-2xl bg-white/20 text-white flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                            {syncingAction === 'full' ? <RefreshCw size={22} className="animate-spin" /> : <RefreshCw size={22} />}
+                        </div>
+                        <div>
+                            <div className="font-black text-white text-sm flex items-center gap-1.5">
+                                <span>🔄 双向智能互补合并</span>
+                            </div>
+                            <div className="text-[11px] text-white/80 mt-1">
+                                先智能合并云端更新，再将完整并集推送回云端，两端完全一致
+                            </div>
+                        </div>
+                    </button>
+                </div>
             </div>
 
-            {/* Snapshot History Timeline */}
+            {/* 🚨 Force Overwrite Actions (Danger Zone) */}
+            <div className="bg-amber-50/50 rounded-[32px] p-6 border border-amber-200/80 shadow-sm space-y-4">
+                <div className="flex items-center justify-between border-b border-amber-200/60 pb-3">
+                    <div className="flex items-center gap-2">
+                        <ShieldAlert size={18} className="text-amber-700" />
+                        <div>
+                            <h3 className="font-black text-amber-950 text-[15px]">高级控制区 · 强制覆盖通道 (Force Overwrite)</h3>
+                            <p className="text-[10.5px] text-amber-800">用于初始化新设备或以某一端为唯一基准进行 100% 强制覆写（覆盖前系统会自动创建本地安全快照）</p>
+                        </div>
+                    </div>
+
+                    <button
+                        type="button"
+                        onClick={() => setShowDangerZone(!showDangerZone)}
+                        className="text-[11px] px-3 py-1 bg-white border border-amber-300 hover:bg-amber-100 text-amber-900 rounded-xl font-bold cursor-pointer transition-colors"
+                    >
+                        {showDangerZone ? '收起通道' : '展开覆盖选项'}
+                    </button>
+                </div>
+
+                {showDangerZone && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in fade-in duration-200">
+                        {/* Force Push Card */}
+                        <div className="bg-white p-5 rounded-2xl border border-rose-200 space-y-3">
+                            <div className="flex items-center justify-between">
+                                <div className="font-black text-rose-950 text-sm flex items-center gap-2">
+                                    <Upload size={16} className="text-rose-600" />
+                                    <span>覆盖上传至云端 (Force Push)</span>
+                                </div>
+                                <span className="text-[10px] bg-rose-100 text-rose-700 px-2 py-0.5 rounded-full font-bold">以本地为基准</span>
+                            </div>
+                            <p className="text-[11px] text-[#8a84a4] leading-relaxed">
+                                将本地当前选定领域的数据<b> 100% 强制覆盖并重置云端数据库</b>。云端原有的独有数据将被覆盖。
+                            </p>
+                            <button
+                                type="button"
+                                onClick={handleForcePush}
+                                disabled={Boolean(syncingAction)}
+                                className="w-full py-2.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-300 font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
+                            >
+                                {syncingAction === 'force_push' ? <RefreshCw size={13} className="animate-spin" /> : <Upload size={13} />}
+                                <span>强制覆盖上传至云端</span>
+                            </button>
+                        </div>
+
+                        {/* Force Pull Card */}
+                        <div className="bg-white p-5 rounded-2xl border border-rose-200 space-y-3">
+                            <div className="flex items-center justify-between">
+                                <div className="font-black text-rose-950 text-sm flex items-center gap-2">
+                                    <Download size={16} className="text-rose-600" />
+                                    <span>覆盖下载至本地 (Force Pull)</span>
+                                </div>
+                                <span className="text-[10px] bg-rose-100 text-rose-700 px-2 py-0.5 rounded-full font-bold">以云端为基准</span>
+                            </div>
+                            <p className="text-[11px] text-[#8a84a4] leading-relaxed">
+                                从云端拉取权威全量数据并<b> 100% 强制覆盖重置本地存储</b>。系统会自动在执行前产生一份本地备份快照，可随时撤销还原。
+                            </p>
+                            <button
+                                type="button"
+                                onClick={handleForcePull}
+                                disabled={Boolean(syncingAction)}
+                                className="w-full py-2.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-300 font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
+                            >
+                                {syncingAction === 'force_pull' ? <RefreshCw size={13} className="animate-spin" /> : <Download size={13} />}
+                                <span>强制覆盖下载至本地</span>
+                            </button>
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {/* ⏪ Local Safety Backups Management */}
+            <div className="bg-white/85 backdrop-blur-xl rounded-[32px] p-6 border border-white/80 shadow-sm space-y-3">
+                <div className="flex items-center justify-between border-b border-purple-50 pb-2.5">
+                    <div>
+                        <h3 className="font-black text-[#4a4365] text-[14px] flex items-center gap-2">
+                            <Undo2 size={16} className="text-indigo-600" />
+                            <span>本地安全快照与一键撤销还原 (Local Safety Backups)</span>
+                        </h3>
+                        <p className="text-[10.5px] text-[#8a84a4]">每次增量拉取、双向合并或覆盖操作前系统均会自动生成秒级本地快照，防误触有后悔药</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <button
+                            type="button"
+                            onClick={handleCreateLocalBackup}
+                            className="px-3 py-1 bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 text-[11px] font-bold rounded-xl flex items-center gap-1 cursor-pointer transition-colors"
+                        >
+                            <Camera size={12} />
+                            <span>手动创建快照</span>
+                        </button>
+                        <button
+                            type="button"
+                            onClick={fetchLocalBackups}
+                            className="text-[11px] text-purple-600 hover:text-purple-800 font-bold flex items-center gap-1 cursor-pointer"
+                        >
+                            <RefreshCw size={12} className={loadingBackups ? 'animate-spin' : ''} />
+                            <span>刷新</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                    {localBackups.length > 0 ? (
+                        localBackups.map((b, idx) => (
+                            <div
+                                key={b.id}
+                                className="p-3.5 rounded-2xl bg-[#f8f6fc] border border-purple-50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
+                            >
+                                <div className="space-y-0.5">
+                                    <div className="font-black text-[#4a4365] flex items-center gap-2">
+                                        <span className="px-2.5 py-0.5 rounded-md bg-indigo-100 text-indigo-700 font-bold text-[11px]">
+                                            {b.timeStr}
+                                        </span>
+                                        <span className="text-[12px]">{b.reason}</span>
+                                        {idx === 0 && (
+                                            <span className="px-2 py-0.2 rounded-full bg-emerald-100 text-emerald-700 text-[9.5px] font-bold">
+                                                最新快照
+                                            </span>
+                                        )}
+                                    </div>
+                                    <div className="text-[#8a84a4] text-[10.5px] flex items-center gap-3">
+                                        <span>知识条目: <b className="text-[#6b6488]">{b.domainStats?.rag || 0} 条</b></span>
+                                        <span>智能体矩阵: <b className="text-[#6b6488]">{b.domainStats?.agents || 0} 个</b></span>
+                                        <span>地图点位: <b className="text-[#6b6488]">{b.domainStats?.campusMap || 0} 个</b></span>
+                                    </div>
+                                </div>
+
+                                <button
+                                    type="button"
+                                    onClick={() => handleRestoreLocalBackup(b)}
+                                    className="px-3.5 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-[11px] font-bold flex items-center gap-1 cursor-pointer transition-colors shrink-0"
+                                >
+                                    <Undo2 size={12} />
+                                    <span>一键还原此快照</span>
+                                </button>
+                            </div>
+                        ))
+                    ) : (
+                        <div className="p-6 text-center text-xs text-[#a494e8]">
+                            暂无本地快照记录，执行同步或点击上方“手动创建快照”后将自动记录
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            {/* Cloud Snapshot History Timeline */}
             <div className="bg-white/85 backdrop-blur-xl rounded-[32px] p-6 border border-white/80 shadow-sm space-y-3">
                 <div className="flex items-center justify-between border-b border-purple-50 pb-2.5">
                     <h3 className="font-black text-[#4a4365] text-[14px] flex items-center gap-2">
                         <History size={16} className="text-purple-600" />
-                        <span>云端快照历史时间线 (Snapshot Timeline)</span>
+                        <span>云端中枢版本快照时间线 (Cloud Snapshot Timeline)</span>
                     </h3>
                     <button
                         type="button"
@@ -895,11 +1218,11 @@ export const CloudSyncTab: React.FC = () => {
                         className="text-[11px] text-purple-600 hover:text-purple-800 font-bold flex items-center gap-1 cursor-pointer"
                     >
                         <RefreshCw size={12} className={loadingSnapshots ? 'animate-spin' : ''} />
-                        <span>刷新快照时间线</span>
+                        <span>刷新云端快照</span>
                     </button>
                 </div>
 
-                <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
                     {snapshots.length > 0 ? (
                         snapshots.map((s, idx) => (
                             <div
@@ -920,24 +1243,24 @@ export const CloudSyncTab: React.FC = () => {
                                     </div>
                                     <div className="text-[#8a84a4] text-[10.5px] flex items-center gap-3">
                                         <span>操作人: <b className="text-[#6b6488]">{s.author}</b></span>
-                                        <span>涉及模块: ${(s.updatedDomains || []).join('、')}</span>
+                                        <span>涉及模块: {(s.updatedDomains || []).join('、')}</span>
                                     </div>
                                 </div>
 
                                 {idx !== 0 && (
                                     <button
                                         type="button"
-                                        onClick={() => handleRollback(s)}
+                                        onClick={() => handleRollbackCloudSnapshot(s)}
                                         className="px-3.5 py-1.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 text-[11px] font-bold flex items-center gap-1 cursor-pointer transition-colors shrink-0"
                                     >
                                         <RotateCcw size={12} />
-                                        <span>恢复此时间点</span>
+                                        <span>恢复云端此节点</span>
                                     </button>
                                 )}
                             </div>
                         ))
                     ) : (
-                        <div className="p-8 text-center text-xs text-[#a494e8]">
+                        <div className="p-6 text-center text-xs text-[#a494e8]">
                             暂无云端快照记录，推送后将自动按时间展示
                         </div>
                     )}

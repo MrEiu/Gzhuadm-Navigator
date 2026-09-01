@@ -5,10 +5,15 @@ import {
     testCloudConnection,
     pushToCloud,
     pullFromCloud,
+    forcePushToCloud,
+    forcePullFromCloud,
     fullBidirectionalSync,
     getLocalDomainData,
     fetchCloudSnapshotHistory,
-    rollbackToCloudSnapshot
+    rollbackToCloudSnapshot,
+    createLocalBackup,
+    listLocalBackups,
+    restoreLocalBackup
 } from '../services/cloudSyncClient.mjs';
 
 const router = express.Router();
@@ -31,7 +36,7 @@ router.get('/config', async (_req, res) => {
         const localDomainStats = {
             rag: Array.isArray(rag) ? rag.length : 0,
             agents: Object.keys(agents || {}).length,
-            campusMap: Array.isArray(campusMap) ? campusMap.length : 0,
+            campusMap: Array.isArray(campusMap?.locations) ? campusMap.locations.length : (Array.isArray(campusMap) ? campusMap.length : 0),
             bubble: Boolean(bubble?.themeId),
             memes: Array.isArray(memes) ? memes.length : 0,
             tts: Boolean(tts?.defaultVoice || tts?.engine),
@@ -77,42 +82,87 @@ router.post('/test', async (req, res) => {
     res.json(result);
 });
 
-// 4. Trigger Smart Push
+// 4. Trigger Smart Incremental Push
 router.post('/push', async (req, res) => {
     const { cloudServerUrl, syncSecret, domains } = req.body || {};
     const result = await pushToCloud(domains || [], cloudServerUrl, syncSecret);
     res.json(result);
 });
 
-// 5. Trigger Incremental Pull
+// 5. Trigger Smart Incremental Pull
 router.post('/pull', async (req, res) => {
     const { cloudServerUrl, syncSecret, domains } = req.body || {};
     const result = await pullFromCloud(domains || [], cloudServerUrl, syncSecret);
     res.json(result);
 });
 
-// 6. Trigger Full Bidirectional Sync
+// 6. 🚨 Trigger Force Overwrite Cloud (Force Push)
+router.post('/force-push', async (req, res) => {
+    const { cloudServerUrl, syncSecret, domains } = req.body || {};
+    const result = await forcePushToCloud(domains || [], cloudServerUrl, syncSecret);
+    res.json(result);
+});
+
+// 7. 🚨 Trigger Force Overwrite Local (Force Pull)
+router.post('/force-pull', async (req, res) => {
+    const { cloudServerUrl, syncSecret, domains } = req.body || {};
+    const result = await forcePullFromCloud(domains || [], cloudServerUrl, syncSecret);
+    res.json(result);
+});
+
+// 8. Trigger Full Bidirectional Smart Merge
 router.post('/full', async (req, res) => {
     const { cloudServerUrl, syncSecret, domains } = req.body || {};
     const result = await fullBidirectionalSync(domains || [], cloudServerUrl, syncSecret);
     res.json(result);
 });
 
-// 7. Get Cloud Snapshot History Timeline
+// 9. Local Backups Management
+router.get('/backups', (_req, res) => {
+    try {
+        const backups = listLocalBackups();
+        res.json({ ok: true, backups });
+    } catch (err) {
+        res.status(500).json({ ok: false, error: err.message });
+    }
+});
+
+router.post('/backups/create', async (req, res) => {
+    try {
+        const { reason } = req.body || {};
+        const result = await createLocalBackup(reason || '管理员手动快照');
+        res.json(result);
+    } catch (err) {
+        res.status(500).json({ ok: false, error: err.message });
+    }
+});
+
+router.post('/backups/restore', async (req, res) => {
+    try {
+        const { backupId } = req.body || {};
+        if (!backupId) return res.status(400).json({ ok: false, error: '缺少 backupId' });
+        const result = await restoreLocalBackup(backupId);
+        res.json(result);
+    } catch (err) {
+        res.status(500).json({ ok: false, error: err.message });
+    }
+});
+
+// 10. Get Cloud Snapshot History Timeline
 router.get('/snapshots', async (req, res) => {
     const { cloudServerUrl, syncSecret } = req.query || {};
     const result = await fetchCloudSnapshotHistory(cloudServerUrl, syncSecret);
     res.json(result);
 });
 
-// 8. Rollback to Snapshot
+// 11. Rollback to Snapshot
 router.post('/snapshot-rollback', async (req, res) => {
     const { snapshotId, cloudServerUrl, syncSecret } = req.body || {};
     const result = await rollbackToCloudSnapshot(snapshotId, cloudServerUrl, syncSecret);
     res.json(result);
 });
 
-// 9. Get Activity Logs
+// 12. Get Activity Logs
 router.get('/logs', (_req, res) => {
     const config = loadSyncConfig();
     res.json({

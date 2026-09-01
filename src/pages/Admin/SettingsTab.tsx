@@ -3,8 +3,7 @@ import {
     Sliders, Sparkles, KeyRound, Globe, Server, Check,
     RefreshCw, Eye, EyeOff, ShieldCheck, Mail, Smartphone,
     Bot, MessageSquare, ArrowRight, Zap, CheckCircle2,
-    Upload, Compass, Image as ImageIcon, Link as LinkIcon,
-    Volume2, Mic, Play, Settings, Radio
+    Volume2, Mic, Play, Settings, Radio, Image as ImageIcon
 } from 'lucide-react';
 import { SettingsConfig, TTSPresetVoice } from '../../types';
 import { API_BASE } from '../../api/config';
@@ -28,21 +27,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigSaved }) => {
     const [testingConnection, setTestingConnection] = useState(false);
     const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
 
-    // 1. Agent Personas & Avatars (Dr & Lili)
-    const [drName, setDrName] = useState('Dr. Elena');
-    const [drTitle, setDrTitle] = useState('招生咨询顾问');
-    const [drAvatar, setDrAvatar] = useState('https://images.unsplash.com/photo-1559839734-2b71ea197ec2?q=80&w=200&auto=format&fit=crop');
-
-    const [liliName, setLiliName] = useState('丽丽学姐');
-    const [liliTitle, setLiliTitle] = useState('校园智能伴游');
-    const [liliAvatar, setLiliAvatar] = useState('https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=400&auto=format&fit=crop');
-
-    const [uploadingDrAvatar, setUploadingDrAvatar] = useState(false);
-    const [uploadingLiliAvatar, setUploadingLiliAvatar] = useState(false);
-    const drFileInputRef = useRef<HTMLInputElement>(null);
-    const liliFileInputRef = useRef<HTMLInputElement>(null);
-
-    // 2. Gateway and Models
+    // 1. Gateway and Models
     const [baseUrl, setBaseUrl] = useState('https://api.deepseek.com');
     const [apiKey, setApiKey] = useState('');
     const [showApiKey, setShowApiKey] = useState(false);
@@ -143,22 +128,6 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigSaved }) => {
                 setSmtpPort(c.smtpPort || '587');
                 setSmtpUser(c.smtpUser || '');
                 setSmtpPass(c.smtpPass || '');
-            }
-
-            // Load Agent Avatars
-            const agentRes = await fetch(`${API_BASE}/api/agent-config`);
-            const agentData = await agentRes.json();
-            if (agentData.ok && agentData.data) {
-                if (agentData.data.dr) {
-                    setDrName(agentData.data.dr.name || 'Dr. Elena');
-                    setDrTitle(agentData.data.dr.title || '招生咨询顾问');
-                    setDrAvatar(agentData.data.dr.avatar || 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?q=80&w=200&auto=format&fit=crop');
-                }
-                if (agentData.data.lili) {
-                    setLiliName(agentData.data.lili.name || '丽丽学姐');
-                    setLiliTitle(agentData.data.lili.title || '校园智能伴游');
-                    setLiliAvatar(agentData.data.lili.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=400&auto=format&fit=crop');
-                }
             }
 
             // Load TTS Config
@@ -303,66 +272,6 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigSaved }) => {
         }
     };
 
-    // Avatar Upload Helper for Dr
-    const handleDrAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-        setUploadingDrAvatar(true);
-        const reader = new FileReader();
-        reader.onload = async (loadEvent) => {
-            const base64Data = loadEvent.target?.result as string;
-            try {
-                const res = await fetch(`${API_BASE}/api/user/upload-avatar`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ imageBase64: base64Data, filename: file.name })
-                });
-                const data = await res.json();
-                if (data.ok && data.url) {
-                    const fullUrl = data.url.startsWith('http') ? data.url : `${API_BASE}${data.url}`;
-                    setDrAvatar(fullUrl);
-                } else {
-                    setDrAvatar(base64Data);
-                }
-            } catch {
-                setDrAvatar(base64Data);
-            } finally {
-                setUploadingDrAvatar(false);
-            }
-        };
-        reader.readAsDataURL(file);
-    };
-
-    // Avatar Upload Helper for Lili
-    const handleLiliAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-        setUploadingLiliAvatar(true);
-        const reader = new FileReader();
-        reader.onload = async (loadEvent) => {
-            const base64Data = loadEvent.target?.result as string;
-            try {
-                const res = await fetch(`${API_BASE}/api/user/upload-avatar`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ imageBase64: base64Data, filename: file.name })
-                });
-                const data = await res.json();
-                if (data.ok && data.url) {
-                    const fullUrl = data.url.startsWith('http') ? data.url : `${API_BASE}${data.url}`;
-                    setLiliAvatar(fullUrl);
-                } else {
-                    setLiliAvatar(base64Data);
-                }
-            } catch {
-                setLiliAvatar(base64Data);
-            } finally {
-                setUploadingLiliAvatar(false);
-            }
-        };
-        reader.readAsDataURL(file);
-    };
-
     // Audition TTS Voice Synthesis
     const handleAuditionTTS = async () => {
         setTestingTts(true);
@@ -436,16 +345,6 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigSaved }) => {
                 })
             });
 
-            // Save Agent Personas & Avatars
-            await fetch(`${API_BASE}/api/admin/agent-config`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    dr: { name: drName, title: drTitle, avatar: drAvatar },
-                    lili: { name: liliName, title: liliTitle, avatar: liliAvatar }
-                })
-            });
-
             // Save TTS Multi-Engine Config
             await fetch(`${API_BASE}/api/admin/tts-config`, {
                 method: 'POST',
@@ -495,10 +394,10 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigSaved }) => {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-100/80 pb-4">
                 <div>
                     <h3 className="font-black text-[#4a4365] text-[18px] tracking-tight flex items-center gap-2">
-                        <Sliders size={20} className="text-[#a494e8]" /> 全局系统配置与智能体形象定制
+                        <Sliders size={20} className="text-[#a494e8]" /> 全局系统与 AI 底层网关配置
                     </h3>
                     <p className="text-[12px] text-[#7a7398] font-medium mt-0.5">
-                        可视化管理 AI 网关、双模型协同分配、TTS 语音引擎 (Edge/ONNX/API) 与伴游形象
+                        可视化管理 AI 模型网关、多模型提供商路由、TTS 语音引擎底层参数与系统安全通道
                     </p>
                 </div>
 
@@ -520,184 +419,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigSaved }) => {
                 </div>
             </div>
 
-            {/* 1. AI Agent Personas & Avatar Customization Card */}
-            <div className="bg-white/80 backdrop-blur-xl rounded-[32px] p-6 border border-white/80 shadow-[0_8px_25px_rgba(186,175,215,0.18)] space-y-5">
-                <div className="flex items-center justify-between">
-                    <div>
-                        <h4 className="font-black text-[#4a4365] text-[15px] flex items-center gap-2">
-                            <Bot size={18} className="text-purple-600" /> AI 智能体人设与头像形象定制 (Dr. 与 丽丽学姐)
-                        </h4>
-                        <p className="text-[11.5px] text-[#8a84a4] mt-0.5">
-                            支持自定义招生百事通与导览学姐的头像（本地上传或网络 URL）、显示名称与头衔
-                        </p>
-                    </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5 pt-1">
-                    
-                    {/* Agent 1: Dr. Elena (广大招生导师) */}
-                    <div className="bg-gradient-to-br from-purple-50/70 via-white to-indigo-50/40 p-5 rounded-3xl border border-purple-100 shadow-2xs space-y-4">
-                        <div className="flex items-center justify-between">
-                            <span className="text-[12px] font-black text-purple-950 flex items-center gap-1.5">
-                                <Sparkles size={14} className="text-purple-600" />
-                                <span>广大招生咨询顾问 (Dr.)</span>
-                            </span>
-                            <span className="text-[10px] font-bold bg-purple-100 text-purple-800 px-2 py-0.5 rounded-md">
-                                问答对话主角色
-                            </span>
-                        </div>
-
-                        <div className="flex items-center gap-4">
-                            {/* Avatar Preview */}
-                            <div className="relative w-16 h-16 rounded-2xl overflow-hidden shadow-md border-2 border-white shrink-0 bg-purple-100">
-                                <img
-                                    src={drAvatar}
-                                    alt="Dr. Avatar"
-                                    className="w-full h-full object-cover"
-                                    onError={(e) => {
-                                        (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1559839734-2b71ea197ec2?q=80&w=200&auto=format&fit=crop";
-                                    }}
-                                />
-                            </div>
-
-                            <div className="flex-1 space-y-2">
-                                <input
-                                    ref={drFileInputRef}
-                                    type="file"
-                                    accept="image/*"
-                                    onChange={handleDrAvatarUpload}
-                                    className="hidden"
-                                />
-                                <button
-                                    type="button"
-                                    onClick={() => drFileInputRef.current?.click()}
-                                    disabled={uploadingDrAvatar}
-                                    className="px-3 py-1.5 bg-white hover:bg-purple-50 text-purple-700 text-[11.5px] font-bold rounded-xl border border-purple-200 shadow-2xs flex items-center gap-1.5 transition-all cursor-pointer"
-                                >
-                                    <Upload size={12} className={uploadingDrAvatar ? 'animate-bounce' : ''} />
-                                    <span>{uploadingDrAvatar ? '上传中...' : '上传本地图片作为头像'}</span>
-                                </button>
-
-                                <div className="relative">
-                                    <LinkIcon size={11} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
-                                    <input
-                                        type="text"
-                                        value={drAvatar}
-                                        onChange={(e) => setDrAvatar(e.target.value)}
-                                        placeholder="或输入外部图片链接 URL..."
-                                        className="w-full bg-white/90 border border-purple-100 rounded-xl pl-7 pr-2.5 py-1 text-[11px] text-[#4a4365] outline-none focus:ring-1 focus:ring-purple-400"
-                                    />
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-3 pt-1">
-                            <div>
-                                <label className="text-[11px] font-bold text-gray-500 mb-1 block">顾问名称</label>
-                                <input
-                                    type="text"
-                                    value={drName}
-                                    onChange={(e) => setDrName(e.target.value)}
-                                    placeholder="如：Dr. Elena"
-                                    className="w-full bg-white border border-purple-100 rounded-xl px-3 py-1.5 text-[12px] font-bold text-[#4a4365] outline-none focus:ring-1 focus:ring-purple-400"
-                                />
-                            </div>
-                            <div>
-                                <label className="text-[11px] font-bold text-gray-500 mb-1 block">顾问头衔</label>
-                                <input
-                                    type="text"
-                                    value={drTitle}
-                                    onChange={(e) => setDrTitle(e.target.value)}
-                                    placeholder="如：招生咨询专家"
-                                    className="w-full bg-white border border-purple-100 rounded-xl px-3 py-1.5 text-[12px] font-bold text-[#4a4365] outline-none focus:ring-1 focus:ring-purple-400"
-                                />
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Agent 2: 丽丽学姐 (校园导览伴游) */}
-                    <div className="bg-gradient-to-br from-pink-50/60 via-white to-amber-50/40 p-5 rounded-3xl border border-pink-100 shadow-2xs space-y-4">
-                        <div className="flex items-center justify-between">
-                            <span className="text-[12px] font-black text-pink-950 flex items-center gap-1.5">
-                                <Compass size={14} className="text-pink-600" />
-                                <span>校园智能伴游 (丽丽学姐)</span>
-                            </span>
-                            <span className="text-[10px] font-bold bg-pink-100 text-pink-800 px-2 py-0.5 rounded-md">
-                                地图导览与语音主角色
-                            </span>
-                        </div>
-
-                        <div className="flex items-center gap-4">
-                            {/* Avatar Preview */}
-                            <div className="relative w-16 h-16 rounded-2xl overflow-hidden shadow-md border-2 border-white shrink-0 bg-pink-100">
-                                <img
-                                    src={liliAvatar}
-                                    alt="Lili Avatar"
-                                    className="w-full h-full object-cover"
-                                    onError={(e) => {
-                                        (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=400&auto=format&fit=crop";
-                                    }}
-                                />
-                            </div>
-
-                            <div className="flex-1 space-y-2">
-                                <input
-                                    ref={liliFileInputRef}
-                                    type="file"
-                                    accept="image/*"
-                                    onChange={handleLiliAvatarUpload}
-                                    className="hidden"
-                                />
-                                <button
-                                    type="button"
-                                    onClick={() => liliFileInputRef.current?.click()}
-                                    disabled={uploadingLiliAvatar}
-                                    className="px-3 py-1.5 bg-white hover:bg-pink-50 text-pink-700 text-[11.5px] font-bold rounded-xl border border-pink-200 shadow-2xs flex items-center gap-1.5 transition-all cursor-pointer"
-                                >
-                                    <Upload size={12} className={uploadingLiliAvatar ? 'animate-bounce' : ''} />
-                                    <span>{uploadingLiliAvatar ? '上传中...' : '上传本地图片作为头像'}</span>
-                                </button>
-
-                                <div className="relative">
-                                    <LinkIcon size={11} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
-                                    <input
-                                        type="text"
-                                        value={liliAvatar}
-                                        onChange={(e) => setLiliAvatar(e.target.value)}
-                                        placeholder="或输入外部图片链接 URL..."
-                                        className="w-full bg-white/90 border border-pink-100 rounded-xl pl-7 pr-2.5 py-1 text-[11px] text-[#4a4365] outline-none focus:ring-1 focus:ring-pink-400"
-                                    />
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-3 pt-1">
-                            <div>
-                                <label className="text-[11px] font-bold text-gray-500 mb-1 block">伴游名称</label>
-                                <input
-                                    type="text"
-                                    value={liliName}
-                                    onChange={(e) => setLiliName(e.target.value)}
-                                    placeholder="如：丽丽学姐"
-                                    className="w-full bg-white border border-pink-100 rounded-xl px-3 py-1.5 text-[12px] font-bold text-[#4a4365] outline-none focus:ring-1 focus:ring-pink-400"
-                                />
-                            </div>
-                            <div>
-                                <label className="text-[11px] font-bold text-gray-500 mb-1 block">伴游头衔</label>
-                                <input
-                                    type="text"
-                                    value={liliTitle}
-                                    onChange={(e) => setLiliTitle(e.target.value)}
-                                    placeholder="如：校园智能伴游"
-                                    className="w-full bg-white border border-pink-100 rounded-xl px-3 py-1.5 text-[12px] font-bold text-[#4a4365] outline-none focus:ring-1 focus:ring-pink-400"
-                                />
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            {/* 2. NEW: Multi-Engine TTS Voice Customization Card */}
+            {/* 1. Multi-Engine TTS Voice Customization Card */}
             <div className="bg-white/80 backdrop-blur-xl rounded-[32px] p-6 border border-white/80 shadow-[0_8px_25px_rgba(186,175,215,0.18)] space-y-5">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div>

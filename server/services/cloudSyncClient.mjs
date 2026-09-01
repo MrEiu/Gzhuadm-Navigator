@@ -5,12 +5,20 @@ import { dataDir } from '../config/env.mjs';
 import { getRagStore, saveJsonRag, loadJsonRag, pgPool, usePostgres } from './postgres.mjs';
 import { getEmbedding } from './embedding.mjs';
 import { loadAgentsConfig, saveAgentsConfig } from '../config/agentsConfig.mjs';
+import { loadThoughtClonesConfig, saveThoughtClonesConfig } from '../config/thoughtClonesRegistry.mjs';
 import { loadCampusMapData, saveCampusMapData } from '../routes/admin.mjs';
 import { loadJsonProfiles, saveJsonProfiles } from './personalRag.mjs';
 import { loadJsonSessions } from '../routes/user.mjs';
 import { loadTtsConfig, saveTtsConfig } from './ttsService.mjs';
 
 const syncConfigPath = path.join(dataDir, 'cloud_sync_config.json');
+const backupsDir = path.join(dataDir, 'backups');
+
+export const ensureBackupsDir = () => {
+    if (!fs.existsSync(backupsDir)) {
+        fs.mkdirSync(backupsDir, { recursive: true });
+    }
+};
 
 // Helper: Compute SHA-256 for string
 export const computeStringHash = (str = '') => {
@@ -117,12 +125,117 @@ const addSyncLog = (action, details, success = true) => {
         success,
         timestamp: new Date().toISOString()
     };
-    const logs = [newLog, ...(config.syncLogs || [])].slice(0, 50);
+    const logs = [newLog, ...(config.syncLogs || [])].slice(0, 60);
     saveSyncConfig({ syncLogs: logs });
     return newLog;
 };
 
-// 3. Local Domain Data Loaders & Savers
+// -------------------------------------------------------------
+// 3. Local Auto-Backup & Restore System (Safety Guarantee)
+// -------------------------------------------------------------
+
+export const createLocalBackup = async (reason = '自动快照备份') => {
+    try {
+        ensureBackupsDir();
+        const now = new Date();
+        const timestamp = now.toISOString();
+        const id = 'backup_' + now.getTime() + '_' + Math.random().toString(36).slice(2, 6);
+
+        const allDomains = ['rag', 'agents', 'campusMap', 'bubble', 'memes', 'tts', 'userProfiles', 'chatSessions'];
+        const payload = {};
+        const domainStats = {};
+
+        for (const dom of allDomains) {
+            const data = await getLocalDomainData(dom);
+            payload[dom] = data;
+            domainStats[dom] = Array.isArray(data) ? data.length : (typeof data === 'object' && data ? Object.keys(data).length : 1);
+        }
+
+        const backupRecord = {
+            id,
+            timestamp,
+            timeStr: now.toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' }) + ' ' + now.toLocaleTimeString('zh-CN', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+            reason,
+            domainStats,
+            payload
+        };
+
+        const filePath = path.join(backupsDir, `${id}.json`);
+        fs.writeFileSync(filePath, JSON.stringify(backupRecord, null, 2), 'utf8');
+
+        // Prune older backups (> 20)
+        try {
+            const files = fs.readdirSync(backupsDir).filter(f => f.startsWith('backup_') && f.endsWith('.json'));
+            if (files.length > 20) {
+                files.sort().slice(0, files.length - 20).forEach(f => {
+                    try { fs.unlinkSync(path.join(backupsDir, f)); } catch { }
+                });
+            }
+        } catch { }
+
+        return { ok: true, id, timeStr: backupRecord.timeStr, reason };
+    } catch (err) {
+        console.error('Failed to create local backup:', err);
+        return { ok: false, error: err.message };
+    }
+};
+
+export const listLocalBackups = () => {
+    ensureBackupsDir();
+    try {
+        const files = fs.readdirSync(backupsDir).filter(f => f.startsWith('backup_') && f.endsWith('.json'));
+        const backups = [];
+        for (const file of files) {
+            try {
+                const fullPath = path.join(backupsDir, file);
+                const raw = fs.readFileSync(fullPath, 'utf8');
+                const parsed = JSON.parse(raw);
+                backups.push({
+                    id: parsed.id || file.replace('.json', ''),
+                    timestamp: parsed.timestamp,
+                    timeStr: parsed.timeStr,
+                    reason: parsed.reason || '自动备份',
+                    domainStats: parsed.domainStats || {}
+                });
+            } catch { }
+        }
+        backups.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+        return backups;
+    } catch (err) {
+        return [];
+    }
+};
+
+export const restoreLocalBackup = async (backupId) => {
+    ensureBackupsDir();
+    const filePath = path.join(backupsDir, `${backupId}.json`);
+    if (!fs.existsSync(filePath)) {
+        return { ok: false, error: '指定的本地备份快照不存在或已被清理' };
+    }
+
+    try {
+        const raw = fs.readFileSync(filePath, 'utf8');
+        const parsed = JSON.parse(raw);
+        const payload = parsed.payload || {};
+
+        for (const [dom, data] of Object.entries(payload)) {
+            if (data !== undefined && data !== null) {
+                await saveLocalDomainData(dom, data, true); // Force overwrite from backup
+            }
+        }
+
+        addSyncLog('⏪ 本地还原', `成功从备份 [${parsed.timeStr} - ${parsed.reason}] 还原了本地数据`, true);
+        return { ok: true, message: `成功恢复至备份快照 [${parsed.timeStr}]！`, restoredAt: parsed.timestamp };
+    } catch (err) {
+        console.error('Failed to restore local backup:', err);
+        return { ok: false, error: err.message };
+    }
+};
+
+// -------------------------------------------------------------
+// 4. Local Domain Data Loaders & Smart Savers
+// -------------------------------------------------------------
+
 export const getLocalDomainData = async (domain) => {
     switch (domain) {
         case 'rag': {
@@ -130,12 +243,23 @@ export const getLocalDomainData = async (domain) => {
             return items.map(item => ({ ...item, hash: computeItemHash(item) }));
         }
         case 'agents': {
-            return loadAgentsConfig();
+            const core = loadAgentsConfig() || {};
+            const clones = loadThoughtClonesConfig() || {};
+            return {
+                ...core,
+                thoughtClones: clones
+            };
         }
         case 'campusMap': {
-            const mapData = loadCampusMapData() || [];
-            const list = Array.isArray(mapData) ? mapData : (mapData.locations || []);
-            return list.map(p => ({ ...p, hash: computeMapItemHash(p) }));
+            const mapData = loadCampusMapData() || { locations: [], routes: [], pinScale: 0.8 };
+            const locations = Array.isArray(mapData.locations) ? mapData.locations : (Array.isArray(mapData) ? mapData : []);
+            const routes = Array.isArray(mapData.routes) ? mapData.routes : [];
+            const pinScale = typeof mapData.pinScale === 'number' ? mapData.pinScale : 0.8;
+            return {
+                locations: locations.map(p => ({ ...p, hash: computeMapItemHash(p) })),
+                routes,
+                pinScale
+            };
         }
         case 'bubble': {
             const bubblePath = path.join(dataDir, 'bubble_settings.json');
@@ -170,68 +294,208 @@ export const getLocalDomainData = async (domain) => {
     }
 };
 
-export const saveLocalDomainData = async (domain, data) => {
+export const saveLocalDomainData = async (domain, data, isForceOverwrite = false) => {
     if (!data) return;
+
     switch (domain) {
         case 'rag': {
             if (Array.isArray(data)) {
-                let local = loadJsonRag();
-                for (const item of data) {
-                    const idx = local.findIndex(k => k.id === item.id || (item.hash && k.hash === item.hash));
-                    if (idx >= 0) local[idx] = { ...local[idx], ...item };
-                    else local.unshift(item);
+                if (isForceOverwrite) {
+                    saveJsonRag(data);
+                } else {
+                    // Smart Incremental Merge:
+                    // 1. If both exist, compare updatedAt. Newer wins.
+                    // 2. If local exists and cloud doesn't, keep local.
+                    // 3. If cloud is new, append it.
+                    let local = loadJsonRag() || [];
+                    for (const cloudItem of data) {
+                        const idx = local.findIndex(k => k.id === cloudItem.id || (cloudItem.hash && k.hash === cloudItem.hash));
+                        if (idx >= 0) {
+                            const cloudTime = new Date(cloudItem.updatedAt || cloudItem.cloudReceivedAt || 0).getTime();
+                            const localTime = new Date(local[idx].updatedAt || local[idx].lastModified || 0).getTime();
+                            if (cloudTime >= localTime || !localTime) {
+                                local[idx] = { ...local[idx], ...cloudItem };
+                            }
+                        } else {
+                            local.unshift(cloudItem);
+                        }
+                    }
+                    saveJsonRag(local);
                 }
-                saveJsonRag(local);
             }
             break;
         }
+
         case 'agents': {
-            if (typeof data === 'object') saveAgentsConfig(data);
+            if (typeof data === 'object' && data) {
+                if (isForceOverwrite) {
+                    const core = { ...data };
+                    delete core.thoughtClones;
+                    saveAgentsConfig(core);
+                    if (data.thoughtClones && typeof data.thoughtClones === 'object') {
+                        saveThoughtClonesConfig(data.thoughtClones);
+                    }
+                } else {
+                    // Smart Merge: Preserve local custom agents & merge clones by roleId
+                    const localAgents = loadAgentsConfig() || {};
+                    const localClones = loadThoughtClonesConfig() || {};
+
+                    const incomingCore = { ...data };
+                    delete incomingCore.thoughtClones;
+                    saveAgentsConfig({ ...localAgents, ...incomingCore });
+
+                    const incomingClones = data.thoughtClones || {};
+                    const mergedClones = { ...localClones };
+
+                    for (const [roleId, clone] of Object.entries(incomingClones)) {
+                        if (mergedClones[roleId]) {
+                            const cloudTime = new Date(clone.updatedAt || 0).getTime();
+                            const localTime = new Date(mergedClones[roleId].updatedAt || 0).getTime();
+                            if (cloudTime >= localTime || !localTime) {
+                                mergedClones[roleId] = { ...mergedClones[roleId], ...clone };
+                            }
+                        } else {
+                            mergedClones[roleId] = clone;
+                        }
+                    }
+                    saveThoughtClonesConfig(mergedClones);
+                }
+            }
             break;
         }
+
         case 'campusMap': {
-            if (Array.isArray(data) || typeof data === 'object') {
+            if (isForceOverwrite) {
                 saveCampusMapData(data);
+            } else {
+                // Smart Merge: Preserve local unique landmarks and merge routes by id
+                const localMap = loadCampusMapData() || { locations: [], routes: [], pinScale: 0.8 };
+                const localLocs = Array.isArray(localMap.locations) ? localMap.locations : (Array.isArray(localMap) ? localMap : []);
+                const incomingLocs = Array.isArray(data.locations) ? data.locations : (Array.isArray(data) ? data : []);
+
+                const mergedLocs = [...localLocs];
+                for (const inLoc of incomingLocs) {
+                    const idx = mergedLocs.findIndex(l => l.id === inLoc.id);
+                    if (idx >= 0) {
+                        mergedLocs[idx] = { ...mergedLocs[idx], ...inLoc };
+                    } else {
+                        mergedLocs.push(inLoc);
+                    }
+                }
+
+                const localRoutes = Array.isArray(localMap.routes) ? localMap.routes : [];
+                const incomingRoutes = Array.isArray(data.routes) ? data.routes : [];
+                const mergedRoutes = [...localRoutes];
+                for (const inRoute of incomingRoutes) {
+                    const idx = mergedRoutes.findIndex(r => r.id === inRoute.id);
+                    if (idx >= 0) {
+                        mergedRoutes[idx] = { ...mergedRoutes[idx], ...inRoute };
+                    } else {
+                        mergedRoutes.push(inRoute);
+                    }
+                }
+
+                const pinScale = typeof data.pinScale === 'number' ? data.pinScale : (typeof localMap.pinScale === 'number' ? localMap.pinScale : 0.8);
+                saveCampusMapData({ locations: mergedLocs, routes: mergedRoutes, pinScale });
             }
             break;
         }
+
         case 'bubble': {
-            if (typeof data === 'object') {
+            if (typeof data === 'object' && data) {
                 const bubblePath = path.join(dataDir, 'bubble_settings.json');
-                fs.writeFileSync(bubblePath, JSON.stringify(data, null, 2), 'utf8');
+                if (isForceOverwrite) {
+                    fs.writeFileSync(bubblePath, JSON.stringify(data, null, 2), 'utf8');
+                } else {
+                    let localBubble = {};
+                    if (fs.existsSync(bubblePath)) {
+                        try { localBubble = JSON.parse(fs.readFileSync(bubblePath, 'utf8')); } catch { }
+                    }
+                    fs.writeFileSync(bubblePath, JSON.stringify({ ...localBubble, ...data }, null, 2), 'utf8');
+                }
             }
             break;
         }
+
         case 'memes': {
             if (Array.isArray(data)) {
                 const memePath = path.join(dataDir, 'custom_memes.json');
-                fs.writeFileSync(memePath, JSON.stringify(data, null, 2), 'utf8');
+                if (isForceOverwrite) {
+                    fs.writeFileSync(memePath, JSON.stringify(data, null, 2), 'utf8');
+                } else {
+                    let localMemes = DEFAULT_MEMES;
+                    if (fs.existsSync(memePath)) {
+                        try {
+                            const parsed = JSON.parse(fs.readFileSync(memePath, 'utf8'));
+                            if (Array.isArray(parsed)) localMemes = parsed;
+                        } catch { }
+                    }
+                    const mergedMemes = [...localMemes];
+                    for (const inMeme of data) {
+                        const idx = mergedMemes.findIndex(m => m.id === inMeme.id);
+                        if (idx >= 0) mergedMemes[idx] = { ...mergedMemes[idx], ...inMeme };
+                        else mergedMemes.push(inMeme);
+                    }
+                    fs.writeFileSync(memePath, JSON.stringify(mergedMemes, null, 2), 'utf8');
+                }
             }
             break;
         }
+
         case 'tts': {
-            if (typeof data === 'object') {
-                saveTtsConfig(data);
+            if (typeof data === 'object' && data) {
+                if (isForceOverwrite) {
+                    saveTtsConfig(data);
+                } else {
+                    const localTts = loadTtsConfig() || {};
+                    saveTtsConfig({ ...localTts, ...data });
+                }
             }
             break;
         }
+
         case 'userProfiles': {
-            if (typeof data === 'object') {
-                saveJsonProfiles(data);
+            if (typeof data === 'object' && data) {
+                if (isForceOverwrite) {
+                    saveJsonProfiles(data);
+                } else {
+                    const localProfiles = loadJsonProfiles() || {};
+                    saveJsonProfiles({ ...localProfiles, ...data });
+                }
             }
             break;
         }
+
         case 'chatSessions': {
             if (Array.isArray(data)) {
                 const sessPath = path.join(dataDir, 'user_sessions.json');
-                fs.writeFileSync(sessPath, JSON.stringify(data, null, 2), 'utf8');
+                if (isForceOverwrite) {
+                    fs.writeFileSync(sessPath, JSON.stringify(data, null, 2), 'utf8');
+                } else {
+                    let localSessions = loadJsonSessions() || [];
+                    const merged = [...localSessions];
+                    for (const inSess of data) {
+                        const idx = merged.findIndex(s => s.id === inSess.id);
+                        if (idx >= 0) {
+                            const inCount = Array.isArray(inSess.messages) ? inSess.messages.length : 0;
+                            const localCount = Array.isArray(merged[idx].messages) ? merged[idx].messages.length : 0;
+                            if (inCount >= localCount) merged[idx] = inSess;
+                        } else {
+                            merged.push(inSess);
+                        }
+                    }
+                    fs.writeFileSync(sessPath, JSON.stringify(merged, null, 2), 'utf8');
+                }
             }
             break;
         }
     }
 };
 
-// 4. Test Connection with Cloud Server
+// -------------------------------------------------------------
+// 5. Test Connection with Cloud Server
+// -------------------------------------------------------------
+
 export const testCloudConnection = async (customUrl, customSecret, timeoutMs = 3000) => {
     const config = loadSyncConfig();
     const targetUrl = (customUrl || config.cloudServerUrl || 'http://localhost:3800').replace(/\/+$/, '');
@@ -271,7 +535,10 @@ export const testCloudConnection = async (customUrl, customSecret, timeoutMs = 3
     }
 };
 
-// 5. Multi-Domain Smart Deduplication Push
+// -------------------------------------------------------------
+// 6. Multi-Domain Smart Incremental Push
+// -------------------------------------------------------------
+
 export const pushToCloud = async (requestedDomains = [], customUrl, customSecret) => {
     const config = loadSyncConfig();
     const targetUrl = (customUrl || config.cloudServerUrl || 'http://localhost:3800').replace(/\/+$/, '');
@@ -289,8 +556,10 @@ export const pushToCloud = async (requestedDomains = [], customUrl, customSecret
             const data = await getLocalDomainData(dom);
             localData[dom] = data;
 
-            if (['rag', 'campusMap', 'memes', 'chatSessions'].includes(dom)) {
+            if (dom === 'rag' || dom === 'memes' || dom === 'chatSessions') {
                 hashes[dom] = Array.isArray(data) ? data.map(i => i.hash || computeItemHash(i)) : [];
+            } else if (dom === 'campusMap') {
+                hashes[dom] = Array.isArray(data?.locations) ? data.locations.map(i => i.hash || computeMapItemHash(i)) : [];
             } else {
                 hashes[dom] = computeObjectHash(data);
             }
@@ -320,12 +589,22 @@ export const pushToCloud = async (requestedDomains = [], customUrl, customSecret
         let totalSkippedItems = 0;
 
         for (const dom of activeDomains) {
-            if (['rag', 'campusMap', 'memes', 'chatSessions'].includes(dom)) {
+            if (dom === 'rag' || dom === 'memes' || dom === 'chatSessions') {
                 const missingHashSet = new Set(missing[dom] || []);
                 const itemsToPush = (localData[dom] || []).filter(item => missingHashSet.has(item.hash));
                 payloadToPush[dom] = itemsToPush;
                 totalPushedItems += itemsToPush.length;
                 totalSkippedItems += (localData[dom] || []).length - itemsToPush.length;
+            } else if (dom === 'campusMap') {
+                const missingHashSet = new Set(missing[dom] || []);
+                const locsToPush = (localData[dom]?.locations || []).filter(item => missingHashSet.has(item.hash));
+                payloadToPush[dom] = {
+                    locations: locsToPush,
+                    routes: localData[dom]?.routes || [],
+                    pinScale: localData[dom]?.pinScale || 0.8
+                };
+                totalPushedItems += locsToPush.length;
+                totalSkippedItems += (localData[dom]?.locations || []).length - locsToPush.length;
             } else {
                 if (missing[dom] === true) {
                     payloadToPush[dom] = localData[dom];
@@ -346,7 +625,7 @@ export const pushToCloud = async (requestedDomains = [], customUrl, customSecret
                     payload: payloadToPush,
                     hashes,
                     author: '管理员',
-                    commitMessage: `同步更新: ${activeDomains.join(', ')}`
+                    commitMessage: `增量推送: ${activeDomains.join(', ')}`
                 }),
                 signal: AbortSignal.timeout(20000)
             });
@@ -369,7 +648,7 @@ export const pushToCloud = async (requestedDomains = [], customUrl, customSecret
             }
         });
 
-        addSyncLog('⬆️ 云端推送', `成功推送更新 ${totalPushedItems} 项，智能跳过 ${totalSkippedItems} 项已同步数据`, true);
+        addSyncLog('⬆️ 增量上传', `成功推送更新 ${totalPushedItems} 项，智能跳过 ${totalSkippedItems} 项已同步数据`, true);
 
         return {
             ok: true,
@@ -379,12 +658,15 @@ export const pushToCloud = async (requestedDomains = [], customUrl, customSecret
             cloudResult: pushResult
         };
     } catch (err) {
-        addSyncLog('⬆️ 云端推送', `推送异常: ${err.message}`, false);
+        addSyncLog('⬆️ 增量上传', `推送异常: ${err.message}`, false);
         return { ok: false, error: err.message };
     }
 };
 
-// 6. Multi-Domain Incremental Pull
+// -------------------------------------------------------------
+// 7. Multi-Domain Smart Incremental Pull (Non-Destructive)
+// -------------------------------------------------------------
+
 export const pullFromCloud = async (requestedDomains = [], customUrl, customSecret) => {
     const config = loadSyncConfig();
     const targetUrl = (customUrl || config.cloudServerUrl || 'http://localhost:3800').replace(/\/+$/, '');
@@ -394,6 +676,9 @@ export const pullFromCloud = async (requestedDomains = [], customUrl, customSecr
     const activeDomains = requestedDomains.length > 0 ? requestedDomains : (config.selectedDomains || allDomains);
 
     try {
+        // Automatic local snapshot before applying any incoming changes
+        await createLocalBackup('增量拉取前自动快照');
+
         const headers = { 'Content-Type': 'application/json' };
         if (secret) headers['X-Sync-Secret'] = secret;
 
@@ -414,11 +699,11 @@ export const pullFromCloud = async (requestedDomains = [], customUrl, customSecr
         const incomingData = pullData.data || {};
         let totalPulledItems = 0;
 
-        // Apply pulled data into local domains
+        // Apply pulled data into local domains with smart non-destructive merge
         for (const dom of activeDomains) {
             const data = incomingData[dom];
             if (data !== undefined && data !== null) {
-                await saveLocalDomainData(dom, data);
+                await saveLocalDomainData(dom, data, false); // Smart Merge mode
                 totalPulledItems += Array.isArray(data) ? data.length : 1;
             }
         }
@@ -434,7 +719,7 @@ export const pullFromCloud = async (requestedDomains = [], customUrl, customSecr
             }
         });
 
-        addSyncLog('⬇️ 增量拉取', `从云端同步了 ${totalPulledItems} 项最新权威数据`, true);
+        addSyncLog('⬇️ 增量下载', `从云端智能合并了 ${totalPulledItems} 项最新权威数据（本地独有配置已完好保留）`, true);
 
         return {
             ok: true,
@@ -443,14 +728,151 @@ export const pullFromCloud = async (requestedDomains = [], customUrl, customSecr
             serverData: pullData
         };
     } catch (err) {
-        addSyncLog('⬇️ 增量拉取', `拉取异常: ${err.message}`, false);
+        addSyncLog('⬇️ 增量下载', `拉取异常: ${err.message}`, false);
         return { ok: false, error: err.message };
     }
 };
 
-// 7. Full Bidirectional Sync
+// -------------------------------------------------------------
+// 8. 🚨 Force Overwrite Cloud (Force Push)
+// -------------------------------------------------------------
+
+export const forcePushToCloud = async (requestedDomains = [], customUrl, customSecret) => {
+    const config = loadSyncConfig();
+    const targetUrl = (customUrl || config.cloudServerUrl || 'http://localhost:3800').replace(/\/+$/, '');
+    const secret = customSecret !== undefined ? customSecret : config.syncSecret;
+
+    const allDomains = ['rag', 'agents', 'campusMap', 'bubble', 'memes', 'tts', 'userProfiles', 'chatSessions'];
+    const activeDomains = requestedDomains.length > 0 ? requestedDomains : (config.selectedDomains || allDomains);
+
+    try {
+        const payload = {};
+        const hashes = {};
+
+        for (const dom of activeDomains) {
+            const data = await getLocalDomainData(dom);
+            payload[dom] = data;
+            hashes[dom] = computeObjectHash(data);
+        }
+
+        const headers = { 'Content-Type': 'application/json' };
+        if (secret) headers['X-Sync-Secret'] = secret;
+
+        const res = await fetch(`${targetUrl}/api/sync/force-push`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+                payload,
+                hashes,
+                author: '管理员',
+                commitMessage: `覆盖上传: ${activeDomains.join(', ')}`
+            }),
+            signal: AbortSignal.timeout(30000)
+        });
+
+        if (!res.ok) {
+            throw new Error(`Cloud force-push failed with HTTP ${res.status}`);
+        }
+
+        const result = await res.json();
+        const now = new Date().toISOString();
+        saveSyncConfig({
+            lastSyncedAt: now,
+            lastSyncStats: {
+                action: 'force_push',
+                domains: activeDomains,
+                time: now
+            }
+        });
+
+        addSyncLog('🚨 覆盖上传', `已将本地全部选定领域数据【强制覆盖】同步至云端基准`, true);
+
+        return { ok: true, domains: activeDomains, result };
+    } catch (err) {
+        addSyncLog('🚨 覆盖上传', `覆盖上传异常: ${err.message}`, false);
+        return { ok: false, error: err.message };
+    }
+};
+
+// -------------------------------------------------------------
+// 9. 🚨 Force Overwrite Local (Force Pull)
+// -------------------------------------------------------------
+
+export const forcePullFromCloud = async (requestedDomains = [], customUrl, customSecret) => {
+    const config = loadSyncConfig();
+    const targetUrl = (customUrl || config.cloudServerUrl || 'http://localhost:3800').replace(/\/+$/, '');
+    const secret = customSecret !== undefined ? customSecret : config.syncSecret;
+
+    const allDomains = ['rag', 'agents', 'campusMap', 'bubble', 'memes', 'tts', 'userProfiles', 'chatSessions'];
+    const activeDomains = requestedDomains.length > 0 ? requestedDomains : (config.selectedDomains || allDomains);
+
+    try {
+        // Automatically create safety backup before force pull
+        await createLocalBackup('覆盖下载前强制备份');
+
+        const headers = { 'Content-Type': 'application/json' };
+        if (secret) headers['X-Sync-Secret'] = secret;
+
+        const domainsParam = activeDomains.join(',');
+        const pullRes = await fetch(`${targetUrl}/api/sync/pull?since=0&domains=${domainsParam}`, {
+            method: 'GET',
+            headers,
+            signal: AbortSignal.timeout(20000)
+        });
+
+        if (!pullRes.ok) {
+            throw new Error(`Cloud force-pull failed with HTTP ${pullRes.status}`);
+        }
+
+        const pullData = await pullRes.json();
+        const incomingData = pullData.data || {};
+        let totalOverwrittenItems = 0;
+
+        for (const dom of activeDomains) {
+            const data = incomingData[dom];
+            if (data !== undefined && data !== null) {
+                await saveLocalDomainData(dom, data, true); // Force overwrite mode
+                totalOverwrittenItems += Array.isArray(data) ? data.length : 1;
+            }
+        }
+
+        const now = new Date().toISOString();
+        saveSyncConfig({
+            lastSyncedAt: now,
+            lastSyncStats: {
+                action: 'force_pull',
+                domains: activeDomains,
+                overwritten: totalOverwrittenItems,
+                time: now
+            }
+        });
+
+        addSyncLog('🚨 覆盖下载', `已从云端完整拉取并【强制覆盖重置】本地数据（覆盖前已自动生成本地安全快照）`, true);
+
+        return {
+            ok: true,
+            overwrittenCount: totalOverwrittenItems,
+            domains: activeDomains,
+            serverData: pullData
+        };
+    } catch (err) {
+        addSyncLog('🚨 覆盖下载', `覆盖下载异常: ${err.message}`, false);
+        return { ok: false, error: err.message };
+    }
+};
+
+// -------------------------------------------------------------
+// 10. True Smart Bidirectional Union Sync
+// -------------------------------------------------------------
+
 export const fullBidirectionalSync = async (requestedDomains = [], customUrl, customSecret) => {
+    // 1. Auto backup
+    await createLocalBackup('双向智能合并前自动快照');
+
+    // 2. Step 1: Pull & Smart Merge from cloud into local (local keeps unique items + resolves timestamp conflicts)
     const pullRes = await pullFromCloud(requestedDomains, customUrl, customSecret);
+
+    // 3. Step 2: Push the complete merged union back to cloud (so cloud also has the complete picture)
     const pushRes = await pushToCloud(requestedDomains, customUrl, customSecret);
 
     return {
@@ -461,7 +883,10 @@ export const fullBidirectionalSync = async (requestedDomains = [], customUrl, cu
     };
 };
 
-// 8. Fetch Snapshot History from Cloud
+// -------------------------------------------------------------
+// 11. Cloud Snapshots Inspection & Rollback
+// -------------------------------------------------------------
+
 export const fetchCloudSnapshotHistory = async (customUrl, customSecret) => {
     const config = loadSyncConfig();
     const targetUrl = (customUrl || config.cloudServerUrl || 'http://localhost:3800').replace(/\/+$/, '');
@@ -483,7 +908,6 @@ export const fetchCloudSnapshotHistory = async (customUrl, customSecret) => {
     }
 };
 
-// 9. Rollback to Snapshot
 export const rollbackToCloudSnapshot = async (snapshotId, customUrl, customSecret) => {
     const config = loadSyncConfig();
     const targetUrl = (customUrl || config.cloudServerUrl || 'http://localhost:3800').replace(/\/+$/, '');
@@ -501,7 +925,6 @@ export const rollbackToCloudSnapshot = async (snapshotId, customUrl, customSecre
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
-        // Immediately pull the restored version locally
         if (data.ok) {
             await pullFromCloud();
         }
@@ -511,7 +934,10 @@ export const rollbackToCloudSnapshot = async (snapshotId, customUrl, customSecre
     }
 };
 
-// 10. Auto Sync on Startup Hook
+// -------------------------------------------------------------
+// 12. Auto Sync on Startup Hook
+// -------------------------------------------------------------
+
 export const autoSyncOnStartup = async () => {
     const config = loadSyncConfig();
     if (!config.autoSyncOnStartup) {
@@ -528,7 +954,7 @@ export const autoSyncOnStartup = async () => {
 
         const pullRes = await pullFromCloud();
         if (pullRes.ok) {
-            console.log(`✅ [Cloud Sync Ready] Startup sync complete! (Pulled: ${pullRes.pulledCount || 0} items)`);
+            console.log(`✅ [Cloud Sync Ready] Startup smart sync complete! (Pulled: ${pullRes.pulledCount || 0} items)`);
         }
     } catch (err) {
         console.warn('⚠️ [Cloud Sync] Startup sync error:', err.message);

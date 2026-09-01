@@ -74,9 +74,9 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ currentUser, onLogout,
         {
             id: 'multiAgent',
             label: '多智能体管理',
-            subtitle: '思维分身与agent设定',
+            subtitle: '决策分身矩阵与核心人设',
             icon: Bot,
-            badge: '5'
+            badge: null
         },
         {
             id: 'rag',
