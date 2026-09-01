@@ -46,8 +46,8 @@ Get the system up and running for local testing, development, or server deployme
 
 ```bash
 # ① Clone the repository
-git clone https://github.com/MrEiu/Gzadm-Navigator.git
-cd "Gzadm Navigator"
+git clone https://github.com/MrEiu/Gzhuadm-Navigator.git
+cd Gzhuadm-Navigator
 
 # ② Install full-stack dependencies
 npm install

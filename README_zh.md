@@ -46,8 +46,8 @@
 
 ```bash
 # ① 克隆项目代码仓库
-git clone https://github.com/MrEiu/Gzadm-Navigator.git
-cd "Gzadm Navigator"
+git clone https://github.com/MrEiu/Gzhuadm-Navigator.git
+cd Gzhuadm-Navigator
 
 # ② 安装全栈依赖包
 npm install
