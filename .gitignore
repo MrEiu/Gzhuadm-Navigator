@@ -11,3 +11,6 @@ cloud-sync-server/
 campus_navigation.map
 .agents/
 rules/
+temp/
+*.zip
+*.rar
