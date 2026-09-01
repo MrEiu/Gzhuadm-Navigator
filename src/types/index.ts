@@ -33,7 +33,7 @@ export interface RagItem {
     content: string;
     tableData?: any;
     imageAttachments?: Array<{ url: string; name?: string; caption?: string } | any>;
-    targetAgent?: string; // 'all' | 'dr' | 'dorm' | 'counselor' | 'senior_boy' | 'senior_girl'
+    targetAgent?: string; // 'all' | 'score_risk' | 'subject_rule' | 'career_market' | 'civil_service' | 'postgrad_study' | 'curriculum_study' | 'transfer_policy' | 'campus_life' | 'finance_aid' | 'psych_family' | 'lili_guide'
     tags?: string[];
     createdAt?: string;
     updatedAt?: string;
@@ -157,6 +157,15 @@ export interface AgentProfile {
     description?: string;
     systemPrompt?: string;
     accentBarWidth?: number;
+}
+
+export interface ThoughtCloneConfig {
+    roleId: string;
+    name: string;
+    tag: string;
+    keywords: string[];
+    systemPrompt: string;
+    enabled?: boolean;
 }
 
 export interface ApiDiagnostics {
@@ -392,4 +401,17 @@ export interface CampusTourRoute {
     duration: string;
     description: string;
     locationIds: string[];
+}
+
+export interface ThoughtCloneConfig {
+    roleId: string;
+    name: string;
+    tag: string;
+    color?: string;
+    icon?: string;
+    description?: string;
+    keywords: string[];
+    systemPrompt: string;
+    enabled?: boolean;
+    isCustom?: boolean;
 }

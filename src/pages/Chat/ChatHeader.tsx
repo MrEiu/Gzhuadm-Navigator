@@ -9,12 +9,8 @@ import { BUBBLE_THEMES } from '../../constants/bubbleThemes';
 interface ChatHeaderProps {
     currentUser: User;
     userProfile: UserProfile | null;
-    currentMode: ChatMode;
-    onChangeMode: (mode: ChatMode) => void;
     advisorMode?: AdvisorMode;
     onChangeAdvisorMode?: (mode: AdvisorMode) => void;
-    agentsRoster: MultiAgentRoster;
-    onOpenRosterDrawer?: () => void;
     currentTheme: BubbleThemeId;
     onOpenThemeModal?: () => void;
     isSidebarOpen: boolean;
@@ -29,12 +25,8 @@ interface ChatHeaderProps {
 export const ChatHeader: React.FC<ChatHeaderProps> = ({
     currentUser,
     userProfile,
-    currentMode,
-    onChangeMode,
     advisorMode = 'agent',
     onChangeAdvisorMode,
-    agentsRoster,
-    onOpenRosterDrawer,
     currentTheme,
     onOpenThemeModal,
     isSidebarOpen,
@@ -109,7 +101,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                                         ? 'bg-white text-purple-700 shadow-2xs font-bold'
                                         : 'text-gray-500 hover:text-[#4a4365] font-medium'
                                     }`}
-                                title="🧠 深度智能体模式：同层并发 10 大思维分身推演（风控/出路/退路），全面透彻综合解答"
+                                title="🧠 深度智能体模式：同层并发多智能体决策矩阵协同推演（风控/出路/退路），全面透彻综合解答"
                             >
                                 <Sparkles size={12} className={advisorMode === 'agent' ? 'text-purple-600' : 'text-gray-400'} />
                                 <span>深度智能体模式</span>

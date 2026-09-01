@@ -95,13 +95,42 @@ function chunkDocumentClient({
         }
 
         let category = '通用资料';
-        if (/录取|分数|排位|省控|切线|选科|批次|投档/.test(trimmed)) category = '录取分数';
-        else if (/宿舍|公寓|四人间|违章电器|门禁|宿管|空调|热水|电费|床位/.test(trimmed)) category = '宿舍规章';
-        else if (/转专业|学籍|请假|处分|综测|退学|休学|毕业要求|学分/.test(trimmed)) category = '政策规定';
-        else if (/校园卡|快递|顺丰|校园网|选课|校巴|食堂|充值|洗澡|外卖/.test(trimmed)) category = '生活经验';
-        else if (/美食|探店|打卡|雕塑园|夜市|周边|景点|商业街|小吃/.test(trimmed)) category = '探店游玩';
-        else if (/学费|奖学金|资助|助学金|国家奖学金|贷款|勤工助学/.test(trimmed)) category = '学费奖学金';
-        else if (/专业|学院|培养方案|课程|师资|考研|就业|实验室/.test(trimmed)) category = '专业介绍';
+        let assignedTargetAgent = targetAgent || 'all';
+
+        if (/录取|分数|排位|省控|切线|批次|投档|位次/.test(trimmed)) {
+            category = '录取分与位次';
+            if (assignedTargetAgent === 'all') assignedTargetAgent = 'score_risk';
+        } else if (/选科|物理|化学|历史|生物|地理|政治|限制|必选|体检|色盲|色弱/.test(trimmed)) {
+            category = '选科与招考政策';
+            if (assignedTargetAgent === 'all') assignedTargetAgent = 'subject_rule';
+        } else if (/就业|起薪|工资|大厂|校招|薪酬|招聘|行业发展/.test(trimmed)) {
+            category = '就业与行业薪酬';
+            if (assignedTargetAgent === 'all') assignedTargetAgent = 'career_market';
+        } else if (/考公|公务员|考编|事业单位|编制|国考|省考|选调/.test(trimmed)) {
+            category = '考公考编体制内';
+            if (assignedTargetAgent === 'all') assignedTargetAgent = 'civil_service';
+        } else if (/考研|保研|读研|升学|硕士|博士|推免|985|211|双一流/.test(trimmed)) {
+            category = '考研保研深造';
+            if (assignedTargetAgent === 'all') assignedTargetAgent = 'postgrad_study';
+        } else if (/高数|难学|编程|代码|数学|挂科|课程|实验|实训|学分/.test(trimmed)) {
+            category = '课业难度体验';
+            if (assignedTargetAgent === 'all') assignedTargetAgent = 'curriculum_study';
+        } else if (/转专业|调剂|冷门|退路|辅修|双学位|绩点|GPA/.test(trimmed)) {
+            category = '转专业与退路';
+            if (assignedTargetAgent === 'all') assignedTargetAgent = 'transfer_policy';
+        } else if (/宿舍|公寓|四人间|空调|独卫|门禁|宿管|洗衣机|食堂|饭堂/.test(trimmed)) {
+            category = '校园生活设施';
+            if (assignedTargetAgent === 'all') assignedTargetAgent = 'campus_life';
+        } else if (/学费|费用|住宿费|多少钱|中外合作|奖学金|助学金|贷款|资助/.test(trimmed)) {
+            category = '学费与资助政策';
+            if (assignedTargetAgent === 'all') assignedTargetAgent = 'finance_aid';
+        } else if (/父母|家里|爸妈|意见|冲突|焦虑|压力|城市|广州/.test(trimmed)) {
+            category = '志愿与家庭诉求';
+            if (assignedTargetAgent === 'all') assignedTargetAgent = 'psych_family';
+        } else if (/地图|打卡|雕塑园|中心湖|落羽杉|探店|周边|景点/.test(trimmed)) {
+            category = '校园地图伴游导览';
+            if (assignedTargetAgent === 'all') assignedTargetAgent = 'lili_guide';
+        }
 
         const tags = [titlePrefix, category];
         const words = trimmed.match(/[\u4e00-\u9fa5]{2,6}/g) || [];
@@ -114,7 +143,7 @@ function chunkDocumentClient({
             id: `chunk-${label}-${Date.now()}-${idx}-${Math.floor(Math.random() * 1000)}`,
             title,
             category,
-            targetAgent: targetAgent || 'all',
+            targetAgent: assignedTargetAgent,
             type: 'text' as const,
             content: trimmed,
             tableData: null,

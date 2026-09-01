@@ -7,6 +7,7 @@ import {
     globalOpenAIClient, getAiConfig, initAiClient, resolveEffectiveProtocol, getProviderNativeSearchConfig
 } from '../config/env.mjs';
 import { loadAgentsConfig, saveAgentsConfig } from '../config/agentsConfig.mjs';
+import { loadThoughtClonesConfig, saveThoughtClonesConfig } from '../config/thoughtClonesRegistry.mjs';
 import { pgPool, usePostgres, getRagStore } from '../services/postgres.mjs';
 import { embedder, getEmbedding } from '../services/embedding.mjs';
 import { useRedis } from '../services/redis.mjs';
@@ -918,6 +919,76 @@ router.post('/faq-templates/ai-expand', async (req, res) => {
     if (!standardQuestion) return res.status(400).json({ ok: false, error: '缺少标准问题' });
     const queries = await expandSimilarQueriesWithAi(standardQuestion);
     res.json({ ok: true, queries });
+});
+
+// --- 10 大思维分身矩阵 (Thought Clones Management API) ---
+router.get('/thought-clones', (_req, res) => {
+    const clones = loadThoughtClonesConfig();
+    res.json({ ok: true, clones });
+});
+
+router.post('/thought-clones', (req, res) => {
+    const { clones } = req.body || {};
+    if (!clones || typeof clones !== 'object') {
+        return res.status(400).json({ ok: false, error: '无效的分身配置数据' });
+    }
+    const success = saveThoughtClonesConfig(clones);
+    if (success) {
+        res.json({ ok: true, message: '10 大思维分身配置已成功更新！', clones: loadThoughtClonesConfig() });
+    } else {
+        res.status(500).json({ ok: false, error: '保存思维分身配置失败' });
+    }
+});
+
+// --- 核心实体 (Dr. Elena 首席顾问 & 丽丽学姐 地图向导) 配置 API ---
+router.get('/agents-config', (_req, res) => {
+    const agents = loadAgentsConfig();
+    res.json({ ok: true, agents });
+});
+
+router.post('/agents-config', (req, res) => {
+    const { agents } = req.body || {};
+    if (!agents || typeof agents !== 'object') {
+        return res.status(400).json({ ok: false, error: '无效的角色配置数据' });
+    }
+    const success = saveAgentsConfig(agents);
+    if (success) {
+        res.json({ ok: true, message: '智能体角色配置已成功保存！', agents: loadAgentsConfig() });
+    } else {
+        res.status(500).json({ ok: false, error: '保存角色配置失败' });
+    }
+});
+
+// --- 校园全景底图上传与热替换 API ---
+router.post('/campus-map/upload-image', (req, res) => {
+    try {
+        const { base64Data } = req.body || {};
+        if (!base64Data || !base64Data.includes(',')) {
+            return res.status(400).json({ ok: false, error: '缺少有效的图片 base64 数据' });
+        }
+        const pureBase64 = base64Data.split(',')[1];
+        const buffer = Buffer.from(pureBase64, 'base64');
+
+        const { rootDir, distDir } = { rootDir: path.resolve('.'), distDir: path.resolve('dist') };
+        const publicPath = path.join(rootDir, 'public', 'campus.jpg');
+        const rootPath = path.join(rootDir, 'campus.jpg');
+        const distPath = path.join(distDir, 'campus.jpg');
+
+        fs.writeFileSync(publicPath, buffer);
+        try { fs.writeFileSync(rootPath, buffer); } catch { }
+        if (fs.existsSync(distDir)) {
+            try { fs.writeFileSync(distPath, buffer); } catch { }
+        }
+
+        res.json({
+            ok: true,
+            imageUrl: `/campus.jpg?t=${Date.now()}`,
+            message: '校园全景底图已成功上传并热替换！'
+        });
+    } catch (err) {
+        console.error('Upload campus map image failed:', err);
+        res.status(500).json({ ok: false, error: err.message || '底图上传保存失败' });
+    }
 });
 
 export default router;

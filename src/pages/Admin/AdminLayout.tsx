@@ -74,7 +74,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ currentUser, onLogout,
         {
             id: 'multiAgent',
             label: '多智能体管理',
-            subtitle: '5大角色人设/语音/气泡',
+            subtitle: '思维分身与agent设定',
             icon: Bot,
             badge: '5'
         },
@@ -170,15 +170,15 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ currentUser, onLogout,
                                     type="button"
                                     onClick={() => setActiveTab(item.id as any)}
                                     className={`w-full flex items-center justify-between p-3 rounded-2xl transition-all cursor-pointer group text-left ${isActive
-                                            ? 'bg-white shadow-[0_8px_25px_rgba(164,148,232,0.22)] border border-purple-100/80'
-                                            : 'hover:bg-white/60 border border-transparent'
+                                        ? 'bg-white shadow-[0_8px_25px_rgba(164,148,232,0.22)] border border-purple-100/80'
+                                        : 'hover:bg-white/60 border border-transparent'
                                         }`}
                                 >
                                     <div className="flex items-center gap-3">
                                         <div
                                             className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all ${isActive
-                                                    ? 'bg-gradient-to-tr from-[#9d8ee0] to-[#c4b5fd] text-white shadow-sm'
-                                                    : 'bg-[#f4f0fb] text-[#8a84a4] group-hover:text-purple-600 group-hover:bg-purple-50'
+                                                ? 'bg-gradient-to-tr from-[#9d8ee0] to-[#c4b5fd] text-white shadow-sm'
+                                                : 'bg-[#f4f0fb] text-[#8a84a4] group-hover:text-purple-600 group-hover:bg-purple-50'
                                                 }`}
                                         >
                                             <Icon size={18} />
@@ -199,8 +199,8 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ currentUser, onLogout,
                                     {item.badge && (
                                         <span
                                             className={`text-[10px] px-2 py-0.5 rounded-full font-bold transition-all ${isActive
-                                                    ? 'bg-purple-100 text-purple-700 font-black'
-                                                    : 'bg-purple-50 text-[#a494e8] group-hover:bg-purple-100 group-hover:text-purple-600'
+                                                ? 'bg-purple-100 text-purple-700 font-black'
+                                                : 'bg-purple-50 text-[#a494e8] group-hover:bg-purple-100 group-hover:text-purple-600'
                                                 }`}
                                         >
                                             {item.badge}

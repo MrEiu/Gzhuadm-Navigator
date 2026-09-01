@@ -59,11 +59,11 @@ const DOMAINS: DomainItem[] = [
     },
     {
         id: 'agents',
-        name: '5 位群聊智能体人设与提示词',
+        name: '智能体矩阵与决策分身人设配置',
         group: 'core',
         groupName: '📦 核心业务知识',
         icon: Users,
-        description: 'Dr. Elena / 宿管张阿姨 / 辅导员李导 / 浩哥 / 丽丽人设与 Prompt',
+        description: 'Dr. Elena 首席顾问、地图向导丽丽与多智能体决策矩阵人设 Prompt',
         badge: 'Agent 矩阵',
         color: '#3b82f6'
     },

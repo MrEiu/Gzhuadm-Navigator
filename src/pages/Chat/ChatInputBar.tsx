@@ -11,8 +11,6 @@ interface ChatInputBarProps {
     onSend: (e: React.FormEvent, attachments?: ChatAttachment[]) => void;
     onOpenMapGuide: () => void;
     typing: boolean;
-    currentMode?: ChatMode;
-    agentsRoster?: MultiAgentRoster;
     advisorMode?: AdvisorMode;
     onChangeAdvisorMode?: (mode: AdvisorMode) => void;
 }
@@ -23,13 +21,10 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
     onSend,
     onOpenMapGuide,
     typing,
-    currentMode = 'admissions',
-    agentsRoster,
     advisorMode = 'agent',
     onChangeAdvisorMode
 }) => {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
-    const [isMentionOpen, setIsMentionOpen] = useState(false);
     const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
     const [allowMediaUpload, setAllowMediaUpload] = useState(true);
     const [pendingAttachments, setPendingAttachments] = useState<ChatAttachment[]>([]);
@@ -56,17 +51,16 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
         const handleClickOutside = (e: MouseEvent) => {
             if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
                 setIsMenuOpen(false);
-                setIsMentionOpen(false);
             }
             if (emojiPickerRef.current && !emojiPickerRef.current.contains(e.target as Node)) {
                 setIsEmojiPickerOpen(false);
             }
         };
-        if (isMenuOpen || isMentionOpen || isEmojiPickerOpen) {
+        if (isMenuOpen || isEmojiPickerOpen) {
             document.addEventListener('mousedown', handleClickOutside);
         }
         return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, [isMenuOpen, isMentionOpen, isEmojiPickerOpen]);
+    }, [isMenuOpen, isEmojiPickerOpen]);
 
     const handleUploadFile = async (file: File, type: 'image' | 'file') => {
         if (!file) return;
@@ -136,32 +130,13 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
     const handleFormSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         setIsEmojiPickerOpen(false);
-        setIsMentionOpen(false);
         setIsMenuOpen(false);
         onSend(e, pendingAttachments);
         setPendingAttachments([]);
     };
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const val = e.target.value;
-        setInputText(val);
-
-        if (currentMode === 'group') {
-            const lastChar = val.slice(-1);
-            if (lastChar === '@') {
-                setIsMentionOpen(true);
-            }
-        }
-    };
-
-    const handleSelectMentionAgent = (agentName: string) => {
-        setIsMentionOpen(false);
-        if (inputText.endsWith('@')) {
-            setInputText(`${inputText}${agentName} `);
-        } else {
-            setInputText(`${inputText} @${agentName} `);
-        }
-        inputRef.current?.focus();
+        setInputText(e.target.value);
     };
 
     const handleSelectEmoji = (emojiNative: string) => {
@@ -174,8 +149,6 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
         setInputText(`${inputText} [gif:${gif.url}] `);
         inputRef.current?.focus();
     };
-
-    const activeAgentList = agentsRoster ? Object.values(agentsRoster) : [];
 
     return (
         <footer className="w-full px-3 sm:px-8 pb-3 sm:pb-6 pt-1 shrink-0 relative bg-transparent pointer-events-auto">
@@ -222,7 +195,6 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
                             type="button"
                             onClick={() => {
                                 setIsMenuOpen(!isMenuOpen);
-                                setIsMentionOpen(false);
                                 setIsEmojiPickerOpen(false);
                             }}
                             className={`w-9 h-9 sm:w-10 sm:h-10 rounded-2xl flex items-center justify-center transition-all cursor-pointer ${
@@ -230,7 +202,7 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
                                     ? 'bg-[#4a4365] text-white shadow-md rotate-45'
                                     : 'bg-[#f5f1fc] hover:bg-purple-100 text-purple-700 hover:text-purple-900 border border-purple-100/60 shadow-2xs'
                             }`}
-                            title="上传图片/文件/地图"
+                            title="上传图片/文件/文档"
                         >
                             <Plus size={19} className="transition-transform duration-200" />
                         </button>
@@ -263,25 +235,6 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
                                         </div>
                                     </div>
                                 </button>
-
-                                {currentMode === 'group' && (
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            setIsMentionOpen(true);
-                                            setIsMenuOpen(false);
-                                        }}
-                                        className="w-full flex items-center gap-2.5 px-3 py-2 rounded-2xl text-[12.5px] font-bold text-[#4a4365] hover:bg-[#f3eefc] hover:text-purple-700 transition-all text-left cursor-pointer"
-                                    >
-                                        <div className="w-7 h-7 rounded-xl bg-pink-100 text-pink-600 flex items-center justify-center shrink-0">
-                                            <AtSign size={15} />
-                                        </div>
-                                        <div>
-                                            <div>@ 艾特群成员</div>
-                                            <div className="text-[10px] font-normal text-gray-400">定向唤起专属智能体</div>
-                                        </div>
-                                    </button>
-                                )}
                             </div>
                         )}
                     </div>
@@ -308,11 +261,7 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
                         value={inputText}
                         onChange={handleInputChange}
                         onPaste={handlePaste}
-                        placeholder={
-                            currentMode === 'group'
-                                ? "在广大新生群发消息，输入 @ 艾特角色或直接提问..."
-                                : (allowMediaUpload ? "输入咨询问题，支持粘贴截图或点击加号上传附件..." : "请输入您想咨询的入学、专业、学费问题...")
-                        }
+                        placeholder={allowMediaUpload ? "输入高招咨询问题，支持粘贴截图或点击加号上传附件..." : "请输入您想咨询的高招录取、专业、学费问题..."}
                         className="flex-1 bg-transparent border-none px-2 sm:px-3 py-2 text-[14px] text-[#4a4365] placeholder:text-gray-400 outline-none min-w-0"
                     />
 
@@ -323,7 +272,6 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
                             onClick={() => {
                                 setIsEmojiPickerOpen(!isEmojiPickerOpen);
                                 setIsMenuOpen(false);
-                                setIsMentionOpen(false);
                             }}
                             className={`w-9 h-9 sm:w-10 sm:h-10 rounded-2xl flex items-center justify-center transition-all cursor-pointer ${
                                 isEmojiPickerOpen

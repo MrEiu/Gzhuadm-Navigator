@@ -1,7 +1,7 @@
 import { globalOpenAIClient, getAiConfig } from '../config/env.mjs';
-import { searchRagEngine, formatRagContext } from './ragEngine.mjs';
+import { searchRagEngine, searchAgentRag, formatRagContext } from './ragEngine.mjs';
 import { performWebSearch } from './webSearch.mjs';
-import { THOUGHT_CLONES_REGISTRY, selectActiveRoleIds } from '../config/thoughtClonesRegistry.mjs';
+import { loadThoughtClonesConfig, selectActiveRoleIds } from '../config/thoughtClonesRegistry.mjs';
 import { matchFaqTemplate } from './faqTemplateEngine.mjs';
 
 const withTimeout = (promise, ms = 2500, fallbackValue = null) => {
@@ -13,10 +13,11 @@ const withTimeout = (promise, ms = 2500, fallbackValue = null) => {
 
 /**
  * 运行单个思维分身 (Thought Clone Worker)
- * 极简指令，输出极短 (<=60字)，并发耗时 ~200-400ms
+ * 结合专属隔离知识库进行极速审视研判，输出极短 (<=60字)，并发耗时 ~200-400ms
  */
 export const runThoughtClone = async ({ roleId, userQuery, userProfile }) => {
-    const config = THOUGHT_CLONES_REGISTRY[roleId] || THOUGHT_CLONES_REGISTRY.career_market;
+    const clonesRegistry = loadThoughtClonesConfig();
+    const config = clonesRegistry[roleId] || clonesRegistry.career_market;
     const { defaultModel, fastModel } = getAiConfig();
     const modelToUse = fastModel || defaultModel || 'deepseek-chat';
 
@@ -29,9 +30,22 @@ export const runThoughtClone = async ({ roleId, userQuery, userProfile }) => {
         };
     }
 
+    // 专属领域 RAG 知识检索 (Domain-Isolated Retrieval)
+    let domainRagContext = '';
+    try {
+        const domainMatches = await searchAgentRag(roleId, userQuery, 1);
+        if (domainMatches && domainMatches.length > 0) {
+            const first = domainMatches[0];
+            domainRagContext = `\n【${config.name}专属知识库参考】：${first.title || ''} - ${(first.content || '').slice(0, 150)}`;
+        }
+    } catch (e) {
+        // Fallback silently if RAG search encounters an issue
+    }
+
     const profileText = userProfile ? `【考生画像】：省份${userProfile.province || '未填'}，高考分${userProfile.score || '未填'}分，排位${userProfile.rank ? `第${userProfile.rank}名` : '未填'}，选科${userProfile.subjects || '未填'}。` : '';
 
     const clonePrompt = `${config.systemPrompt}
+${domainRagContext}
 ${profileText}
 
 【用户提问】：${userQuery}

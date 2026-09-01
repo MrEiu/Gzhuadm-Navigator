@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Clock, Sparkles, Building2, HelpCircle, MessageSquare, Compass, ShieldAlert, GraduationCap, Coffee, ArrowUpRight, Cpu, Zap } from 'lucide-react';
-import { User, UserProfile, ChatSession, ChatMessage, ChatMode, MultiAgentRoster, ChatAttachment, BubbleThemeId, BubbleCustomSettings, ApiDiagnostics, AdvisorMode, MarkdownStyleId } from '../../types';
+import { User, UserProfile, ChatSession, ChatMessage, ChatMode, MultiAgentRoster, ChatAttachment, BubbleThemeId, BubbleCustomSettings, ApiDiagnostics, AdvisorMode, MarkdownStyleId, CampusLocation } from '../../types';
 import { THEME, ROLE } from '../../constants/theme';
 import { INITIAL_MESSAGES } from '../../constants/initialMessages';
 import { DEFAULT_CAMPUS_LOCATIONS } from '../../constants/campusLocations';
@@ -12,11 +12,8 @@ import { ChatInputBar } from './ChatInputBar';
 import { ChatMessageBubble } from '../../components/ui/ChatMessageBubble';
 import { CampusMapModal } from '../CampusMap/CampusMapModal';
 import { UserProfileModal } from '../UserProfile/UserProfileModal';
-import { GroupRosterModal } from './GroupRosterModal';
 import { BubbleThemeModal } from '../../components/ui/BubbleThemeModal';
 import { ApiDiagnosticsDrawer } from '../../components/ui/ApiDiagnosticsDrawer';
-
-const GROUP_INITIAL_MESSAGES: ChatMessage[] = [];
 
 interface ChatPageProps {
     currentUser: User;
@@ -25,10 +22,6 @@ interface ChatPageProps {
 }
 
 export const ChatPage: React.FC<ChatPageProps> = ({ currentUser, onLogout, onSwitchPortal }) => {
-    // --- Mode State (Admissions vs Group) ---
-    const [currentMode, setCurrentMode] = useState<ChatMode>('admissions');
-    const [isRosterModalOpen, setIsRosterModalOpen] = useState(false);
-
     // --- Admissions Engine Mode (⚡ 极速轻量 vs 🧠 深度智能体) ---
     const [advisorMode, setAdvisorMode] = useState<AdvisorMode>(() => {
         try {
@@ -93,14 +86,13 @@ export const ChatPage: React.FC<ChatPageProps> = ({ currentUser, onLogout, onSwi
         } catch { }
     };
 
-    // --- User Profile State ---
+    // --- Core User / Profile States ---
     const [userProfile, setUserProfile] = useState<UserProfile | null>(() => {
         try {
             const saved = localStorage.getItem(`aurasense_profile_${currentUser.username}`);
-            return saved ? JSON.parse(saved) : null;
-        } catch {
-            return null;
-        }
+            if (saved) return JSON.parse(saved);
+        } catch { }
+        return null;
     });
 
     const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
@@ -110,70 +102,57 @@ export const ChatPage: React.FC<ChatPageProps> = ({ currentUser, onLogout, onSwi
         setProfileModalTab(tab);
         setIsProfileModalOpen(true);
     };
+
+    const handleSaveUserProfile = (updatedProfile: UserProfile) => {
+        setUserProfile(updatedProfile);
+        try {
+            localStorage.setItem(`aurasense_profile_${currentUser.username}`, JSON.stringify(updatedProfile));
+        } catch { }
+    };
+
+    // --- Multi-Agent Roster State ---
+    const [agentsRoster, setAgentsRoster] = useState<MultiAgentRoster>(() => {
+        try {
+            const saved = localStorage.getItem('aurasense_agents_config');
+            if (saved) return JSON.parse(saved);
+        } catch { }
+        return { dr: ROLE };
+    });
+
+    // --- Campus Map State ---
+    const [campusLocations, setCampusLocations] = useState<CampusLocation[]>(DEFAULT_CAMPUS_LOCATIONS);
     const [isMapGuideOpen, setIsMapGuideOpen] = useState(false);
-    const [campusLocations, setCampusLocations] = useState<any[]>(DEFAULT_CAMPUS_LOCATIONS);
-    const [mapPinScale, setMapPinScale] = useState<number>(0.8);
+    const [mapPinScale, setMapPinScale] = useState(1.0);
 
-    const [agentsRoster, setAgentsRoster] = useState<MultiAgentRoster>({});
-
-    // --- Admin API Diagnostics State ---
-    const [activeDiagnostics, setActiveDiagnostics] = useState<ApiDiagnostics | null>(null);
+    // --- Diagnostics Drawer State ---
     const [isDiagnosticsOpen, setIsDiagnosticsOpen] = useState(false);
+    const [activeDiagnostics, setActiveDiagnostics] = useState<ApiDiagnostics | null>(null);
 
-    useEffect(() => {
-        fetch(`${API_BASE}/api/agents-config`)
-            .then(res => res.json())
-            .then(data => {
-                if (data.ok && data.data) {
-                    setAgentsRoster(data.data);
-                }
-            })
-            .catch(() => {});
-    }, []);
-
-    useEffect(() => {
-        if (isMapGuideOpen) {
-            fetch(`${API_BASE}/api/campus-map`)
-                .then(res => res.json())
-                .then(data => {
-                    if (data.ok && data.data) {
-                        if (Array.isArray(data.data.locations) && data.data.locations.length > 0) {
-                            setCampusLocations(data.data.locations);
-                        }
-                        if (typeof data.data.pinScale === 'number') {
-                            setMapPinScale(data.data.pinScale);
-                        }
-                    }
-                })
-                .catch(() => {});
-        }
-    }, [isMapGuideOpen]);
-
-    // --- Session States ---
+    // --- Sidebar & Sessions State ---
+    const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [sessions, setSessions] = useState<ChatSession[]>([]);
-    const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
-    const [isSidebarOpen, setIsSidebarOpen] = useState(() => {
-        if (typeof window !== 'undefined') {
-            return window.innerWidth >= 640;
-        }
-        return true;
+    const [activeSessionId, setActiveSessionId] = useState<string>(() => {
+        try {
+            const saved = localStorage.getItem(`aurasense_active_session_${currentUser.username}`);
+            if (saved) return saved;
+        } catch { }
+        return '';
     });
 
     const [typing, setTyping] = useState(false);
     const [inputText, setInputText] = useState('');
     const scrollRef = useRef<HTMLDivElement>(null);
 
-    const createDefaultSession = (mode: ChatMode = currentMode): ChatSession => ({
-        id: `session-${mode}-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-        title: mode === 'group' ? '广大2026级新生迎新群' : '新招生咨询对话',
-        mode,
-        messages: mode === 'group' ? GROUP_INITIAL_MESSAGES : INITIAL_MESSAGES,
+    const createDefaultSession = (): ChatSession => ({
+        id: `session-admissions-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        title: '新招生咨询对话',
+        mode: 'admissions',
+        messages: INITIAL_MESSAGES,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
     });
 
-    const filteredSessions = sessions.filter(s => (s.mode || (s.id && s.id.includes('group') ? 'group' : 'admissions')) === currentMode);
-    const activeSession = filteredSessions.find(s => s.id === activeSessionId) || filteredSessions[0] || null;
+    const activeSession = sessions.find(s => s.id === activeSessionId) || sessions[0] || null;
     const messages = activeSession ? (activeSession.messages || []) : [];
     const latestDiagnostics = [...messages].reverse().find(m => m.diagnostics)?.diagnostics || activeDiagnostics;
 
@@ -182,7 +161,7 @@ export const ChatPage: React.FC<ChatPageProps> = ({ currentUser, onLogout, onSwi
         if (targetActiveId) {
             setActiveSessionId(targetActiveId);
             try {
-                localStorage.setItem(`aurasense_active_session_${username}_${currentMode}`, targetActiveId);
+                localStorage.setItem(`aurasense_active_session_${username}`, targetActiveId);
             } catch { }
         }
         try {
@@ -219,29 +198,17 @@ export const ChatPage: React.FC<ChatPageProps> = ({ currentUser, onLogout, onSwi
                 }
             } catch { }
 
-            // Normalize mode on all sessions
-            loaded = loaded.map(s => ({
-                ...s,
-                mode: s.mode || (s.id && s.id.includes('group') ? 'group' : 'admissions')
-            }));
-
-            // Ensure at least one session exists per mode
-            if (!loaded.some(s => s.mode === 'admissions')) {
-                loaded.unshift(createDefaultSession('admissions'));
-            }
-            if (!loaded.some(s => s.mode === 'group')) {
-                loaded.push(createDefaultSession('group'));
+            if (loaded.length === 0) {
+                loaded = [createDefaultSession()];
             }
 
             setSessions(loaded);
 
-            // Restore active session for current mode
-            const savedActive = localStorage.getItem(`aurasense_active_session_${username}_${currentMode}`);
-            const matching = loaded.filter(s => s.mode === currentMode);
-            if (savedActive && matching.some(s => s.id === savedActive)) {
+            const savedActive = localStorage.getItem(`aurasense_active_session_${username}`);
+            if (savedActive && loaded.some(s => s.id === savedActive)) {
                 setActiveSessionId(savedActive);
-            } else if (matching.length > 0) {
-                setActiveSessionId(matching[0].id);
+            } else if (loaded.length > 0) {
+                setActiveSessionId(loaded[0].id);
             }
         };
 
@@ -259,44 +226,36 @@ export const ChatPage: React.FC<ChatPageProps> = ({ currentUser, onLogout, onSwi
                     if (!data.profile.name || !data.profile.score || !data.profile.province) {
                         setIsProfileModalOpen(true);
                     }
-                } else {
-                    const saved = localStorage.getItem(`aurasense_profile_${username}`);
-                    if (saved) setUserProfile(JSON.parse(saved));
-                    else setIsProfileModalOpen(true);
                 }
             })
-            .catch(() => {
-                const saved = localStorage.getItem(`aurasense_profile_${username}`);
-                if (saved) setUserProfile(JSON.parse(saved));
-                else setIsProfileModalOpen(true);
-            });
-    }, [currentUser]);
+            .catch(() => { });
 
-    const handleSaveUserProfile = async (profileData: UserProfile) => {
-        try {
-            const res = await fetch(`${API_BASE}/api/user/profile`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username: currentUser.username, profile: profileData })
-            });
-            const data = await res.json();
-            if (data.ok && data.profile) {
-                setUserProfile(data.profile);
-                localStorage.setItem(`aurasense_profile_${currentUser.username}`, JSON.stringify(data.profile));
-                setIsProfileModalOpen(false);
-            }
-        } catch {
-            setUserProfile(profileData);
-            localStorage.setItem(`aurasense_profile_${currentUser.username}`, JSON.stringify(profileData));
-            setIsProfileModalOpen(false);
-        }
-    };
+        fetch(`${API_BASE}/api/admin/agents-config`)
+            .then(res => res.json())
+            .then(data => {
+                if (data.ok && data.agents) {
+                    setAgentsRoster(data.agents);
+                    localStorage.setItem('aurasense_agents_config', JSON.stringify(data.agents));
+                }
+            })
+            .catch(() => { });
 
-    const scrollToBottomIfNeeded = (force = false) => {
-        if (!scrollRef.current) return;
-        const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
-        const isNearBottom = scrollHeight - scrollTop - clientHeight < 200;
-        if (force || isNearBottom) {
+        fetch(`${API_BASE}/api/admin/campus-map`)
+            .then(res => res.json())
+            .then(data => {
+                if (data.ok && Array.isArray(data.locations) && data.locations.length > 0) {
+                    setCampusLocations(data.locations);
+                }
+                if (data.ok && typeof data.pinScale === 'number') {
+                    setMapPinScale(data.pinScale);
+                }
+            })
+            .catch(() => { });
+    }, [currentUser.username]);
+
+    const scrollToBottomIfNeeded = () => {
+        if (scrollRef.current) {
+            const scrollHeight = scrollRef.current.scrollHeight;
             scrollRef.current.scrollTo({ top: scrollHeight, behavior: 'smooth' });
         }
     };
@@ -306,18 +265,16 @@ export const ChatPage: React.FC<ChatPageProps> = ({ currentUser, onLogout, onSwi
     }, [messages.length, typing]);
 
     const handleCreateNewSession = () => {
-        // 检查当前模式下的会话中是否已有尚未发送过用户消息的空白对话
-        const currentModeSessions = sessions.filter(s => (s.mode || (s.id && s.id.includes('group') ? 'group' : 'admissions')) === currentMode);
-        const existingEmptySession = currentModeSessions.find(s => {
+        // 检查会话中是否已有尚未发送过用户消息的空白对话
+        const existingEmptySession = sessions.find(s => {
             const userMsgs = (s.messages || []).filter(m => m.sender === 'user');
             return userMsgs.length === 0;
         });
 
         if (existingEmptySession) {
-            // 已存在空白对话，直接定位切换，不重复创建
             setActiveSessionId(existingEmptySession.id);
             try {
-                localStorage.setItem(`aurasense_active_session_${currentUser.username}_${currentMode}`, existingEmptySession.id);
+                localStorage.setItem(`aurasense_active_session_${currentUser.username}`, existingEmptySession.id);
             } catch { }
             if (typeof window !== 'undefined' && window.innerWidth < 640) {
                 setIsSidebarOpen(false);
@@ -325,7 +282,7 @@ export const ChatPage: React.FC<ChatPageProps> = ({ currentUser, onLogout, onSwi
             return;
         }
 
-        const newSess = createDefaultSession(currentMode);
+        const newSess = createDefaultSession();
         const updated = [newSess, ...sessions];
         syncSessions(currentUser.username, updated, newSess.id);
         if (typeof window !== 'undefined' && window.innerWidth < 640) {
@@ -336,7 +293,7 @@ export const ChatPage: React.FC<ChatPageProps> = ({ currentUser, onLogout, onSwi
     const handleSelectSession = (sessionId: string) => {
         setActiveSessionId(sessionId);
         try {
-            localStorage.setItem(`aurasense_active_session_${currentUser.username}_${currentMode}`, sessionId);
+            localStorage.setItem(`aurasense_active_session_${currentUser.username}`, sessionId);
         } catch { }
         if (typeof window !== 'undefined' && window.innerWidth < 640) {
             setIsSidebarOpen(false);
@@ -349,12 +306,11 @@ export const ChatPage: React.FC<ChatPageProps> = ({ currentUser, onLogout, onSwi
         let updated = remaining;
         let nextActiveId = activeSessionId;
 
-        const matchingRemaining = remaining.filter(s => (s.mode || 'admissions') === currentMode);
         if (sessionId === activeSessionId) {
-            if (matchingRemaining.length > 0) {
-                nextActiveId = matchingRemaining[0].id;
+            if (remaining.length > 0) {
+                nextActiveId = remaining[0].id;
             } else {
-                const fresh = createDefaultSession(currentMode);
+                const fresh = createDefaultSession();
                 updated = [fresh, ...remaining];
                 nextActiveId = fresh.id;
             }
@@ -365,37 +321,6 @@ export const ChatPage: React.FC<ChatPageProps> = ({ currentUser, onLogout, onSwi
         fetch(`${API_BASE}/api/user/sessions/${sessionId}?username=${encodeURIComponent(currentUser.username)}`, {
             method: 'DELETE'
         }).catch(() => { });
-    };
-
-    // Seamless Mode Switching (Preserves previous ongoing sessions without creating new ones)
-    const handleChangeMode = (targetMode: ChatMode) => {
-        if (targetMode === currentMode) return;
-
-        // 1. Save current active session ID for the previous mode
-        if (activeSessionId) {
-            try {
-                localStorage.setItem(`aurasense_active_session_${currentUser.username}_${currentMode}`, activeSessionId);
-            } catch { }
-        }
-
-        // 2. Switch mode
-        setCurrentMode(targetMode);
-
-        // 3. Find matching sessions for the new mode
-        const matching = sessions.filter(s => (s.mode || (s.id && s.id.includes('group') ? 'group' : 'admissions')) === targetMode);
-
-        // 4. Try to restore previous active session for targetMode
-        const savedTargetActive = localStorage.getItem(`aurasense_active_session_${currentUser.username}_${targetMode}`);
-        if (savedTargetActive && matching.some(s => s.id === savedTargetActive)) {
-            setActiveSessionId(savedTargetActive);
-        } else if (matching.length > 0) {
-            setActiveSessionId(matching[0].id);
-        } else {
-            // Only create if 0 sessions exist for this mode
-            const fresh = createDefaultSession(targetMode);
-            const updated = [fresh, ...sessions];
-            syncSessions(currentUser.username, updated, fresh.id);
-        }
     };
 
     const handleSend = async (e?: React.FormEvent, overrideText: string | null = null, attachments: ChatAttachment[] = []) => {
@@ -425,7 +350,7 @@ export const ChatPage: React.FC<ChatPageProps> = ({ currentUser, onLogout, onSwi
         const updatedSession: ChatSession = {
             ...activeSession,
             title: newTitle,
-            mode: activeSession.mode || currentMode,
+            mode: activeSession.mode || 'admissions',
             messages: updatedMsgs,
             updatedAt: new Date().toISOString()
         };
@@ -439,7 +364,7 @@ export const ChatPage: React.FC<ChatPageProps> = ({ currentUser, onLogout, onSwi
             content: m.text
         }));
 
-        const endpoint = currentMode === 'group' ? `${API_BASE}/api/chat/group` : `${API_BASE}/api/aura/chat`;
+        const endpoint = `${API_BASE}/api/aura/chat`;
 
         try {
             const response = await fetch(endpoint, {
@@ -461,11 +386,11 @@ export const ChatPage: React.FC<ChatPageProps> = ({ currentUser, onLogout, onSwi
                 id: Date.now() + 1,
                 sender: 'bot',
                 text: reply,
-                senderAgentKey: data.agentKey || (currentMode === 'group' ? 'senior_girl' : 'dr'),
-                senderName: data.agentName || (currentMode === 'group' ? '丽丽学姐' : ROLE.name),
-                senderTitle: data.agentTitle || (currentMode === 'group' ? '大学城探店与文旅达人' : ROLE.title),
-                senderAvatar: data.agentAvatar || (currentMode === 'group' ? 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=400&auto=format&fit=crop' : ROLE.avatar),
-                senderColor: data.agentColor || (currentMode === 'group' ? '#ec4899' : ROLE.color),
+                senderAgentKey: data.agentKey || 'dr',
+                senderName: data.agentName || ROLE.name,
+                senderTitle: data.agentTitle || ROLE.title,
+                senderAvatar: data.agentAvatar || ROLE.avatar,
+                senderColor: data.agentColor || ROLE.color,
                 senderVoice: data.agentVoice || undefined,
                 instant: true,
                 mode: data.mode || advisorMode,
@@ -523,22 +448,11 @@ export const ChatPage: React.FC<ChatPageProps> = ({ currentUser, onLogout, onSwi
         handleSend(undefined, queryText, []);
     };
 
-    const handleMentionAgentFromModal = (agentName: string) => {
-        setInputText(prev => `${prev}@${agentName} `);
-    };
-
     const quickAdmissionsPrompts = [
         '广州大学历年各省录取分数线与排位',
         '计算机与人工智能专业就业前景如何？',
         '学校宿舍生活环境与4人间配置',
         '学费收费标准与新生卓越奖学金'
-    ];
-
-    const quickGroupPrompts = [
-        '@宿管张阿姨 宿舍用电限额多少瓦？违章电器有哪些？',
-        '@李导 大一下学期转专业有什么条件和绩点要求？',
-        '@浩哥 校园卡手机NFC怎么刷门禁？菜鸟驿站在哪？',
-        '@丽丽学姐 大学城GOGO新天地和贝岗有什么好吃的美食？'
     ];
 
     const handleOpenDiagnostics = () => {
@@ -548,23 +462,23 @@ export const ChatPage: React.FC<ChatPageProps> = ({ currentUser, onLogout, onSwi
             setActiveDiagnostics({
                 requestId: `req_preview_${Date.now()}`,
                 timestamp: new Date().toISOString(),
-                mode: currentMode,
+                mode: 'admissions',
                 targetAgent: {
-                    key: currentMode === 'group' ? 'senior_girl' : 'dr',
-                    name: currentMode === 'group' ? '丽丽学姐' : 'Dr. Elena',
-                    title: currentMode === 'group' ? '广大迎新向导' : '高招政策咨询顾问',
-                    color: currentMode === 'group' ? '#ec4899' : '#a494e8'
+                    key: 'dr',
+                    name: 'Dr. Elena',
+                    title: '高招政策咨询顾问',
+                    color: '#a494e8'
                 },
                 routingDecision: {
-                    type: currentMode === 'group' ? '多智能体群聊路由' : '1对1专属顾问',
-                    details: '等待发送首条提问触发动态意图匹配'
+                    type: advisorMode === 'agent' ? '多智能体决策矩阵协同推演' : '极速轻量事实直出',
+                    details: '等待发送提问触发动态意图匹配'
                 },
                 requestPayload: {
                     model: 'deepseek-chat',
                     protocol: 'chat_completions',
                     temperature: 0.7,
                     max_tokens: 2048,
-                    systemPrompt: '已载入校方权威招生规章、5位智能体人设与考生高考画像上下文',
+                    systemPrompt: '已载入校方权威招生规章、决策智能体矩阵人设与考生高考画像上下文',
                     messages: messages.map(m => ({ role: m.sender === 'user' ? 'user' : 'assistant', content: m.text })),
                     tools: [
                         { name: 'searchCampusKnowledge', description: '校方权威事实数据库（RAG）' },
@@ -602,12 +516,8 @@ export const ChatPage: React.FC<ChatPageProps> = ({ currentUser, onLogout, onSwi
             <ChatHeader
                 currentUser={currentUser}
                 userProfile={userProfile}
-                currentMode={currentMode}
-                onChangeMode={handleChangeMode}
                 advisorMode={advisorMode}
                 onChangeAdvisorMode={handleAdvisorModeChange}
-                agentsRoster={agentsRoster}
-                onOpenRosterDrawer={() => setIsRosterModalOpen(true)}
                 currentTheme={bubbleTheme}
                 onOpenThemeModal={() => setIsThemeModalOpen(true)}
                 isSidebarOpen={isSidebarOpen}
@@ -623,7 +533,7 @@ export const ChatPage: React.FC<ChatPageProps> = ({ currentUser, onLogout, onSwi
                 {/* Session Sidebar Drawer */}
                 <SessionDrawer
                     isOpen={isSidebarOpen}
-                    sessions={filteredSessions}
+                    sessions={sessions}
                     activeSessionId={activeSessionId}
                     onSelectSession={handleSelectSession}
                     onDeleteSession={handleDeleteSession}
@@ -775,8 +685,6 @@ export const ChatPage: React.FC<ChatPageProps> = ({ currentUser, onLogout, onSwi
                         onSend={(e, atts) => handleSend(e, null, atts || [])}
                         onOpenMapGuide={() => setIsMapGuideOpen(true)}
                         typing={typing}
-                        currentMode={currentMode}
-                        agentsRoster={agentsRoster}
                         advisorMode={advisorMode}
                         onChangeAdvisorMode={handleAdvisorModeChange}
                     />
@@ -792,18 +700,10 @@ export const ChatPage: React.FC<ChatPageProps> = ({ currentUser, onLogout, onSwi
                 onSelectMarkdownStyle={handleSelectMarkdownStyle}
             />
 
-            <GroupRosterModal
-                isOpen={isRosterModalOpen}
-                onClose={() => setIsRosterModalOpen(false)}
-                roster={agentsRoster}
-                onSelectAgentToMention={handleMentionAgentFromModal}
-            />
-
             <CampusMapModal
                 locations={campusLocations}
                 isOpen={isMapGuideOpen}
                 onClose={() => setIsMapGuideOpen(false)}
-                onAskQuestion={handleAskLocationQuestion}
                 pinScale={mapPinScale}
                 liliAvatar="https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=400&auto=format&fit=crop"
                 liliName="丽丽学姐"

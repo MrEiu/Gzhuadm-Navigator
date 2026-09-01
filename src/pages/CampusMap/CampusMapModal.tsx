@@ -16,7 +16,6 @@ interface CampusMapModalProps {
     locations: CampusLocation[];
     isOpen: boolean;
     onClose: () => void;
-    onAskQuestion: (text: string) => void;
     pinScale?: number;
     liliAvatar?: string;
     liliName?: string;
@@ -26,7 +25,6 @@ export const CampusMapModal: React.FC<CampusMapModalProps> = ({
     locations,
     isOpen,
     onClose,
-    onAskQuestion,
     pinScale = 0.8,
     liliAvatar,
     liliName
@@ -717,20 +715,6 @@ export const CampusMapModal: React.FC<CampusMapModalProps> = ({
                                         ))}
                                     </div>
                                 </div>
-                            </div>
-
-                            {/* Drawer Bottom Action: Ask Question */}
-                            <div className="p-4 border-t border-purple-100/60 bg-white shrink-0">
-                                <button
-                                    onClick={() => {
-                                        onClose();
-                                        onAskQuestion(`请丽丽学姐为我详细介绍【${selectedLoc.name}】的详细情况和就读体验！`);
-                                    }}
-                                    className="w-full py-3 bg-gradient-to-r from-[#b3a4ed] to-[#a494e8] hover:opacity-95 text-white font-bold text-[13px] rounded-2xl shadow-[0_4px_15px_rgba(179,164,237,0.4)] flex items-center justify-center gap-2 cursor-pointer active:scale-98 transition-all"
-                                >
-                                    <MessageSquare size={15} />
-                                    <span>就此地标向丽丽学姐提问</span>
-                                </button>
                             </div>
                         </div>
                     )}

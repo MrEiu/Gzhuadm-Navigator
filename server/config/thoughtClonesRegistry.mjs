@@ -1,13 +1,20 @@
+import fs from 'fs';
+import path from 'path';
+import { dataDir } from './env.mjs';
+
+const thoughtClonesPath = path.join(dataDir, 'thought_clones.json');
+
 /**
- * 10 大思维分身注册表 (Thought Clones Registry)
+ * 决策智能体默认矩阵 (Default Thought Clones Matrix)
  * 提供涵盖高招咨询全维度的专业审视内核
  */
-
-export const THOUGHT_CLONES_REGISTRY = {
+export const DEFAULT_THOUGHT_CLONES = {
     score_risk: {
         roleId: 'score_risk',
         name: '录取位次与风控审查员',
         tag: '📊 录取风控',
+        color: '#8b5cf6',
+        enabled: true,
         keywords: ['分', '分数', '录取', '排位', '位次', '多少分', '冲', '稳', '保', '能上吗', '压线', '投档', '差距', '几率', '把握', '高分', '低分', '滑档'],
         systemPrompt: '你是专注【录取位次与风控】的审视内核。请基于考生省份、分数、排位与目标专业，精准评估“冲/稳/保”区间与压线滑档风险。\n【要求】：直接输出2句话核心研判，严禁废话与问候，字数<=60字。'
     },
@@ -15,6 +22,8 @@ export const THOUGHT_CLONES_REGISTRY = {
         roleId: 'subject_rule',
         name: '选科限制与招考政策法务',
         tag: '📜 选科政策',
+        color: '#ef4444',
+        enabled: true,
         keywords: ['选科', '物化', '历史', '物理', '化学', '生物', '地理', '政治', '限制', '必选', '视力', '体检', '色弱', '色盲', '加分', '专项计划', '提前批', '专业组'],
         systemPrompt: '你是专注【选科与招考限制】的审视内核。请基于考生选科组合与身体/政策条件，严格排查专业组准入限制与潜在门槛阻碍。\n【要求】：直接输出2句话核心研判，严禁废话与问候，字数<=60字。'
     },
@@ -22,6 +31,8 @@ export const THOUGHT_CLONES_REGISTRY = {
         roleId: 'career_market',
         name: '企业就业与行业薪资分析师',
         tag: '💼 就业前景',
+        color: '#0284c7',
+        enabled: true,
         keywords: ['就业', '工作', '薪资', '薪酬', '待遇', '工资', '好找工作吗', '大厂', '互联网', '行业', '企事业', '招聘', '校招', '前景', '去向'],
         systemPrompt: '你是专注【企业就业与行业薪酬】的审视内核。请基于目标专业，分析大湾区及全国企事业单位校招需求、起薪水平与长远职业发展空间。\n【要求】：直接输出2句话核心研判，严禁废话与问候，字数<=60字。'
     },
@@ -29,6 +40,8 @@ export const THOUGHT_CLONES_REGISTRY = {
         roleId: 'civil_service',
         name: '考公考编与体制内发展专员',
         tag: '🏛️ 体制考公',
+        color: '#2563eb',
+        enabled: true,
         keywords: ['考公', '公务员', '考编', '事业单位', '编制', '国考', '省考', '选调', '选调生', '铁饭碗', '街道办', '税务局', '体制内', '公职'],
         systemPrompt: '你是专注【体制内考公考编】的审视内核。请深入分析目标专业在国考、省考及事业单位招录中的岗位供给量、专业目录匹配度与竞争优劣势。\n【要求】：直接输出2句话核心研判，严禁废话与问候，字数<=60字。'
     },
@@ -36,6 +49,8 @@ export const THOUGHT_CLONES_REGISTRY = {
         roleId: 'postgrad_study',
         name: '考研保研与学术深造导师',
         tag: '🎓 升学深造',
+        color: '#4f46e5',
+        enabled: true,
         keywords: ['考研', '保研', '读研', '升学', '硕士', '博士', '推免', '985', '211', '双一流', '学科评估', '实验室', '深造', '研究生'],
         systemPrompt: '你是专注【考研保研与升学深造】的审视内核。请基于目标专业的学科实力，分析本科保研名额比例、考研对口学科优势及深造双一流高校前景。\n【要求】：直接输出2句话核心研判，严禁废话与问候，字数<=60字。'
     },
@@ -43,6 +58,8 @@ export const THOUGHT_CLONES_REGISTRY = {
         roleId: 'curriculum_study',
         name: '课程难度与学业体验学长',
         tag: '📚 课业难度',
+        color: '#d97706',
+        enabled: true,
         keywords: ['难学', '难吗', '累吗', '高数', '编程', '代码', '数学', '挂科', '课程', '实验', '实训', '吃力', '学不会', '学分', '绩点'],
         systemPrompt: '你是专注【课程体验与学习难度】的审视内核。请分析目标专业核心必修课难度（高数/代码/理论）、学业压力负担及挂科避坑要点。\n【要求】：直接输出2句话核心研判，严禁废话与问候，字数<=60字。'
     },
@@ -50,6 +67,8 @@ export const THOUGHT_CLONES_REGISTRY = {
         roleId: 'transfer_policy',
         name: '转专业与备选退路军师',
         tag: '🔄 备选退路',
+        color: '#059669',
+        enabled: true,
         keywords: ['转专业', '调剂', '冷门', '备选', '退路', '替代', '辅修', '双学位', '换专业', '不喜欢', '降分', '不合适'],
         systemPrompt: '你是专注【博弈填报与转专业退路】的审视内核。请评估降分录取的备选专业组性价比，以及大一转专业、辅修双学位的可行退路。\n【要求】：直接输出2句话核心研判，严禁废话与问候，字数<=60字。'
     },
@@ -57,6 +76,8 @@ export const THOUGHT_CLONES_REGISTRY = {
         roleId: 'campus_life',
         name: '生活设施与硬件住宿向导',
         tag: '🏕️ 校园生活',
+        color: '#db2777',
+        enabled: true,
         keywords: ['宿舍', '寝室', '空调', '独卫', '几人间', '上床下桌', '洗衣机', '热水', '饭堂', '食堂', '外卖', '校区', '地铁', '大学城', '桂花岗', '环境', '交通'],
         systemPrompt: '你是专注【校园生活与设施环境】的审视内核。请针对目标专业所在校区分布、宿舍条件（空调/独卫/几人间）及食堂交通给出真实中肯的研判。\n【要求】：直接输出2句话核心研判，严禁废话与问候，字数<=60字。'
     },
@@ -64,6 +85,8 @@ export const THOUGHT_CLONES_REGISTRY = {
         roleId: 'finance_aid',
         name: '学费开销与资助政策顾问',
         tag: '💰 学费资助',
+        color: '#ca8a04',
+        enabled: true,
         keywords: ['学费', '费用', '住宿费', '多少钱', '一年多少', '中外合作', '贵', '奖学金', '助学金', '贷款', '贫困', '资助', '开销'],
         systemPrompt: '你是专注【学费开销与资助保障】的审视内核。请明确常规专业与中外合作高收费差异、住宿费明细及“奖助贷勤补”绿色通道支持力度。\n【要求】：直接输出2句话核心研判，严禁废话与问候，字数<=60字。'
     },
@@ -71,21 +94,55 @@ export const THOUGHT_CLONES_REGISTRY = {
         roleId: 'psych_family',
         name: '志愿焦虑与家庭诉求调解员',
         tag: '🤝 家庭沟通',
+        color: '#0d9488',
+        enabled: true,
         keywords: ['父母', '家里', '爸妈', '意见', '冲突', '纠结', '焦虑', '压力', '喜欢', '兴趣', '离家', '城市', '广州', '留省内', '出省'],
         systemPrompt: '你是专注【志愿抉择与家庭平衡】的审视内核。请针对考生个人兴趣与家庭诉求的冲突点、城市地域价值及填报焦虑给出理性平衡研判。\n【要求】：直接输出2句话核心研判，严禁废话与问候，字数<=60字。'
     }
 };
 
+export const loadThoughtClonesConfig = () => {
+    try {
+        if (fs.existsSync(thoughtClonesPath)) {
+            const raw = fs.readFileSync(thoughtClonesPath, 'utf8');
+            const data = JSON.parse(raw);
+            if (data && typeof data === 'object' && Object.keys(data).length > 0) {
+                return data;
+            }
+        }
+    } catch (err) {
+        console.warn('⚠️ [Thought Clones Load Warning]:', err.message);
+    }
+    return DEFAULT_THOUGHT_CLONES;
+};
+
+export const saveThoughtClonesConfig = (clonesConfig) => {
+    try {
+        if (!clonesConfig || typeof clonesConfig !== 'object') return false;
+        fs.writeFileSync(thoughtClonesPath, JSON.stringify(clonesConfig, null, 2), 'utf8');
+        return true;
+    } catch (err) {
+        console.error('❌ [Thought Clones Save Error]:', err.message);
+        return false;
+    }
+};
+
+export const THOUGHT_CLONES_REGISTRY = loadThoughtClonesConfig();
+
 /**
- * 根据用户提问动态匹配 1 ~ 3 个最相关的角色 ID
+ * 根据用户提问动态从已启用的智能体/思维分身中匹配 1 ~ 3 个最相关的角色 ID
  */
 export const selectActiveRoleIds = (userQuery = '', maxCount = 3) => {
     const raw = String(userQuery || '').toLowerCase();
+    const currentClones = loadThoughtClonesConfig();
     const scores = [];
 
-    for (const [roleId, config] of Object.entries(THOUGHT_CLONES_REGISTRY)) {
+    for (const [roleId, config] of Object.entries(currentClones)) {
+        if (config.enabled === false) continue; // 仅调度处于启用状态的智能体/分身
+
         let score = 0;
-        for (const kw of config.keywords) {
+        const kwList = Array.isArray(config.keywords) ? config.keywords : [];
+        for (const kw of kwList) {
             if (raw.includes(kw.toLowerCase())) {
                 score += (kw.length >= 3 ? 2 : 1);
             }
@@ -102,10 +159,13 @@ export const selectActiveRoleIds = (userQuery = '', maxCount = 3) => {
         return scores.slice(0, maxCount).map(s => s.roleId);
     }
 
-    // Default heuristics if no explicit keyword hit
+    // Default heuristics for enabled clones
+    const enabledKeys = Object.entries(currentClones).filter(([_, c]) => c.enabled !== false).map(([k]) => k);
+    if (enabledKeys.length === 0) return ['career_market'];
+
     if (raw.includes('？') || raw.includes('?') || raw.includes('想') || raw.includes('怎么')) {
-        return ['score_risk', 'career_market'];
+        return enabledKeys.slice(0, Math.min(2, maxCount));
     }
 
-    return ['career_market'];
+    return [enabledKeys[0]];
 };

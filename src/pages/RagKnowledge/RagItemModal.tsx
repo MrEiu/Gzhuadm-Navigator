@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { X, Image as ImageIcon, Upload, Trash2, Users } from 'lucide-react';
 import { RagItem } from '../../types';
 import { API_BASE } from '../../api/config';
+import { RAG_DOMAIN_OPTIONS } from '../../constants/thoughtClones';
 
 interface RagItemModalProps {
     item: Partial<RagItem>;
@@ -77,19 +78,18 @@ export const RagItemModal: React.FC<RagItemModalProps> = ({ item, onClose, onSav
                     {/* Target Agent Selector */}
                     <div>
                         <label className="text-[12px] font-bold text-[#4a4365] block mb-1 flex items-center gap-1">
-                            <Users size={14} className="text-purple-600" /> 归属专属智能体知识库
+                            <Users size={14} className="text-purple-600" /> 归属专属思维分身 / 伴游知识库
                         </label>
                         <select
                             value={formData.targetAgent || 'all'}
                             onChange={(e) => setFormData({ ...formData, targetAgent: e.target.value })}
                             className="w-full bg-[#f8f6fc] rounded-xl px-4 py-2.5 text-[13px] outline-none border border-transparent focus:border-[#a494e8] font-bold text-purple-800 cursor-pointer"
                         >
-                            <option value="all">🌐 全局共享知识库 (所有Agent通用)</option>
-                            <option value="dr">🏛️ Dr. Elena (招生与志愿规划专库)</option>
-                            <option value="dorm">🧹 宿管张阿姨 (宿舍用电与违章电器专库)</option>
-                            <option value="counselor">🎓 辅导员李导 (转专业细则与政策专库)</option>
-                            <option value="senior_boy">🎒 学长浩哥 (校园卡/快递/生活常识专库)</option>
-                            <option value="senior_girl">🌸 学姐丽丽 (大学城美食/拍照打卡专库)</option>
+                            {RAG_DOMAIN_OPTIONS.map((d) => (
+                                <option key={d.key} value={d.key}>
+                                    {d.label} {d.desc ? `(${d.desc})` : ''}
+                                </option>
+                            ))}
                         </select>
                     </div>
 

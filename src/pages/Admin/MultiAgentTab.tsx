@@ -4,10 +4,13 @@ import {
     AlertCircle, MessageSquare, Image, Sliders, Palette, Music, BookOpen,
     HelpCircle, Bot, Loader2, VolumeX, PackageCheck, SlidersHorizontal,
     CornerDownRight, Layers, Eye, CheckCircle2, BrainCircuit,
-    ChevronDown, ChevronUp
+    ChevronDown, ChevronUp, BarChart3, ShieldAlert, Briefcase, Building2,
+    GraduationCap, Shuffle, Home, Coins, HeartHandshake, Play, MapPin, Tag,
+    ToggleLeft, ToggleRight, RotateCcw
 } from 'lucide-react';
-import { AgentProfile, MultiAgentRoster, BubbleThemeId, BubbleCustomSettings } from '../../types';
+import { AgentProfile, MultiAgentRoster, BubbleThemeId, BubbleCustomSettings, ThoughtCloneConfig } from '../../types';
 import { BUBBLE_THEMES, DEFAULT_BUBBLE_SETTINGS } from '../../constants/bubbleThemes';
+import { THOUGHT_CLONES_CATALOG } from '../../constants/thoughtClones';
 import { API_BASE } from '../../api/config';
 
 const DEFAULT_VOICES = [
@@ -19,74 +22,79 @@ const DEFAULT_VOICES = [
     { id: 'zh-CN-XiaohanNeural', name: '晓涵 (知性温柔女声)' }
 ];
 
-const FALLBACK_DEFAULT_AGENTS: MultiAgentRoster = {
+const PRESET_COLOR_PALETTES = [
+    '#8b5cf6', '#ec4899', '#0284c7', '#2563eb', '#4f46e5',
+    '#059669', '#d97706', '#db2777', '#ca8a04', '#0d9488',
+    '#ef4444', '#6366f1', '#14b8a6', '#f59e0b'
+];
+
+const CORE_FALLBACK_AGENTS: MultiAgentRoster = {
     dr: {
         key: 'dr',
         name: 'Dr. Elena',
-        title: '首席招生咨询顾问',
+        title: '首席高招咨询顾问',
         avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?q=80&w=400&auto=format&fit=crop',
         bubbleColor: '#8b5cf6',
         bubbleTextColor: '#ffffff',
         voice: 'zh-CN-XiaoxiaoNeural',
-        systemPrompt: `你是广州大学首席招生咨询顾问 Dr. Elena。\n【身份特质】：专业、严谨、亲切、权威。\n【专精领域】：广州大学各省录取分数线、排位测算、志愿填报推荐、转专业政策框架、校方官方学费及资助。`
-    },
-    dorm: {
-        key: 'dorm',
-        name: '宿管张阿姨',
-        title: '宿舍生活与安全管家',
-        avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?q=80&w=400&auto=format&fit=crop',
-        bubbleColor: '#f97316',
-        bubbleTextColor: '#ffffff',
-        voice: 'zh-CN-XiaoyiNeural',
-        systemPrompt: `你是广州大学大学城校区学生宿舍楼栋宿管主管 张阿姨。\n【身份特质】：热心肠、接地气、关爱学生、注重用电消防安全与宿舍纪律。\n【专精领域】：限电 800W 规定、违章电器名录、23:30 锁门、宿舍报修。`
-    },
-    counselor: {
-        key: 'counselor',
-        name: '辅导员李导',
-        title: '本科生年级辅导员',
-        avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=400&auto=format&fit=crop',
-        bubbleColor: '#2563eb',
-        bubbleTextColor: '#ffffff',
-        voice: 'zh-CN-YunjianNeural',
-        systemPrompt: `你是广州大学本科生专职辅导员 李导。\n【身份特质】：负责、沉稳、严谨、关怀学生成长。\n【专精领域】：大一下转专业考核细则（GPA前30%）、学籍管理、综测评定、请假离校。`
-    },
-    senior_boy: {
-        key: 'senior_boy',
-        name: '学长浩哥',
-        title: '计科大四学长 / 校园生活指南',
-        avatar: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?q=80&w=400&auto=format&fit=crop',
-        bubbleColor: '#10b981',
-        bubbleTextColor: '#ffffff',
-        voice: 'zh-CN-YunxiNeural',
-        systemPrompt: `你是广州大学计算机学院大四学长 浩哥。\n【身份特质】：热心、接地气、幽默、实战经验丰富。\n【专精领域】：手机 NFC 校园卡绑定、Dr.COM 校园网、菜鸟驿站、抢课避坑。`
+        systemPrompt: `你是广州大学首席高招咨询顾问 Dr. Elena。\n【身份特质】：专业、严谨、亲切、权威。\n【专精领域】：广州大学各省录取分数线、排位测算、志愿填报推荐、转专业政策框架、校方官方学费及资助。\n【协同研判】：统揽决策智能体矩阵的专业研判，输出条理清晰、有理有据的综合决策建议。`
     },
     senior_girl: {
         key: 'senior_girl',
-        name: '学姐丽丽',
-        title: '校园文旅探店 / 社团达人',
+        name: '丽丽学姐',
+        title: '全景地图语音伴游向导',
         avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=400&auto=format&fit=crop',
         bubbleColor: '#ec4899',
         bubbleTextColor: '#ffffff',
-        voice: 'zh-CN-XiaohanNeural',
-        systemPrompt: `你是广州大学大三学姐 丽丽。\n【身份特质】：活泼开朗、元气满满、热爱校园文化与美食。\n【专精领域】：大学城 GOGO 新天地美食探店、贝岗夜市、梁明诚雕塑园拍照打卡、社团百团大战。`
+        voice: 'zh-CN-XiaoyiNeural',
+        systemPrompt: `你是广州大学全景手绘地图语音伴游向导 丽丽学姐。\n【身份特质】：活泼开朗、元气满满、热爱广大校园文化与地标探索。\n【专精领域】：大学城校区与桂花岗校区全景点位解说、避坑小秘密、实景机位推荐、地标打卡与语音伴游播报（注：无主对话职责，专注地图语音导览）。`
     }
 };
 
 export const MultiAgentTab: React.FC = () => {
-    const [roster, setRoster] = useState<MultiAgentRoster>(FALLBACK_DEFAULT_AGENTS);
-    const [selectedAgentKey, setSelectedAgentKey] = useState<string>('dorm');
+    // Top Active Tab
+    const [subTab, setSubTab] = useState<'clones' | 'core_agents' | 'bubble_skin'>('clones');
+
+    // --- 1. Thought Clones / Decision Agents State ---
+    const [clonesState, setClonesState] = useState<Record<string, ThoughtCloneConfig>>(() => {
+        const initial: Record<string, ThoughtCloneConfig> = {};
+        THOUGHT_CLONES_CATALOG.forEach(c => {
+            initial[c.id] = {
+                roleId: c.id,
+                name: c.name,
+                tag: c.tag,
+                color: c.color,
+                icon: c.icon,
+                description: c.description,
+                keywords: [...c.defaultKeywords],
+                systemPrompt: c.defaultPrompt,
+                enabled: true,
+                isCustom: false
+            };
+        });
+        return initial;
+    });
+
+    const [selectedCloneId, setSelectedCloneId] = useState<string>('score_risk');
+    const [newKeywordInput, setNewKeywordInput] = useState<string>('');
+    const [cloneTestingQuery, setCloneTestingQuery] = useState<string>('计算机专业好就业吗？大概能拿多少月薪？');
+    const [cloneTestingResult, setCloneTestingResult] = useState<string>('');
+    const [cloneTestingLoading, setCloneTestingLoading] = useState<boolean>(false);
+
+    // --- 2. Core Entities (Dr. Elena & Lili) State ---
+    const [coreAgents, setCoreAgents] = useState<MultiAgentRoster>(CORE_FALLBACK_AGENTS);
+    const [selectedCoreKey, setSelectedCoreKey] = useState<'dr' | 'senior_girl'>('dr');
+
+    // General Status
     const [loading, setLoading] = useState<boolean>(false);
     const [saving, setSaving] = useState<boolean>(false);
     const [saveSuccess, setSaveSuccess] = useState<boolean>(false);
-
-    // Profile Collapse State (折叠/展开智能体档案)
-    const [isProfileCollapsed, setIsProfileCollapsed] = useState<boolean>(false);
 
     // Audio Test State
     const [testingVoice, setTestingVoice] = useState<boolean>(false);
     const audioRef = useRef<HTMLAudioElement | null>(null);
 
-    // Deep Bubble Custom Settings State
+    // --- 3. Bubble Skin Settings State ---
     const [bubbleSettings, setBubbleSettings] = useState<BubbleCustomSettings>(() => {
         try {
             const savedSettings = localStorage.getItem('gzadm_bubble_settings');
@@ -99,8 +107,6 @@ export const MultiAgentTab: React.FC = () => {
         return DEFAULT_BUBBLE_SETTINGS;
     });
 
-    const [selectedGroup, setSelectedGroup] = useState<string>('@ant-design/x');
-
     const updateBubbleSetting = <K extends keyof BubbleCustomSettings>(key: K, val: BubbleCustomSettings[K]) => {
         const updated = { ...bubbleSettings, [key]: val };
         setBubbleSettings(updated);
@@ -112,633 +118,925 @@ export const MultiAgentTab: React.FC = () => {
         } catch { }
     };
 
-    const fetchRoster = async () => {
+    // Fetch initial data
+    const fetchAllData = async () => {
         setLoading(true);
         try {
-            const res = await fetch(`${API_BASE}/api/admin/agents-roster`);
-            const data = await res.json();
-            const loaded = data.data || data.agents || {};
-            if (data.ok && Object.keys(loaded).length > 0) {
-                setRoster(loaded);
-                const keys = Object.keys(loaded);
-                if (keys.length > 0) {
-                    setSelectedAgentKey(prev => (keys.includes(prev) ? prev : keys[0]));
+            // 1. Fetch Thought Clones
+            const resClones = await fetch(`${API_BASE}/api/admin/thought-clones`);
+            const dataClones = await resClones.json();
+            if (dataClones.ok && dataClones.clones && typeof dataClones.clones === 'object') {
+                setClonesState(dataClones.clones);
+                const keys = Object.keys(dataClones.clones);
+                if (keys.length > 0 && !dataClones.clones[selectedCloneId]) {
+                    setSelectedCloneId(keys[0]);
                 }
             }
+
+            // 2. Fetch Core Agents
+            const resAgents = await fetch(`${API_BASE}/api/admin/agents-config`);
+            const dataAgents = await resAgents.json();
+            if (dataAgents.ok && dataAgents.agents) {
+                setCoreAgents(prev => ({ ...prev, ...dataAgents.agents }));
+            }
         } catch (err) {
-            console.error('Fetch agents roster error, using fallback:', err);
+            console.warn('Failed to load multi-agent data from server:', err);
         } finally {
             setLoading(false);
         }
     };
 
     useEffect(() => {
-        fetchRoster();
+        fetchAllData();
     }, []);
 
-    const currentAgent: AgentProfile = roster[selectedAgentKey] || Object.values(roster)[0] || FALLBACK_DEFAULT_AGENTS.dorm;
+    // Create New Custom Agent / Thought Clone
+    const handleCreateNewClone = () => {
+        const uniqueId = `agent_${Date.now().toString(36)}`;
+        const randomColor = PRESET_COLOR_PALETTES[Math.floor(Math.random() * PRESET_COLOR_PALETTES.length)];
+        const newClone: ThoughtCloneConfig = {
+            roleId: uniqueId,
+            name: '新专业决策分身',
+            tag: '✨ 新决策域',
+            color: randomColor,
+            icon: 'Sparkles',
+            description: '专注于新领域的专业研判内核',
+            keywords: ['新增领域', '专业特点'],
+            systemPrompt: '你是专注【新领域】的审视内核。请基于考生背景与目标专业给出客观、精准的核心研判。\n【要求】：直接输出2句话核心研判，严禁废话与问候，字数<=60字。',
+            enabled: true,
+            isCustom: true
+        };
 
-    const updateCurrentAgent = (field: keyof AgentProfile, value: any) => {
-        if (!currentAgent) return;
-        setRoster(prev => ({
+        setClonesState(prev => ({
             ...prev,
-            [selectedAgentKey]: {
-                ...prev[selectedAgentKey],
-                [field]: value
-            }
+            [uniqueId]: newClone
         }));
+        setSelectedCloneId(uniqueId);
     };
 
-    const handleSaveRoster = async () => {
+    // Delete a Clone
+    const handleDeleteClone = (cloneId: string) => {
+        const clone = clonesState[cloneId];
+        if (!confirm(`确定要彻底删除决策分身【${clone?.name || cloneId}】吗？`)) return;
+
+        const updated = { ...clonesState };
+        delete updated[cloneId];
+        setClonesState(updated);
+
+        const remainingKeys = Object.keys(updated);
+        if (remainingKeys.length > 0) {
+            setSelectedCloneId(remainingKeys[0]);
+        }
+    };
+
+    // Reset All Clones to Defaults
+    const handleResetAllClones = () => {
+        if (!confirm('确定要重置并恢复系统默认预置的决策智能体矩阵吗？自定义的分身将被清除。')) return;
+        const initial: Record<string, ThoughtCloneConfig> = {};
+        THOUGHT_CLONES_CATALOG.forEach(c => {
+            initial[c.id] = {
+                roleId: c.id,
+                name: c.name,
+                tag: c.tag,
+                color: c.color,
+                icon: c.icon,
+                description: c.description,
+                keywords: [...c.defaultKeywords],
+                systemPrompt: c.defaultPrompt,
+                enabled: true,
+                isCustom: false
+            };
+        });
+        setClonesState(initial);
+        setSelectedCloneId('score_risk');
+    };
+
+    // Save Thought Clones
+    const handleSaveClones = async () => {
         setSaving(true);
-        setSaveSuccess(false);
         try {
-            const res = await fetch(`${API_BASE}/api/admin/agents-roster`, {
+            const res = await fetch(`${API_BASE}/api/admin/thought-clones`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ agents: roster })
+                body: JSON.stringify({ clones: clonesState })
             });
             const data = await res.json();
             if (data.ok) {
                 setSaveSuccess(true);
-                localStorage.setItem('gzadm_bubble_settings', JSON.stringify(bubbleSettings));
-                localStorage.setItem('gzadm_bubble_theme', bubbleSettings.themeId);
-                setTimeout(() => setSaveSuccess(false), 3000);
+                setTimeout(() => setSaveSuccess(false), 2500);
             } else {
-                alert(data.error || '保存失败');
+                alert('保存决策智能体矩阵失败：' + (data.error || '未知错误'));
             }
-        } catch (err) {
-            console.error('Save agents roster failed:', err);
-            alert('保存多智能体配置异常');
+        } catch (err: any) {
+            alert('保存决策智能体请求异常：' + err.message);
         } finally {
             setSaving(false);
         }
     };
 
-    const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-
-        const reader = new FileReader();
-        reader.onload = async () => {
-            const base64Data = reader.result as string;
-            try {
-                const res = await fetch(`${API_BASE}/api/admin/upload-image`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ base64Data, filename: file.name })
-                });
-                const data = await res.json();
-                if (data.ok && data.attachment?.url) {
-                    updateCurrentAgent('avatar', data.attachment.url);
-                }
-            } catch (err) {
-                console.error('Avatar upload failed:', err);
-            }
-        };
-        reader.readAsDataURL(file);
-    };
-
-    const handleTestVoice = async () => {
-        if (testingVoice) {
-            audioRef.current?.pause();
-            setTestingVoice(false);
-            return;
-        }
-
-        if (!currentAgent) return;
-        const testText = `你好！我是${currentAgent.name}，很高兴在广大新生群里为你解答问题！`;
-
-        setTestingVoice(true);
+    // Save Core Agents
+    const handleSaveCoreAgents = async () => {
+        setSaving(true);
         try {
-            const res = await fetch(`${API_BASE}/api/tts/synthesize`, {
+            const res = await fetch(`${API_BASE}/api/admin/agents-config`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    text: testText,
-                    voice: currentAgent.voice
-                })
+                body: JSON.stringify({ agents: coreAgents })
             });
-
-            if (!res.ok) throw new Error('TTS Failed');
-            const blob = await res.blob();
-            const audioUrl = URL.createObjectURL(blob);
-
-            if (audioRef.current) {
-                audioRef.current.pause();
+            const data = await res.json();
+            if (data.ok) {
+                setSaveSuccess(true);
+                setTimeout(() => setSaveSuccess(false), 2500);
+            } else {
+                alert('保存核心角色失败：' + (data.error || '未知错误'));
             }
+        } catch (err: any) {
+            alert('保存核心角色请求异常：' + err.message);
+        } finally {
+            setSaving(false);
+        }
+    };
 
-            const audio = new Audio(audioUrl);
-            audioRef.current = audio;
-            audio.onended = () => setTestingVoice(false);
-            audio.onerror = () => setTestingVoice(false);
-            await audio.play();
+    // Test Thought Clone Output
+    const handleTestCloneReasoning = async () => {
+        if (!cloneTestingQuery.trim()) return;
+        setCloneTestingLoading(true);
+        setCloneTestingResult('');
+        try {
+            const currentClone = clonesState[selectedCloneId];
+            const prompt = `${currentClone?.systemPrompt || ''}\n\n【考生提问】：${cloneTestingQuery}\n\n请直接输出 1~2 句话的核心硬核研判（字数必须 <= 60 字，严禁客套）：`;
+
+            const res = await fetch(`${API_BASE}/api/admin/test-prompt`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ prompt, userQuery: cloneTestingQuery })
+            });
+            const data = await res.json();
+            if (data.ok && data.reply) {
+                setCloneTestingResult(data.reply);
+            } else if (data.reply) {
+                setCloneTestingResult(data.reply);
+            } else {
+                setCloneTestingResult(`研判模拟：建议针对 ${currentClone?.name || '该专业'} 结合考生分数段及历年最低位次进行审慎评估。`);
+            }
+        } catch (e: any) {
+            const currentClone = clonesState[selectedCloneId];
+            setCloneTestingResult(`[模拟推演输出] 基于${currentClone?.name || '专家'}视角：大湾区岗位储备充足，建议关注目标专业梯队与考公/考研双轨规划。`);
+        } finally {
+            setCloneTestingLoading(false);
+        }
+    };
+
+    // Audio Test
+    const handleTestVoice = async (voiceId: string, testText: string) => {
+        setTestingVoice(true);
+        try {
+            const res = await fetch(`${API_BASE}/api/chat/tts`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text: testText, voice: voiceId })
+            });
+            const data = await res.json();
+            if (data.ok && data.audioUrl) {
+                if (audioRef.current) {
+                    audioRef.current.src = data.audioUrl.startsWith('http') ? data.audioUrl : `${API_BASE}${data.audioUrl}`;
+                    audioRef.current.play();
+                }
+            }
         } catch (err) {
-            console.error('Voice preview error:', err);
-            alert('发音试听失败，请检查语音合成服务');
+            console.error('Voice test failed:', err);
+        } finally {
             setTestingVoice(false);
         }
     };
 
-    const agentKeys = Object.keys(roster);
-    const themeConfig = BUBBLE_THEMES[bubbleSettings.themeId] || BUBBLE_THEMES.antdesign_filled || BUBBLE_THEMES.ios;
+    const currentCloneConfig: ThoughtCloneConfig = clonesState[selectedCloneId] || {
+        roleId: selectedCloneId,
+        name: '未命名分身',
+        tag: '✨ 决策分身',
+        color: '#8b5cf6',
+        keywords: ['专业'],
+        systemPrompt: '你是专注该领域的决策内核。',
+        enabled: true
+    };
 
-    const availableGroups = ['@ant-design/x', '@chatscope', '@assistant-ui', 'Apple iOS', 'Classic'];
-    const filteredThemes = Object.values(BUBBLE_THEMES).filter(t => t.group === selectedGroup);
+    const currentCoreAgent = coreAgents[selectedCoreKey] || CORE_FALLBACK_AGENTS[selectedCoreKey];
+
+    const getIconComponent = (iconName?: string) => {
+        switch (iconName) {
+            case 'BarChart3': return <BarChart3 size={17} />;
+            case 'ShieldAlert': return <ShieldAlert size={17} />;
+            case 'Briefcase': return <Briefcase size={17} />;
+            case 'Building2': return <Building2 size={17} />;
+            case 'GraduationCap': return <GraduationCap size={17} />;
+            case 'BookOpen': return <BookOpen size={17} />;
+            case 'Shuffle': return <Shuffle size={17} />;
+            case 'Home': return <Home size={17} />;
+            case 'Coins': return <Coins size={17} />;
+            case 'HeartHandshake': return <HeartHandshake size={17} />;
+            default: return <Sparkles size={17} />;
+        }
+    };
+
+    const cloneList = Object.values(clonesState);
 
     return (
-        <div className="p-6 sm:p-8 space-y-6 animate-in fade-in duration-300">
-            {/* Header Title & Save Button */}
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-white/80 backdrop-blur-xl p-6 rounded-[32px] border border-white/80 shadow-sm">
-                <div className="space-y-1">
-                    <div className="flex items-center gap-2.5">
-                        <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-purple-500 to-indigo-600 text-white flex items-center justify-center shadow-md">
-                            <Users size={22} />
-                        </div>
-                        <div>
-                            <h2 className="text-xl font-black text-[#4a4365] tracking-tight">多智能体群聊管理与气泡深度定制工作台</h2>
-                            <p className="text-xs text-[#8a84a4]">支持可视化定制 5 位 Agent 资料及 @ant-design/x、@chatscope、@assistant-ui 深度形态参数</p>
-                        </div>
+        <div className="space-y-6">
+            <audio ref={audioRef} className="hidden" />
+
+            {/* Header with Navigation Switcher */}
+            <div className="bg-white/80 backdrop-blur-xl rounded-[32px] p-6 border border-white/80 shadow-[0_8px_25px_rgba(186,175,215,0.18)]">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div>
+                        <h3 className="font-black text-[#4a4365] text-[19px] flex items-center gap-2">
+                            <BrainCircuit size={22} className="text-purple-600" /> 多智能体决策矩阵与思维分身工坊
+                        </h3>
+                        <p className="text-[12.5px] text-[#8a84a4] mt-1">
+                            支持动态新建、扩充与配置决策智能体矩阵，协同首席高招顾问 Dr. Elena 统领推演
+                        </p>
                     </div>
-                </div>
 
-                <div className="flex items-center gap-3">
-                    {saveSuccess && (
-                        <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-full border border-emerald-200 flex items-center gap-1 animate-in zoom-in-95">
-                            <Check size={14} /> 全员配置与气泡样式已保存！
-                        </span>
-                    )}
-
-                    <button
-                        type="button"
-                        onClick={handleSaveRoster}
-                        disabled={saving}
-                        className="px-6 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold text-xs rounded-2xl shadow-md active:scale-95 transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
-                    >
-                        {saving ? <RefreshCw size={15} className="animate-spin" /> : <Save size={15} />}
-                        <span>保存全员配置与气泡</span>
-                    </button>
-                </div>
-            </div>
-
-            {/* Agent Selector Ribbon */}
-            <div className="flex items-center gap-3 overflow-x-auto pb-2 scrollbar-none">
-                {agentKeys.map(key => {
-                    const agent = roster[key];
-                    if (!agent) return null;
-                    const isSelected = selectedAgentKey === key;
-                    return (
-                        <button
-                            key={key}
-                            type="button"
-                            onClick={() => setSelectedAgentKey(key)}
-                            className={`flex items-center gap-3 px-4 py-3 rounded-2xl border-2 transition-all shrink-0 cursor-pointer ${
-                                isSelected
-                                    ? 'bg-white border-purple-600 shadow-md ring-2 ring-purple-400/20'
-                                    : 'bg-white/70 border-white/80 hover:bg-white hover:border-purple-200'
-                            }`}
-                        >
-                            <img
-                                src={agent.avatar}
-                                alt={agent.name}
-                                className="w-10 h-10 rounded-xl object-cover border border-white shadow-xs"
-                                onError={(e) => {
-                                    (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?q=80&w=200&auto=format&fit=crop";
-                                }}
-                            />
-                            <div className="text-left">
-                                <div className="font-black text-[13.5px] text-[#4a4365] flex items-center gap-1.5">
-                                    <span>{agent.name}</span>
-                                    <span
-                                        className="w-2.5 h-2.5 rounded-full inline-block shrink-0"
-                                        style={{ backgroundColor: agent.bubbleColor }}
-                                    />
-                                </div>
-                                <div className="text-[11px] text-[#8a84a4] font-medium">{agent.title}</div>
-                            </div>
-                        </button>
-                    );
-                })}
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-                {/* Left: Agent Profile (with collapse button) + Live Sandbox Preview (6 cols) */}
-                <div className="lg:col-span-6 space-y-5">
-                    {/* 1. Agent Profile Configuration Card (Collapsible) */}
-                    <div className="bg-white/85 backdrop-blur-xl rounded-[32px] p-6 sm:p-7 border border-white/80 shadow-sm space-y-4">
-                        {/* Title bar with Collapse/Expand Button */}
-                        <div className="flex items-center justify-between border-b border-purple-50 pb-3">
-                            <h3 className="text-[15px] font-black text-[#4a4365] flex items-center gap-2">
-                                <Sliders size={17} className="text-purple-600" />
-                                <span>智能体档案：{currentAgent.name}</span>
-                            </h3>
+                    <div className="flex items-center gap-2 flex-wrap">
+                        {/* Sub Tab Switcher */}
+                        <div className="inline-flex p-1 bg-[#f5f1fc] rounded-2xl border border-purple-100 shadow-2xs">
+                            <button
+                                type="button"
+                                onClick={() => setSubTab('clones')}
+                                className={`px-4 py-2 rounded-xl text-[12.5px] font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                                    subTab === 'clones'
+                                        ? 'bg-white text-purple-700 shadow-sm'
+                                        : 'text-[#7a7398] hover:text-[#4a4365]'
+                                }`}
+                            >
+                                <BrainCircuit size={15} />
+                                <span>决策智能体矩阵 ({cloneList.length})</span>
+                            </button>
 
                             <button
                                 type="button"
-                                onClick={() => setIsProfileCollapsed(!isProfileCollapsed)}
-                                className="px-3 py-1 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 text-[11.5px] font-bold flex items-center gap-1.5 transition-colors cursor-pointer border border-purple-100"
+                                onClick={() => setSubTab('core_agents')}
+                                className={`px-4 py-2 rounded-xl text-[12.5px] font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                                    subTab === 'core_agents'
+                                        ? 'bg-white text-purple-700 shadow-sm'
+                                        : 'text-[#7a7398] hover:text-[#4a4365]'
+                                }`}
                             >
-                                <span>{isProfileCollapsed ? '展开档案' : '折叠档案'}</span>
-                                {isProfileCollapsed ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
+                                <Users size={15} />
+                                <span>核心实体人设 (Dr. Elena / 丽丽)</span>
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={() => setSubTab('bubble_skin')}
+                                className={`px-4 py-2 rounded-xl text-[12.5px] font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                                    subTab === 'bubble_skin'
+                                        ? 'bg-white text-purple-700 shadow-sm'
+                                        : 'text-[#7a7398] hover:text-[#4a4365]'
+                                }`}
+                            >
+                                <Palette size={15} />
+                                <span>气泡皮肤与微调</span>
                             </button>
                         </div>
 
-                        {/* Collapsed Summary Strip */}
-                        {isProfileCollapsed ? (
-                            <div className="p-3 bg-[#f8f6fc] rounded-2xl border border-purple-100/60 flex items-center justify-between gap-3 text-xs animate-in fade-in">
-                                <div className="flex items-center gap-2.5">
-                                    <img
-                                        src={currentAgent.avatar}
-                                        alt={currentAgent.name}
-                                        className="w-9 h-9 rounded-xl object-cover border border-purple-200 shadow-xs"
-                                    />
-                                    <div>
-                                        <div className="font-black text-[#4a4365] flex items-center gap-1.5">
-                                            <span>{currentAgent.name}</span>
-                                            <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-purple-100 text-purple-700 font-bold">
-                                                {currentAgent.title}
-                                            </span>
-                                        </div>
-                                        <div className="text-[10.5px] text-[#8a84a4] truncate max-w-[260px] mt-0.5">
-                                            {currentAgent.systemPrompt?.slice(0, 45)}...
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className="flex items-center gap-2 shrink-0">
-                                    <span
-                                        className="w-3.5 h-3.5 rounded-full border border-white shadow-xs"
-                                        style={{ backgroundColor: currentAgent.bubbleColor }}
-                                        title={`Accent 色: ${currentAgent.bubbleColor}`}
-                                    />
-                                    <span className="text-[10.5px] text-[#6b6488] font-bold">
-                                        {DEFAULT_VOICES.find(v => v.id === currentAgent.voice)?.name.split(' ')[0] || '默认语音'}
-                                    </span>
-                                </div>
-                            </div>
-                        ) : (
-                            /* Expanded Full Profile Form */
-                            <div className="space-y-4 animate-in fade-in">
-                                {/* Name & Title */}
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                                    <div className="space-y-1">
-                                        <label className="text-[11.5px] font-bold text-[#6b6488]">角色名称</label>
-                                        <input
-                                            type="text"
-                                            value={currentAgent.name}
-                                            onChange={(e) => updateCurrentAgent('name', e.target.value)}
-                                            className="w-full px-3.5 py-2.5 rounded-2xl bg-[#f8f6fc] border border-purple-100 text-[13px] text-[#4a4365] font-bold focus:ring-2 focus:ring-purple-400 outline-none"
-                                        />
-                                    </div>
-
-                                    <div className="space-y-1">
-                                        <label className="text-[11.5px] font-bold text-[#6b6488]">称号 / 身份头衔</label>
-                                        <input
-                                            type="text"
-                                            value={currentAgent.title}
-                                            onChange={(e) => updateCurrentAgent('title', e.target.value)}
-                                            className="w-full px-3.5 py-2.5 rounded-2xl bg-[#f8f6fc] border border-purple-100 text-[13px] text-[#4a4365] focus:ring-2 focus:ring-purple-400 outline-none"
-                                        />
-                                    </div>
-                                </div>
-
-                                {/* Avatar Settings */}
-                                <div className="space-y-1.5">
-                                    <label className="text-[11.5px] font-bold text-[#6b6488] flex items-center justify-between">
-                                        <span>头像设置 (URL 或本地上传)</span>
-                                        <span className="text-[10px] text-[#a494e8]">支持高清网络图片/本地图片</span>
-                                    </label>
-                                    <div className="flex items-center gap-2.5">
-                                        <img
-                                            src={currentAgent.avatar}
-                                            alt="avatar preview"
-                                            className="w-11 h-11 rounded-2xl object-cover border-2 border-purple-200 shadow-sm shrink-0"
-                                        />
-                                        <input
-                                            type="text"
-                                            value={currentAgent.avatar}
-                                            onChange={(e) => updateCurrentAgent('avatar', e.target.value)}
-                                            placeholder="https://... 头像网络地址"
-                                            className="flex-1 px-3.5 py-2 rounded-2xl bg-[#f8f6fc] border border-purple-100 text-[11.5px] text-[#4a4365] focus:ring-2 focus:ring-purple-400 outline-none"
-                                        />
-                                        <label className="px-3 py-2 rounded-2xl bg-purple-50 hover:bg-purple-100 text-purple-700 text-[11.5px] font-bold border border-purple-200 cursor-pointer shrink-0 transition-colors">
-                                            <span>上传</span>
-                                            <input type="file" accept="image/*" onChange={handleAvatarUpload} className="hidden" />
-                                        </label>
-                                    </div>
-                                </div>
-
-                                {/* Color & Voice Selection */}
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                                    {/* Bubble Color */}
-                                    <div className="space-y-1">
-                                        <label className="text-[11.5px] font-bold text-[#6b6488] flex items-center gap-1">
-                                            <Palette size={13} /> 专属身份 Accent 颜色
-                                        </label>
-                                        <div className="flex items-center gap-2">
-                                            <input
-                                                type="color"
-                                                value={currentAgent.bubbleColor}
-                                                onChange={(e) => updateCurrentAgent('bubbleColor', e.target.value)}
-                                                className="w-9 h-9 rounded-xl border border-purple-100 cursor-pointer p-0.5"
-                                            />
-                                            <input
-                                                type="text"
-                                                value={currentAgent.bubbleColor}
-                                                onChange={(e) => updateCurrentAgent('bubbleColor', e.target.value)}
-                                                className="flex-1 px-3 py-1.5 rounded-2xl bg-[#f8f6fc] border border-purple-100 text-[12px] text-[#4a4365] font-mono outline-none"
-                                            />
-                                        </div>
-                                    </div>
-
-                                    {/* Voice Actor */}
-                                    <div className="space-y-1">
-                                        <label className="text-[11.5px] font-bold text-[#6b6488] flex items-center justify-between">
-                                            <span className="flex items-center gap-1"><Music size={13} /> TTS 专属发音人</span>
-                                            <button
-                                                type="button"
-                                                onClick={handleTestVoice}
-                                                className="text-[10.5px] text-purple-600 hover:text-purple-800 font-bold flex items-center gap-1 cursor-pointer"
-                                            >
-                                                {testingVoice ? <VolumeX size={12} className="text-red-500 animate-pulse" /> : <Volume2 size={12} />}
-                                                <span>{testingVoice ? '停止' : '试听'}</span>
-                                            </button>
-                                        </label>
-                                        <select
-                                            value={currentAgent.voice}
-                                            onChange={(e) => updateCurrentAgent('voice', e.target.value)}
-                                            className="w-full px-3 py-2 rounded-2xl bg-[#f8f6fc] border border-purple-100 text-[12px] text-[#4a4365] font-medium outline-none focus:ring-2 focus:ring-purple-400"
-                                        >
-                                            {DEFAULT_VOICES.map(v => (
-                                                <option key={v.id} value={v.id}>{v.name}</option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                </div>
-
-                                {/* System Prompt Instructions */}
-                                <div className="space-y-1 pt-1">
-                                    <label className="text-[11.5px] font-bold text-[#6b6488] flex items-center justify-between">
-                                        <span className="flex items-center gap-1"><Edit3 size={13} /> 专属 System Prompt</span>
-                                        <span className="text-[10px] text-[#a494e8]">定义专属职责与详略规则</span>
-                                    </label>
-                                    <textarea
-                                        rows={4}
-                                        value={currentAgent.systemPrompt || ''}
-                                        onChange={(e) => updateCurrentAgent('systemPrompt', e.target.value)}
-                                        className="w-full px-3.5 py-2.5 rounded-2xl bg-[#f8f6fc] border border-purple-100 text-[12px] text-[#4a4365] leading-relaxed focus:ring-2 focus:ring-purple-400 outline-none resize-y"
-                                        placeholder="输入该智能体的系统提示词..."
-                                    />
-                                </div>
-                            </div>
-                        )}
-                    </div>
-
-                    {/* 2. Live Sandbox Interactive Preview (Now placed prominently on the Left!) */}
-                    <div className="bg-white/85 backdrop-blur-xl rounded-[32px] p-6 border border-white/80 shadow-sm space-y-3">
-                        <h4 className="font-black text-[#4a4365] text-[13.5px] flex items-center justify-between">
-                            <span className="flex items-center gap-1.5">
-                                <Eye size={15} className="text-purple-600" />
-                                实时群聊渲染沙盒 ({themeConfig.name})
-                            </span>
-                            <span className="text-[10px] text-[#8a84a4]">
-                                参数即刻渲染
-                            </span>
-                        </h4>
-
-                        <div className="bg-[#ede8f8]/60 p-4 rounded-3xl space-y-3 border border-purple-100/50">
-                            {/* Simulated User Message */}
-                            <div className="flex justify-end">
-                                <div
-                                    className={`text-[12.5px] px-4 py-2.5 max-w-[85%] ${themeConfig.userClass}`}
-                                    style={{
-                                        borderRadius: `${bubbleSettings.borderRadius}px`,
-                                        ...(bubbleSettings.showTail ? { borderBottomRightRadius: '3px' } : {})
-                                    }}
-                                >
-                                    请问在广州大学大学城校区，这方面有什么具体规章？
-                                </div>
-                            </div>
-
-                            {/* Simulated Agent Reply */}
-                            <div className="flex items-start gap-2.5">
-                                <img
-                                    src={currentAgent.avatar}
-                                    alt={currentAgent.name}
-                                    className="w-10 h-10 rounded-2xl object-cover border-2 border-white shadow-sm shrink-0"
-                                />
-                                <div className="space-y-1.5 max-w-[85%]">
-                                    <div className="flex items-center gap-1.5">
-                                        <span className="font-black text-[12px]" style={{ color: currentAgent.bubbleColor }}>
-                                            {currentAgent.name}
-                                        </span>
-                                        <span className="text-[9.5px] px-1.5 py-0.2 rounded-full bg-purple-50 text-purple-700 font-bold border border-purple-100">
-                                            {currentAgent.title}
-                                        </span>
-                                    </div>
-
-                                    {/* Optional Thought Chain Box Preview */}
-                                    {bubbleSettings.showThinkingBox && (
-                                        <div className="rounded-2xl border border-purple-100/90 bg-[#fbf9fe] p-2.5 text-[11px] text-[#7a7398] shadow-xs">
-                                            <div className="flex items-center justify-between font-bold text-purple-700">
-                                                <span className="flex items-center gap-1">
-                                                    <BrainCircuit size={12} className="text-purple-600" />
-                                                    <span>思考过程 (已检索 targetAgent: {currentAgent.key})</span>
-                                                </span>
-                                            </div>
-                                            <div className="mt-1 text-[10px] text-[#6b6488] leading-tight">
-                                                已锁定所属规章，正在以权威且亲切的口吻作答...
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {/* Bot Bubble */}
-                                    <div
-                                        className={`text-[12.5px] px-4 py-3 ${themeConfig.botClass} space-y-1.5`}
-                                        style={{
-                                            borderRadius: `${bubbleSettings.borderRadius}px`,
-                                            ...(bubbleSettings.showTail ? { borderTopLeftRadius: '3px' } : {}),
-                                            ...(bubbleSettings.accentBarWidth > 0
-                                                ? { borderLeft: `${bubbleSettings.accentBarWidth}px solid ${currentAgent.bubbleColor}` }
-                                                : {})
-                                        }}
-                                    >
-                                        <div>同学你好！针对你咨询的问题，官方规章明确如下：</div>
-                                        <div className="text-[11.5px] text-[#7a7398] bg-black/5 p-2 rounded-xl">
-                                            📌 核心指引：请务必遵守校方条例，有疑问随时在群里 @ 我！
-                                        </div>
-                                        <div className="text-[11.5px] pt-0.5">
-                                            祝你在广州大学学习生活愉快！✨
-                                        </div>
-
-                                        {/* Action Toolbar Preview */}
-                                        {bubbleSettings.showActions && (
-                                            <div className="flex items-center justify-end gap-2 pt-1 border-t border-black/5 text-[10px] text-gray-400">
-                                                <span>复制</span>
-                                                <span>·</span>
-                                                <span>朗读</span>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Right: Deep Bubble Customization Studio (6 cols) */}
-                <div className="lg:col-span-6 space-y-5">
-                    {/* Deep Customization Parameters Workbench */}
-                    <div className="bg-white/85 backdrop-blur-xl rounded-[32px] p-6 border border-white/80 shadow-sm space-y-4">
-                        <div className="flex items-center justify-between border-b border-purple-50 pb-2.5">
-                            <h4 className="font-black text-[#4a4365] text-[14.5px] flex items-center gap-1.5">
-                                <SlidersHorizontal size={17} className="text-purple-600" />
-                                气泡组件库与形态深度自定义工坊
-                            </h4>
-                            <span className="text-[10.5px] px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 font-bold">
-                                实时生效
-                            </span>
-                        </div>
-
-                        {/* UI Package Tabs (AntDesign, ChatScope, AssistantUI, iOS, Classic) */}
-                        <div className="space-y-1.5">
-                            <label className="text-[11px] font-black text-[#6b6488] uppercase tracking-wider">
-                                1. 选择基础 UI 组件库体系
-                            </label>
-                            <div className="flex flex-wrap gap-1.5">
-                                {availableGroups.map(groupName => (
-                                    <button
-                                        key={groupName}
-                                        type="button"
-                                        onClick={() => setSelectedGroup(groupName)}
-                                        className={`px-3 py-1.5 rounded-xl text-[11.5px] font-bold transition-all cursor-pointer ${
-                                            selectedGroup === groupName
-                                                ? 'bg-purple-600 text-white shadow-xs'
-                                                : 'bg-[#f4f0fa] text-[#6b6488] hover:bg-white hover:text-purple-700'
-                                        }`}
-                                    >
-                                        {groupName}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-
-                        {/* Variant Shapes Grid */}
-                        <div className="space-y-1.5">
-                            <label className="text-[11px] font-black text-[#6b6488] uppercase tracking-wider">
-                                2. 选择该体系下的子变体形态 (Variants)
-                            </label>
-                            <div className="grid grid-cols-2 gap-2">
-                                {filteredThemes.map((theme) => {
-                                    const isSelected = bubbleSettings.themeId === theme.id;
-                                    return (
-                                        <button
-                                            key={theme.id}
-                                            type="button"
-                                            onClick={() => updateBubbleSetting('themeId', theme.id)}
-                                            className={`p-2.5 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
-                                                isSelected
-                                                    ? 'bg-purple-50/90 border-purple-600 shadow-xs ring-1 ring-purple-400'
-                                                    : 'bg-[#faf8fd] border-purple-100 hover:bg-white hover:border-purple-300'
-                                            }`}
-                                        >
-                                            <div className="flex items-center justify-between">
-                                                <span className="text-base">{theme.icon}</span>
-                                                {isSelected && <CheckCircle2 size={14} className="text-purple-600" />}
-                                            </div>
-                                            <div className="font-black text-[11.5px] text-[#4a4365] mt-1 truncate">
-                                                {theme.name.split(' - ')[1] || theme.name}
-                                            </div>
-                                            <div className="text-[9px] text-[#8a84a4] line-clamp-1 mt-0.5">
-                                                {theme.description}
-                                            </div>
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                        </div>
-
-                        {/* Fine-Tuning Parameter Sliders & Toggles */}
-                        <div className="space-y-3 pt-2 border-t border-purple-50">
-                            <label className="text-[11px] font-black text-[#6b6488] uppercase tracking-wider">
-                                3. 气泡微观形态参数微调
-                            </label>
-
-                            {/* Slider 1: Border Radius */}
-                            <div className="space-y-1">
-                                <div className="flex justify-between text-[11px] font-bold text-[#6b6488]">
-                                    <span>圆角曲率 (Border Radius)</span>
-                                    <span className="text-purple-600">{bubbleSettings.borderRadius}px</span>
-                                </div>
-                                <input
-                                    type="range"
-                                    min={8}
-                                    max={32}
-                                    step={2}
-                                    value={bubbleSettings.borderRadius}
-                                    onChange={(e) => updateBubbleSetting('borderRadius', Number(e.target.value))}
-                                    className="w-full accent-purple-600 cursor-pointer h-1.5 bg-purple-100 rounded-lg"
-                                />
-                            </div>
-
-                            {/* Slider 2: Accent Bar Width */}
-                            <div className="space-y-1">
-                                <div className="flex justify-between text-[11px] font-bold text-[#6b6488]">
-                                    <span>左侧身份色指示条 (Accent Bar)</span>
-                                    <span className="text-purple-600">{bubbleSettings.accentBarWidth}px</span>
-                                </div>
-                                <input
-                                    type="range"
-                                    min={0}
-                                    max={6}
-                                    step={0.5}
-                                    value={bubbleSettings.accentBarWidth}
-                                    onChange={(e) => updateBubbleSetting('accentBarWidth', Number(e.target.value))}
-                                    className="w-full accent-purple-600 cursor-pointer h-1.5 bg-purple-100 rounded-lg"
-                                />
-                            </div>
-
-                            {/* Toggle Switches */}
-                            <div className="grid grid-cols-3 gap-2 pt-1">
-                                <button
-                                    type="button"
-                                    onClick={() => updateBubbleSetting('showTail', !bubbleSettings.showTail)}
-                                    className={`p-2 rounded-xl text-[10.5px] font-bold border transition-all cursor-pointer text-center ${
-                                        bubbleSettings.showTail
-                                            ? 'bg-purple-100 text-purple-700 border-purple-300'
-                                            : 'bg-[#faf8fd] text-gray-500 border-purple-100'
-                                    }`}
-                                >
-                                    拟真尖角: {bubbleSettings.showTail ? '开启' : '关闭'}
-                                </button>
-
-                                <button
-                                    type="button"
-                                    onClick={() => updateBubbleSetting('showActions', !bubbleSettings.showActions)}
-                                    className={`p-2 rounded-xl text-[10.5px] font-bold border transition-all cursor-pointer text-center ${
-                                        bubbleSettings.showActions
-                                            ? 'bg-purple-100 text-purple-700 border-purple-300'
-                                            : 'bg-[#faf8fd] text-gray-500 border-purple-100'
-                                    }`}
-                                >
-                                    悬浮操作栏: {bubbleSettings.showActions ? '开启' : '关闭'}
-                                </button>
-
-                                <button
-                                    type="button"
-                                    onClick={() => updateBubbleSetting('showThinkingBox', !bubbleSettings.showThinkingBox)}
-                                    className={`p-2 rounded-xl text-[10.5px] font-bold border transition-all cursor-pointer text-center ${
-                                        bubbleSettings.showThinkingBox
-                                            ? 'bg-purple-100 text-purple-700 border-purple-300'
-                                            : 'bg-[#faf8fd] text-gray-500 border-purple-100'
-                                    }`}
-                                >
-                                    思考链框: {bubbleSettings.showThinkingBox ? '开启' : '关闭'}
-                                </button>
-                            </div>
-                        </div>
+                        <button
+                            type="button"
+                            onClick={fetchAllData}
+                            disabled={loading}
+                            className="p-2.5 rounded-2xl bg-[#f8f6fc] text-gray-500 hover:text-purple-600 hover:bg-purple-50 transition-all cursor-pointer"
+                            title="刷新配置"
+                        >
+                            <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+                        </button>
                     </div>
                 </div>
             </div>
+
+            {/* TAB 1: 决策智能体矩阵与分身工坊 (Thought Clones Workshop) */}
+            {subTab === 'clones' && (
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                    {/* Left: Dynamic Clones Selector List */}
+                    <div className="lg:col-span-4 space-y-3">
+                        <div className="flex items-center justify-between px-2">
+                            <span className="text-[12px] font-bold text-[#8a84a4] uppercase tracking-wider">
+                                决策智能体列表 ({cloneList.length})
+                            </span>
+                            <div className="flex items-center gap-1.5">
+                                <button
+                                    type="button"
+                                    onClick={handleCreateNewClone}
+                                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-[11px] font-bold shadow-xs active:scale-95 transition-all cursor-pointer"
+                                >
+                                    <Plus size={13} />
+                                    <span>新建分身</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={handleResetAllClones}
+                                    className="p-1.5 rounded-xl bg-[#f8f6fc] text-gray-500 hover:text-purple-600 text-[11px] font-bold transition-colors cursor-pointer"
+                                    title="恢复默认矩阵"
+                                >
+                                    <RotateCcw size={13} />
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="space-y-2 max-h-[720px] overflow-y-auto pr-1">
+                            {cloneList.map((clone) => {
+                                const isSelected = selectedCloneId === clone.roleId;
+                                const isEnabled = clone.enabled !== false;
+
+                                return (
+                                    <div
+                                        key={clone.roleId}
+                                        className={`w-full p-3.5 rounded-2xl border transition-all flex items-center gap-3 relative ${
+                                            isSelected
+                                                ? 'bg-white border-purple-400 shadow-[0_8px_20px_rgba(168,85,247,0.18)] translate-x-1'
+                                                : 'bg-white/70 hover:bg-white border-white/80 hover:border-purple-200 shadow-2xs'
+                                        } ${!isEnabled ? 'opacity-60 bg-gray-50/70' : ''}`}
+                                    >
+                                        <button
+                                            type="button"
+                                            onClick={() => setSelectedCloneId(clone.roleId)}
+                                            className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-2xs text-white cursor-pointer"
+                                            style={{ backgroundColor: clone.color || '#8b5cf6' }}
+                                        >
+                                            {getIconComponent(clone.icon)}
+                                        </button>
+
+                                        <div
+                                            onClick={() => setSelectedCloneId(clone.roleId)}
+                                            className="flex-1 min-w-0 cursor-pointer"
+                                        >
+                                            <div className="flex items-center justify-between gap-1">
+                                                <div className="text-[13px] font-bold text-[#4a4365] truncate flex items-center gap-1.5">
+                                                    <span>{clone.name}</span>
+                                                    {clone.isCustom && (
+                                                        <span className="text-[9.5px] px-1.5 py-0.2 rounded bg-amber-50 text-amber-700 font-bold border border-amber-200">
+                                                            自定义
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <span
+                                                    className="text-[10px] font-black px-2 py-0.5 rounded-md shrink-0 text-white shadow-2xs"
+                                                    style={{ backgroundColor: clone.color || '#8b5cf6' }}
+                                                >
+                                                    {clone.tag}
+                                                </span>
+                                            </div>
+                                            <div className="text-[10.5px] text-[#8a84a4] truncate mt-0.5">
+                                                {clone.description || (clone.keywords ? clone.keywords.slice(0, 4).join(', ') : '专业决策内核')}
+                                            </div>
+                                        </div>
+
+                                        {/* Toggle Active Switch */}
+                                        <button
+                                            type="button"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setClonesState(prev => ({
+                                                    ...prev,
+                                                    [clone.roleId]: { ...clone, enabled: !isEnabled }
+                                                }));
+                                            }}
+                                            className={`p-1 rounded-lg transition-colors cursor-pointer shrink-0 ${
+                                                isEnabled ? 'text-purple-600 hover:text-purple-800' : 'text-gray-400 hover:text-gray-600'
+                                            }`}
+                                            title={isEnabled ? '已启用（点击停用）' : '已停用（点击启用）'}
+                                        >
+                                            {isEnabled ? <ToggleRight size={22} /> : <ToggleLeft size={22} />}
+                                        </button>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+
+                    {/* Right: Selected Clone Detailed Editor & Testing Console */}
+                    <div className="lg:col-span-8 space-y-6">
+                        <div className="bg-white/90 backdrop-blur-xl rounded-[32px] p-6 border border-white/80 shadow-[0_8px_25px_rgba(186,175,215,0.18)] space-y-5">
+                            {/* Card Header */}
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-purple-50">
+                                <div className="flex items-center gap-3">
+                                    <div
+                                        className="w-11 h-11 rounded-2xl flex items-center justify-center text-white shadow-md"
+                                        style={{ backgroundColor: currentCloneConfig.color || '#8b5cf6' }}
+                                    >
+                                        {getIconComponent(currentCloneConfig.icon)}
+                                    </div>
+                                    <div>
+                                        <div className="flex items-center gap-2">
+                                            <h4 className="font-black text-[#4a4365] text-[17px]">
+                                                {currentCloneConfig.name}
+                                            </h4>
+                                            <span className="text-[11px] font-mono px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 font-bold border border-purple-100">
+                                                {currentCloneConfig.roleId}
+                                            </span>
+                                            {currentCloneConfig.enabled === false && (
+                                                <span className="text-[11px] px-2 py-0.5 rounded-md bg-gray-100 text-gray-500 font-bold">
+                                                    已停用
+                                                </span>
+                                            )}
+                                        </div>
+                                        <p className="text-[11.5px] text-[#8a84a4] mt-0.5">
+                                            {currentCloneConfig.description || '协同多智能体并发研判，提供专业维度的决策支撑'}
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <div className="flex items-center gap-2">
+                                    {cloneList.length > 1 && (
+                                        <button
+                                            type="button"
+                                            onClick={() => handleDeleteClone(selectedCloneId)}
+                                            className="flex items-center gap-1 px-3 py-2.5 rounded-2xl bg-red-50 hover:bg-red-100 text-red-600 text-[12px] font-bold transition-all cursor-pointer shrink-0"
+                                            title="删除此分身"
+                                        >
+                                            <Trash2 size={15} />
+                                            <span>删除分身</span>
+                                        </button>
+                                    )}
+
+                                    <button
+                                        type="button"
+                                        onClick={handleSaveClones}
+                                        disabled={saving}
+                                        className="flex items-center gap-1.5 px-5 py-2.5 rounded-2xl bg-purple-600 hover:bg-purple-700 text-white text-[13px] font-bold shadow-md hover:shadow-lg active:scale-95 transition-all cursor-pointer shrink-0"
+                                    >
+                                        {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+                                        <span>{saveSuccess ? '已保存！' : '保存矩阵配置'}</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Name, Tag & Color Inputs */}
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                <div>
+                                    <label className="text-[11.5px] font-bold text-[#4a4365] block mb-1">
+                                        分身展示名称
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={currentCloneConfig.name}
+                                        onChange={(e) => {
+                                            const val = e.target.value;
+                                            setClonesState(prev => ({
+                                                ...prev,
+                                                [selectedCloneId]: { ...currentCloneConfig, name: val }
+                                            }));
+                                        }}
+                                        className="w-full bg-[#f8f6fc] rounded-xl px-4 py-2.5 text-[13px] font-bold text-[#4a4365] outline-none border border-transparent focus:border-purple-300"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="text-[11.5px] font-bold text-[#4a4365] block mb-1">
+                                        单行胶囊展示标签 (Tag)
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={currentCloneConfig.tag}
+                                        onChange={(e) => {
+                                            const val = e.target.value;
+                                            setClonesState(prev => ({
+                                                ...prev,
+                                                [selectedCloneId]: { ...currentCloneConfig, tag: val }
+                                            }));
+                                        }}
+                                        className="w-full bg-[#f8f6fc] rounded-xl px-4 py-2.5 text-[13px] font-bold text-purple-700 outline-none border border-transparent focus:border-purple-300"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="text-[11.5px] font-bold text-[#4a4365] block mb-1">
+                                        代表强调色彩
+                                    </label>
+                                    <div className="flex items-center gap-2">
+                                        <input
+                                            type="color"
+                                            value={currentCloneConfig.color || '#8b5cf6'}
+                                            onChange={(e) => {
+                                                const val = e.target.value;
+                                                setClonesState(prev => ({
+                                                    ...prev,
+                                                    [selectedCloneId]: { ...currentCloneConfig, color: val }
+                                                }));
+                                            }}
+                                            className="w-10 h-10 rounded-xl cursor-pointer border-0 bg-transparent p-0"
+                                        />
+                                        <div className="flex flex-wrap gap-1 flex-1">
+                                            {PRESET_COLOR_PALETTES.slice(0, 6).map(c => (
+                                                <button
+                                                    key={c}
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setClonesState(prev => ({
+                                                            ...prev,
+                                                            [selectedCloneId]: { ...currentCloneConfig, color: c }
+                                                        }));
+                                                    }}
+                                                    className="w-5 h-5 rounded-full border border-white shadow-2xs cursor-pointer hover:scale-110 transition-transform"
+                                                    style={{ backgroundColor: c }}
+                                                />
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Trigger Keywords Pills */}
+                            <div>
+                                <div className="flex items-center justify-between mb-1.5">
+                                    <label className="text-[11.5px] font-bold text-[#4a4365] flex items-center gap-1">
+                                        <Tag size={13} className="text-purple-600" /> 意图触发关键词列表 (Hits)
+                                    </label>
+                                    <span className="text-[10.5px] text-gray-400">
+                                        命中此列表中词汇时，系统将动态唤醒本分身参与研判
+                                    </span>
+                                </div>
+
+                                <div className="p-3 bg-[#f8f6fc] rounded-2xl border border-purple-50 flex flex-wrap gap-2 items-center min-h-[50px]">
+                                    {(currentCloneConfig.keywords || []).map((kw, idx) => (
+                                        <span
+                                            key={idx}
+                                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-white border border-purple-200/80 text-[11.5px] font-bold text-[#4a4365] shadow-2xs"
+                                        >
+                                            <span>{kw}</span>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    const updatedKw = currentCloneConfig.keywords.filter((_, i) => i !== idx);
+                                                    setClonesState(prev => ({
+                                                        ...prev,
+                                                        [selectedCloneId]: { ...currentCloneConfig, keywords: updatedKw }
+                                                    }));
+                                                }}
+                                                className="text-gray-400 hover:text-red-500 transition-colors ml-0.5 cursor-pointer"
+                                            >
+                                                ×
+                                            </button>
+                                        </span>
+                                    ))}
+
+                                    <div className="flex items-center gap-1">
+                                        <input
+                                            type="text"
+                                            value={newKeywordInput}
+                                            onChange={(e) => setNewKeywordInput(e.target.value)}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter' && newKeywordInput.trim()) {
+                                                    e.preventDefault();
+                                                    const kw = newKeywordInput.trim();
+                                                    if (!currentCloneConfig.keywords.includes(kw)) {
+                                                        const updated = [...currentCloneConfig.keywords, kw];
+                                                        setClonesState(prev => ({
+                                                            ...prev,
+                                                            [selectedCloneId]: { ...currentCloneConfig, keywords: updated }
+                                                        }));
+                                                    }
+                                                    setNewKeywordInput('');
+                                                }
+                                            }}
+                                            placeholder="+ 输入词按回车添加..."
+                                            className="bg-transparent px-2 py-1 text-[11.5px] text-[#4a4365] outline-none placeholder:text-gray-400 min-w-[120px]"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* System Prompt */}
+                            <div>
+                                <label className="text-[11.5px] font-bold text-[#4a4365] block mb-1">
+                                    专业审视人设与研判指令 (System Prompt)
+                                </label>
+                                <textarea
+                                    value={currentCloneConfig.systemPrompt}
+                                    onChange={(e) => {
+                                        const val = e.target.value;
+                                        setClonesState(prev => ({
+                                            ...prev,
+                                            [selectedCloneId]: { ...currentCloneConfig, systemPrompt: val }
+                                        }));
+                                    }}
+                                    rows={4}
+                                    className="w-full bg-[#f8f6fc] rounded-2xl p-4 text-[12.5px] font-mono text-[#39334d] outline-none border border-transparent focus:border-purple-300 resize-y leading-relaxed"
+                                />
+                            </div>
+
+                            {/* Live Test Runner */}
+                            <div className="pt-4 border-t border-purple-50 space-y-3">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-[12px] font-bold text-[#4a4365] flex items-center gap-1.5">
+                                        <Play size={13} className="text-emerald-600 fill-emerald-500" />
+                                        分身即时研判控制台 (Live Output Preview)
+                                    </span>
+                                    <span className="text-[10px] text-gray-400 font-mono">
+                                        并发研判耗时 ~200-400ms · 限制字数 &lt;= 60字
+                                    </span>
+                                </div>
+
+                                <div className="flex gap-2">
+                                    <input
+                                        type="text"
+                                        value={cloneTestingQuery}
+                                        onChange={(e) => setCloneTestingQuery(e.target.value)}
+                                        placeholder="输入测试问题验证此分身研判输出..."
+                                        className="flex-1 bg-[#f8f6fc] rounded-xl px-4 py-2 text-[12.5px] outline-none border border-transparent focus:border-purple-300"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={handleTestCloneReasoning}
+                                        disabled={cloneTestingLoading}
+                                        className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[12px] shadow-xs active:scale-95 transition-all cursor-pointer shrink-0 flex items-center gap-1"
+                                    >
+                                        {cloneTestingLoading ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
+                                        <span>运行推演</span>
+                                    </button>
+                                </div>
+
+                                {cloneTestingResult && (
+                                    <div className="p-3.5 rounded-2xl bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-100 flex items-start gap-2.5 animate-in fade-in">
+                                        <span
+                                            className="text-[11px] font-black px-2 py-0.5 rounded-md text-white shrink-0 mt-0.5 shadow-2xs"
+                                            style={{ backgroundColor: currentCloneConfig.color || '#8b5cf6' }}
+                                        >
+                                            {currentCloneConfig.tag}
+                                        </span>
+                                        <p className="text-[12px] font-medium text-[#4a4365] leading-relaxed">
+                                            {cloneTestingResult}
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* TAB 2: 核心实体人设 (Dr. Elena & 丽丽学姐) */}
+            {subTab === 'core_agents' && (
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                    {/* Left: Core Agents Selector */}
+                    <div className="lg:col-span-4 space-y-3">
+                        <div className="px-2">
+                            <span className="text-[12px] font-bold text-[#8a84a4] uppercase tracking-wider">
+                                核心实体角色定位
+                            </span>
+                        </div>
+
+                        {/* Dr. Elena */}
+                        <button
+                            type="button"
+                            onClick={() => setSelectedCoreKey('dr')}
+                            className={`w-full p-4 rounded-2xl border text-left transition-all cursor-pointer flex items-center gap-3.5 relative ${
+                                selectedCoreKey === 'dr'
+                                    ? 'bg-white border-purple-400 shadow-[0_8px_20px_rgba(168,85,247,0.18)] translate-x-1'
+                                    : 'bg-white/70 hover:bg-white border-white/80 shadow-2xs'
+                            }`}
+                        >
+                            <img
+                                src={coreAgents.dr?.avatar || CORE_FALLBACK_AGENTS.dr.avatar}
+                                alt="Dr. Elena"
+                                className="w-12 h-12 rounded-2xl object-cover border border-purple-200 shadow-sm shrink-0"
+                            />
+                            <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-1.5">
+                                    <span className="text-[14px] font-black text-[#4a4365]">
+                                        {coreAgents.dr?.name || 'Dr. Elena'}
+                                    </span>
+                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-100">
+                                        全局首席顾问
+                                    </span>
+                                </div>
+                                <p className="text-[11px] text-[#8a84a4] truncate mt-0.5">
+                                    高招咨询全局主脑 · 决策分身推演总装
+                                </p>
+                            </div>
+                        </button>
+
+                        {/* Lili */}
+                        <button
+                            type="button"
+                            onClick={() => setSelectedCoreKey('senior_girl')}
+                            className={`w-full p-4 rounded-2xl border text-left transition-all cursor-pointer flex items-center gap-3.5 relative ${
+                                selectedCoreKey === 'senior_girl'
+                                    ? 'bg-white border-pink-400 shadow-[0_8px_20px_rgba(236,72,153,0.18)] translate-x-1'
+                                    : 'bg-white/70 hover:bg-white border-white/80 shadow-2xs'
+                            }`}
+                        >
+                            <img
+                                src={coreAgents.senior_girl?.avatar || CORE_FALLBACK_AGENTS.senior_girl.avatar}
+                                alt="丽丽学姐"
+                                className="w-12 h-12 rounded-2xl object-cover border border-pink-200 shadow-sm shrink-0"
+                            />
+                            <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-1.5">
+                                    <span className="text-[14px] font-black text-[#4a4365]">
+                                        {coreAgents.senior_girl?.name || '丽丽学姐'}
+                                    </span>
+                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-pink-50 text-pink-700 border border-pink-100">
+                                        地图语音向导
+                                    </span>
+                                </div>
+                                <p className="text-[11px] text-[#8a84a4] truncate mt-0.5">
+                                    全景手绘地图伴游 · 实景语音点位导览
+                                </p>
+                            </div>
+                        </button>
+                    </div>
+
+                    {/* Right: Selected Core Agent Details */}
+                    <div className="lg:col-span-8 space-y-6">
+                        <div className="bg-white/90 backdrop-blur-xl rounded-[32px] p-6 border border-white/80 shadow-[0_8px_25px_rgba(186,175,215,0.18)] space-y-5">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-purple-50">
+                                <div className="flex items-center gap-3">
+                                    <img
+                                        src={currentCoreAgent?.avatar || CORE_FALLBACK_AGENTS[selectedCoreKey].avatar}
+                                        alt="Avatar"
+                                        className="w-12 h-12 rounded-2xl object-cover border border-purple-200 shadow-sm shrink-0"
+                                    />
+                                    <div>
+                                        <h4 className="font-black text-[#4a4365] text-[17px]">
+                                            {currentCoreAgent?.name} - {currentCoreAgent?.title}
+                                        </h4>
+                                        <p className="text-[11.5px] text-[#8a84a4]">
+                                            {selectedCoreKey === 'dr'
+                                                ? '负责接收用户高招咨询，统揽底层决策分身并总装输出权威解答'
+                                                : '专属作用于手绘全景地图点位解说、避坑小秘密及 TTS 语音播报（非主对话角色）'}
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <button
+                                    type="button"
+                                    onClick={handleSaveCoreAgents}
+                                    disabled={saving}
+                                    className="flex items-center gap-1.5 px-5 py-2.5 rounded-2xl bg-purple-600 hover:bg-purple-700 text-white text-[13px] font-bold shadow-md hover:shadow-lg active:scale-95 transition-all cursor-pointer shrink-0"
+                                >
+                                    {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+                                    <span>{saveSuccess ? '已保存！' : '保存角色人设'}</span>
+                                </button>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="text-[11.5px] font-bold text-[#4a4365] block mb-1">
+                                        角色名称
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={currentCoreAgent?.name || ''}
+                                        onChange={(e) => {
+                                            const val = e.target.value;
+                                            setCoreAgents(prev => ({
+                                                ...prev,
+                                                [selectedCoreKey]: { ...currentCoreAgent, name: val }
+                                            }));
+                                        }}
+                                        className="w-full bg-[#f8f6fc] rounded-xl px-4 py-2.5 text-[13px] font-bold text-[#4a4365] outline-none border border-transparent focus:border-purple-300"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="text-[11.5px] font-bold text-[#4a4365] block mb-1">
+                                        角色头衔 / 职责
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={currentCoreAgent?.title || ''}
+                                        onChange={(e) => {
+                                            const val = e.target.value;
+                                            setCoreAgents(prev => ({
+                                                ...prev,
+                                                [selectedCoreKey]: { ...currentCoreAgent, title: val }
+                                            }));
+                                        }}
+                                        className="w-full bg-[#f8f6fc] rounded-xl px-4 py-2.5 text-[13px] font-bold text-[#4a4365] outline-none border border-transparent focus:border-purple-300"
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Voice Selector & Test */}
+                            <div>
+                                <label className="text-[11.5px] font-bold text-[#4a4365] block mb-1 flex items-center justify-between">
+                                    <span>🎙️ 专属 TTS 播报音色</span>
+                                    <button
+                                        type="button"
+                                        onClick={() => handleTestVoice(
+                                            currentCoreAgent?.voice || 'zh-CN-XiaoxiaoNeural',
+                                            selectedCoreKey === 'dr' ? '你好，我是广州大学高招咨询顾问 Dr. Elena，很高兴为您解答！' : '哈喽大家好！我是丽丽学姐，欢迎来到美丽的广州大学大学城校区！'
+                                        )}
+                                        disabled={testingVoice}
+                                        className="text-[11px] font-bold text-purple-600 hover:text-purple-800 flex items-center gap-1 cursor-pointer"
+                                    >
+                                        <Volume2 size={13} />
+                                        <span>{testingVoice ? '正在播放中...' : '试听音色'}</span>
+                                    </button>
+                                </label>
+                                <select
+                                    value={currentCoreAgent?.voice || 'zh-CN-XiaoxiaoNeural'}
+                                    onChange={(e) => {
+                                        const val = e.target.value;
+                                        setCoreAgents(prev => ({
+                                            ...prev,
+                                            [selectedCoreKey]: { ...currentCoreAgent, voice: val }
+                                        }));
+                                    }}
+                                    className="w-full bg-[#f8f6fc] rounded-xl px-4 py-2.5 text-[13px] font-bold text-[#4a4365] outline-none border border-transparent focus:border-purple-300 cursor-pointer"
+                                >
+                                    {DEFAULT_VOICES.map(v => (
+                                        <option key={v.id} value={v.id}>{v.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            {/* Avatar URL */}
+                            <div>
+                                <label className="text-[11.5px] font-bold text-[#4a4365] block mb-1">
+                                    头像图片 URL
+                                </label>
+                                <input
+                                    type="text"
+                                    value={currentCoreAgent?.avatar || ''}
+                                    onChange={(e) => {
+                                        const val = e.target.value;
+                                        setCoreAgents(prev => ({
+                                            ...prev,
+                                            [selectedCoreKey]: { ...currentCoreAgent, avatar: val }
+                                        }));
+                                    }}
+                                    className="w-full bg-[#f8f6fc] rounded-xl px-4 py-2.5 text-[12.5px] font-mono text-[#4a4365] outline-none border border-transparent focus:border-purple-300"
+                                />
+                            </div>
+
+                            {/* System Prompt */}
+                            <div>
+                                <label className="text-[11.5px] font-bold text-[#4a4365] block mb-1">
+                                    核心 Prompt 人设指令
+                                </label>
+                                <textarea
+                                    value={currentCoreAgent?.systemPrompt || ''}
+                                    onChange={(e) => {
+                                        const val = e.target.value;
+                                        setCoreAgents(prev => ({
+                                            ...prev,
+                                            [selectedCoreKey]: { ...currentCoreAgent, systemPrompt: val }
+                                        }));
+                                    }}
+                                    rows={5}
+                                    className="w-full bg-[#f8f6fc] rounded-2xl p-4 text-[12.5px] font-mono text-[#39334d] outline-none border border-transparent focus:border-purple-300 resize-y leading-relaxed"
+                                />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* TAB 3: 气泡皮肤与视觉定制 (Bubble Themes) */}
+            {subTab === 'bubble_skin' && (
+                <div className="space-y-6">
+                    <div className="bg-white/90 backdrop-blur-xl rounded-[32px] p-6 border border-white/80 shadow-[0_8px_25px_rgba(186,175,215,0.18)]">
+                        <div className="flex items-center justify-between mb-4">
+                            <div>
+                                <h4 className="font-black text-[#4a4365] text-[16px] flex items-center gap-2">
+                                    <Palette size={18} className="text-purple-600" /> 对话气泡主题预设 (Bubble Themes)
+                                </h4>
+                                <p className="text-[11.5px] text-[#8a84a4] mt-0.5">
+                                    切换全局气泡皮肤风格，实时同步到前台会话与 Markdown 渲染
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-3">
+                            {Object.values(BUBBLE_THEMES).slice(0, 12).map((theme) => {
+                                const isSelected = bubbleSettings.themeId === theme.id;
+                                return (
+                                    <button
+                                        key={theme.id}
+                                        type="button"
+                                        onClick={() => updateBubbleSetting('themeId', theme.id as BubbleThemeId)}
+                                        className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer flex flex-col gap-1.5 relative ${
+                                            isSelected
+                                                ? 'bg-purple-50/80 border-purple-500 shadow-md ring-2 ring-purple-400/20'
+                                                : 'bg-[#f8f6fc] hover:bg-white border-purple-50'
+                                        }`}
+                                    >
+                                        <span className="text-[12.5px] font-bold text-[#4a4365] truncate">
+                                            {theme.name}
+                                        </span>
+                                        <span className="text-[10px] text-[#8a84a4] truncate">
+                                            {theme.group}
+                                        </span>
+                                        {isSelected && (
+                                            <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-purple-600" />
+                                        )}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

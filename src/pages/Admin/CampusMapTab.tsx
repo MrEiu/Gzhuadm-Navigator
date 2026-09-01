@@ -5,7 +5,7 @@ import {
     Image as ImageIcon, Sparkles, Lightbulb, Clock, Check,
     Move, Eye, Layers, ChevronUp, ChevronDown, ArrowRight,
     Tag, AlertCircle, Info, ExternalLink, X, Sliders,
-    Maximize2, Minimize2, CheckCircle2
+    Maximize2, Minimize2, CheckCircle2, Upload, Loader2
 } from 'lucide-react';
 import { CampusLocation, CampusTourRoute } from '../../types';
 import { DEFAULT_CAMPUS_LOCATIONS, CAMPUS_TOUR_ROUTES } from '../../constants/campusLocations';
@@ -16,6 +16,9 @@ export const CampusMapTab: React.FC = () => {
     const [locations, setLocations] = useState<CampusLocation[]>(DEFAULT_CAMPUS_LOCATIONS);
     const [routes, setRoutes] = useState<CampusTourRoute[]>(CAMPUS_TOUR_ROUTES);
     const [pinScale, setPinScale] = useState<number>(0.8); // 0.5x ~ 1.5x
+    const [mapImgSrc, setMapImgSrc] = useState<string>('/campus.jpg');
+    const [uploadingMap, setUploadingMap] = useState<boolean>(false);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
@@ -39,6 +42,46 @@ export const CampusMapTab: React.FC = () => {
     // 5. Pin Dragging State
     const [draggingLocId, setDraggingLocId] = useState<string | null>(null);
     const mapImageRef = useRef<HTMLDivElement>(null);
+
+    // Handle Uploading New Campus Base Map Image
+    const handleUploadMapImage = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        if (!file.type.startsWith('image/')) {
+            alert('请上传有效的图片文件 (JPG / PNG / WebP)');
+            return;
+        }
+
+        setUploadingMap(true);
+        const reader = new FileReader();
+        reader.onload = async (event) => {
+            const base64Data = event.target?.result as string;
+            try {
+                const res = await fetch(`${API_BASE}/api/admin/campus-map/upload-image`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ base64Data, filename: file.name })
+                });
+                const data = await res.json();
+                if (data.ok && data.imageUrl) {
+                    setMapImgSrc(data.imageUrl);
+                    setFeedbackMsg({
+                        type: 'success',
+                        text: '🎉 校园全景底图已成功上传并热替换！底图文件位于 /campus.jpg'
+                    });
+                } else {
+                    alert('上传底图失败：' + (data.error || '未知错误'));
+                }
+            } catch (err: any) {
+                alert('上传底图网络异常：' + err.message);
+            } finally {
+                setUploadingMap(false);
+                if (fileInputRef.current) fileInputRef.current.value = '';
+            }
+        };
+        reader.readAsDataURL(file);
+    };
 
     // Fetch initial persisted campus map data from root campus_navigation.map
     const fetchCampusMapData = async () => {
@@ -320,6 +363,24 @@ export const CampusMapTab: React.FC = () => {
 
                 {/* Top Actions */}
                 <div className="flex flex-wrap items-center gap-2">
+                    <input
+                        type="file"
+                        ref={fileInputRef}
+                        accept="image/*"
+                        onChange={handleUploadMapImage}
+                        className="hidden"
+                    />
+
+                    <button
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={uploadingMap}
+                        className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700 text-[11.5px] font-bold rounded-2xl shadow-xs flex items-center gap-1.5 transition-all cursor-pointer"
+                        title="上传并热替换底图 /campus.jpg"
+                    >
+                        {uploadingMap ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
+                        <span>{uploadingMap ? '上传中...' : '更换全景底图'}</span>
+                    </button>
+
                     <button
                         onClick={handleResetDefaults}
                         className="px-3 py-1.5 bg-white hover:bg-gray-50 border border-gray-200 text-gray-700 text-[11.5px] font-bold rounded-2xl shadow-xs flex items-center gap-1.5 transition-all cursor-pointer"
@@ -506,7 +567,7 @@ export const CampusMapTab: React.FC = () => {
                                 className="relative w-auto h-auto max-w-[1250px] max-h-[92%] rounded-3xl overflow-hidden shadow-2xl border-4 border-white shrink-0 bg-[#352f4a]"
                             >
                                 <img
-                                    src="/campus.jpg"
+                                    src={mapImgSrc}
                                     alt="广州大学全景底图"
                                     className="w-full h-full object-fill pointer-events-none select-none block"
                                     onError={(e) => {

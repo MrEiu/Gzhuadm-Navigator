@@ -7,26 +7,39 @@ import { RagItem, DocumentChunk } from '../../types';
 import { API_BASE } from '../../api/config';
 import { RagItemModal } from '../RagKnowledge/RagItemModal';
 import { DocChunkImportModal } from '../RagKnowledge/DocChunkImportModal';
+import { RAG_DOMAIN_OPTIONS } from '../../constants/thoughtClones';
 
 interface RagManageTabProps {
     onRefreshStats?: () => void;
 }
 
 const AGENT_LABELS: Record<string, { name: string; color: string; bg: string }> = {
-    'all': { name: '全局通用', color: '#6b7280', bg: 'bg-gray-100 text-gray-700' },
-    'dr': { name: 'Dr. Elena (招生)', color: '#8b5cf6', bg: 'bg-purple-100 text-purple-700' },
-    'dorm': { name: '宿管张阿姨', color: '#f97316', bg: 'bg-orange-100 text-orange-700' },
-    'counselor': { name: '辅导员李导', color: '#2563eb', bg: 'bg-blue-100 text-blue-700' },
-    'senior_boy': { name: '学长浩哥', color: '#059669', bg: 'bg-emerald-100 text-emerald-700' },
-    'senior_girl': { name: '学姐丽丽', color: '#ec4899', bg: 'bg-pink-100 text-pink-700' }
+    'all': { name: '🌐 全局通用', color: '#6b7280', bg: 'bg-gray-100 text-gray-700' },
+    'score_risk': { name: '📊 录取风控', color: '#8b5cf6', bg: 'bg-purple-100 text-purple-700' },
+    'subject_rule': { name: '📜 选科政策', color: '#ef4444', bg: 'bg-rose-100 text-rose-700' },
+    'career_market': { name: '💼 就业前景', color: '#0284c7', bg: 'bg-sky-100 text-sky-700' },
+    'civil_service': { name: '🏛️ 体制考公', color: '#2563eb', bg: 'bg-blue-100 text-blue-700' },
+    'postgrad_study': { name: '🎓 升学深造', color: '#4f46e5', bg: 'bg-indigo-100 text-indigo-700' },
+    'curriculum_study': { name: '📚 课业难度', color: '#d97706', bg: 'bg-amber-100 text-amber-700' },
+    'transfer_policy': { name: '🔄 备选退路', color: '#059669', bg: 'bg-emerald-100 text-emerald-700' },
+    'campus_life': { name: '🏕️ 校园生活', color: '#db2777', bg: 'bg-pink-100 text-pink-700' },
+    'finance_aid': { name: '💰 学费资助', color: '#ca8a04', bg: 'bg-yellow-100 text-yellow-800' },
+    'psych_family': { name: '🤝 家庭沟通', color: '#0d9488', bg: 'bg-teal-100 text-teal-700' },
+    'lili_guide': { name: '🌸 地图伴游', color: '#ec4899', bg: 'bg-pink-100 text-pink-700' },
+    // Backward-compatibility fallbacks
+    'dr': { name: '📊 录取风控 (Dr)', color: '#8b5cf6', bg: 'bg-purple-100 text-purple-700' },
+    'dorm': { name: '🏕️ 宿舍生活 (宿管)', color: '#f97316', bg: 'bg-orange-100 text-orange-700' },
+    'counselor': { name: '🔄 转专业/学籍 (李导)', color: '#2563eb', bg: 'bg-blue-100 text-blue-700' },
+    'senior_boy': { name: '🏕️ 生活经验 (浩哥)', color: '#059669', bg: 'bg-emerald-100 text-emerald-700' },
+    'senior_girl': { name: '🌸 地图游玩 (丽丽)', color: '#ec4899', bg: 'bg-pink-100 text-pink-700' }
 };
 
 export const RagManageTab: React.FC<RagManageTabProps> = ({ onRefreshStats }) => {
     const [items, setItems] = useState<RagItem[]>([]);
     const [loading, setLoading] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
-    const [selectedCategory, setSelectedCategory] = useState('全部');
-    const [selectedAgentFilter, setSelectedAgentFilter] = useState('all');
+    const [selectedCategory, setSelectedCategory] = useState<string>('全部');
+    const [selectedAgentFilter, setSelectedAgentFilter] = useState<string>('all');
     const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
 
     // Modals
@@ -62,7 +75,14 @@ export const RagManageTab: React.FC<RagManageTabProps> = ({ onRefreshStats }) =>
     // Filter items
     const filteredItems = items.filter(item => {
         const itemAgent = item.targetAgent || 'all';
-        const matchesAgent = selectedAgentFilter === 'all' || itemAgent === selectedAgentFilter || itemAgent === 'all';
+        let matchesAgent = selectedAgentFilter === 'all' || itemAgent === selectedAgentFilter || itemAgent === 'all';
+        
+        if (!matchesAgent && selectedAgentFilter !== 'all') {
+            if (selectedAgentFilter === 'score_risk' && itemAgent === 'dr') matchesAgent = true;
+            else if (selectedAgentFilter === 'campus_life' && (itemAgent === 'dorm' || itemAgent === 'senior_boy')) matchesAgent = true;
+            else if (selectedAgentFilter === 'transfer_policy' && itemAgent === 'counselor') matchesAgent = true;
+            else if (selectedAgentFilter === 'lili_guide' && itemAgent === 'senior_girl') matchesAgent = true;
+        }
         if (!matchesAgent) return false;
 
         const matchesCategory = selectedCategory === '全部' || item.category === selectedCategory;
@@ -78,27 +98,15 @@ export const RagManageTab: React.FC<RagManageTabProps> = ({ onRefreshStats }) =>
         return titleMatch || contentMatch || tagMatch || catMatch;
     });
 
-    // Counts
-    const totalItems = items.length;
-    const tableItemsCount = items.filter(i => i.type === 'table' || (i.tableData && i.tableData.columns && i.tableData.columns.length)).length;
-    let imageAttachmentsCount = 0;
-    items.forEach(i => {
-        if (Array.isArray(i.imageAttachments)) {
-            imageAttachmentsCount += i.imageAttachments.length;
-        }
-    });
-
     const handleSaveItem = async (itemData: Partial<RagItem>) => {
         try {
             if (itemData.id) {
-                // Update
                 await fetch(`${API_BASE}/api/admin/rag/${itemData.id}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(itemData)
                 });
             } else {
-                // Create
                 await fetch(`${API_BASE}/api/admin/rag`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -158,10 +166,10 @@ export const RagManageTab: React.FC<RagManageTabProps> = ({ onRefreshStats }) =>
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div>
                         <h3 className="font-black text-[#4a4365] text-[18px] flex items-center gap-2">
-                            <BookOpen size={20} className="text-purple-600" /> RAG 核心知识库与分库管理
+                            <BookOpen size={20} className="text-purple-600" /> RAG 核心知识库与决策分库管理
                         </h3>
                         <p className="text-[12px] text-[#8a84a4] mt-0.5">
-                            支持按智能体独立隔离存储（宿管阿姨用电规章、李导转专业细则、学长生活常识、学姐探店美食）
+                            支持按多智能体决策矩阵与校园伴游向导进行独立知识库隔离检索与精准管理
                         </p>
                     </div>
 
@@ -202,26 +210,20 @@ export const RagManageTab: React.FC<RagManageTabProps> = ({ onRefreshStats }) =>
                 {/* Multi-Agent Knowledge Filter Segmented Tabs */}
                 <div className="mt-5 pt-4 border-t border-purple-50">
                     <div className="text-[11px] font-bold text-[#8a84a4] mb-2 flex items-center gap-1">
-                        <Users size={12} className="text-purple-600" /> 按智能体专属知识库快速筛选：
+                        <Users size={12} className="text-purple-600" /> 按决策智能体与伴游向导专属分库筛选：
                     </div>
                     <div className="flex flex-wrap gap-2">
-                        {[
-                            { key: 'all', label: '🌐 全部知识库' },
-                            { key: 'dorm', label: '🧹 宿管张阿姨 (宿舍用电/门禁)' },
-                            { key: 'counselor', label: '🎓 辅导员李导 (转专业/学籍)' },
-                            { key: 'senior_boy', label: '🎒 学长浩哥 (校园卡/快递/选课)' },
-                            { key: 'senior_girl', label: '🌸 学姐丽丽 (大学城美食/打卡)' },
-                            { key: 'dr', label: '🏛️ Dr. Elena (招生录取分数)' },
-                        ].map((ag) => (
+                        {RAG_DOMAIN_OPTIONS.map((ag) => (
                             <button
                                 key={ag.key}
                                 type="button"
                                 onClick={() => setSelectedAgentFilter(ag.key)}
-                                className={`px-3.5 py-1.5 rounded-xl text-[12px] font-bold transition-all cursor-pointer ${
+                                className={`px-3 py-1.5 rounded-xl text-[11.5px] font-bold transition-all cursor-pointer ${
                                     selectedAgentFilter === ag.key
                                         ? 'bg-[#4a4365] text-white shadow-sm'
                                         : 'bg-[#fbf9fe] text-[#7a7398] hover:bg-[#ede8f8]'
                                 }`}
+                                title={ag.desc}
                             >
                                 {ag.label}
                             </button>
