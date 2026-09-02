@@ -122,10 +122,17 @@ router.post('/test-connection', async (req, res) => {
         });
     } catch (err) {
         const latencyMs = Date.now() - startTime;
+        const msg = (err?.message || '').toLowerCase();
+        let hint = '';
+        if (err.status === 401 || msg.includes('incorrect api key') || msg.includes('unauthorized') || msg.includes('invalid_api_key')) {
+            hint = '【诊断: API Key 无效或未授权，请核实 Key 与端点】';
+        } else if (err.status === 402 || msg.includes('quota') || msg.includes('insufficient') || msg.includes('欠费') || msg.includes('balance')) {
+            hint = '【诊断: 账户已欠费或额度不足，请前往服务商控制台充值】';
+        }
         res.json({
             ok: false,
             latencyMs,
-            error: `握手测试失败 (${latencyMs}ms): ${err.message}`
+            error: `握手测试失败 (${latencyMs}ms): ${err.message}${hint ? ` · ${hint}` : ''}`
         });
     }
 });

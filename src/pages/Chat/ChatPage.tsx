@@ -14,6 +14,7 @@ import { CampusMapModal } from '../CampusMap/CampusMapModal';
 import { UserProfileModal } from '../UserProfile/UserProfileModal';
 import { BubbleThemeModal } from '../../components/ui/BubbleThemeModal';
 import { ApiDiagnosticsDrawer } from '../../components/ui/ApiDiagnosticsDrawer';
+import { AdminErrorModal, AdminErrorInfo } from '../../components/ui/AdminErrorModal';
 
 interface ChatPageProps {
     currentUser: User;
@@ -97,6 +98,28 @@ export const ChatPage: React.FC<ChatPageProps> = ({ currentUser, onLogout, onSwi
 
     const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
     const [profileModalTab, setProfileModalTab] = useState<'profile' | 'account'>('profile');
+
+    // --- Admin Error Modal States ---
+    const [adminErrorInfo, setAdminErrorInfo] = useState<AdminErrorInfo | null>(null);
+    const [isAdminErrorModalOpen, setIsAdminErrorModalOpen] = useState(false);
+    const [lastFailedSend, setLastFailedSend] = useState<{ text: string; attachments: ChatAttachment[] } | null>(null);
+
+    const handleGoToAdminSettings = () => {
+        setIsAdminErrorModalOpen(false);
+        try {
+            localStorage.setItem('gzadm_admin_active_tab', 'settings');
+        } catch { }
+        if (onSwitchPortal) {
+            onSwitchPortal();
+        }
+    };
+
+    const handleRetryFailedSend = () => {
+        setIsAdminErrorModalOpen(false);
+        if (lastFailedSend) {
+            handleSend(undefined, lastFailedSend.text, lastFailedSend.attachments);
+        }
+    };
 
     const handleOpenProfileModal = (tab: 'profile' | 'account' = 'profile') => {
         setProfileModalTab(tab);
@@ -382,7 +405,28 @@ export const ChatPage: React.FC<ChatPageProps> = ({ currentUser, onLogout, onSwi
                 })
             });
 
+            if (!response.ok) {
+                const errData = await response.json().catch(() => ({}));
+                const err: any = new Error(errData?.errorMessage || errData?.error || `HTTP ${response.status}`);
+                err.status = response.status;
+                err.category = errData?.errorCategory;
+                err.title = errData?.errorTitle;
+                err.details = errData?.details;
+                err.serviceMessage = errData?.serviceMessage;
+                throw err;
+            }
+
             const data = await response.json();
+            if (data.ok === false) {
+                const err: any = new Error(data.errorMessage || data.error || '服务响应异常');
+                err.status = data.status || 500;
+                err.category = data.errorCategory;
+                err.title = data.errorTitle;
+                err.details = data.details;
+                err.serviceMessage = data.serviceMessage;
+                throw err;
+            }
+
             const reply = data?.reply || '抱歉，我刚刚有些走神，请您再试一次。';
 
             const currentDr = agentsRoster?.dr;
@@ -432,17 +476,98 @@ export const ChatPage: React.FC<ChatPageProps> = ({ currentUser, onLogout, onSwi
                 })
                 .catch(err => console.warn('Title summary fetch warning:', err));
             }
-        } catch (err) {
-            console.error(err);
-            const errorMsg: ChatMessage = { id: Date.now() + 1, sender: 'bot', text: '网络连接出现异常，请检查后端服务是否启动。', instant: true };
-            const finalMsgs = [...updatedMsgs, errorMsg];
-            const finalSession: ChatSession = {
-                ...updatedSession,
-                messages: finalMsgs,
-                updatedAt: new Date().toISOString()
+        } catch (err: any) {
+            console.error('Chat Request Error:', err);
+            const isAdmin = currentUser.role === 'admin';
+
+            // 1. Differentiate Error Nature
+            const isOffline = !err.status || err.message?.includes('Failed to fetch') || err.message?.includes('NetworkError') || err.name === 'TypeError';
+            let errType: AdminErrorInfo['type'] = 'generic';
+            let errTitle = err.title || '大模型服务调用异常';
+            let errMessage = err.message || '未知异常';
+
+            if (isOffline) {
+                errType = 'backend_offline';
+                errTitle = '无法连接到后端服务 (Backend Offline)';
+                errMessage = '前端无法连接至本地后端服务器 (http://localhost:3001)。请检查后端服务是否正在运行 (npm run dev / node server.mjs)。';
+            } else if (err.status === 401 || err.category === 'api_key_invalid') {
+                errType = 'api_key_invalid';
+                errTitle = '大模型 API Key 无效或未授权 (401 Unauthorized)';
+                errMessage = '当前配置的 API Key 无法通过大模型厂商鉴权验证，可能已失效、被注销或填写的 Base URL 不匹配。';
+            } else if (err.status === 402 || err.category === 'api_quota_exceeded' || err.message?.includes('quota') || err.message?.includes('insufficient') || err.message?.includes('欠费') || err.message?.includes('余额不足')) {
+                errType = 'api_quota_exceeded';
+                errTitle = '大模型账户欠费或配额已耗尽 (402 Insufficient Quota)';
+                errMessage = '上游大模型服务商提示当前账户余额不足或 Token 配额已耗尽（欠费停服）。请登录厂商平台充值或在后台切换提供商。';
+            } else if (err.status === 429 || err.category === 'api_rate_limit') {
+                errType = 'api_rate_limit';
+                errTitle = 'API 调用频率超限 (429 Rate Limit)';
+                errMessage = '大模型服务商触发了调用频率速率限制，请稍候重试。';
+            } else if (err.category === 'network_error' || err.status === 502) {
+                errType = 'network_error';
+                errTitle = '大模型上游网关连接超时 (502 Gateway Error)';
+                errMessage = '后端服务无法连通大模型 Base URL 端点，请检查网络代理或服务商可用状态。';
+            }
+
+            const errorInfo: AdminErrorInfo = {
+                type: errType,
+                title: errTitle,
+                message: errMessage,
+                details: err.details || err.stack || err.message,
+                endpoint,
+                statusCode: err.status,
+                timestamp: new Date().toISOString()
             };
-            const finalSessions = sessions.map(s => s.id === activeSession.id ? finalSession : s);
-            syncSessions(currentUser.username, finalSessions, activeSession.id);
+
+            setLastFailedSend({ text: userMsgText, attachments });
+
+            if (isAdmin) {
+                // Admin Side: Trigger modal alert popup and show diagnostic notice
+                setAdminErrorInfo(errorInfo);
+                setIsAdminErrorModalOpen(true);
+
+                const currentDr = agentsRoster?.dr;
+                const adminMsg: ChatMessage = {
+                    id: Date.now() + 1,
+                    sender: 'bot',
+                    text: `⚠️ **[系统管理员诊断警报]**\n\n**${errTitle}**\n\n${errMessage}\n\n*(已为您弹出管理员专属排查诊断弹窗；普通考生侧已统一友好降级显示为“服务正在升级中”)*`,
+                    senderAgentKey: 'dr',
+                    senderName: currentDr?.name || 'Dr. Elena (系统自检)',
+                    senderTitle: '系统自检监视器',
+                    senderAvatar: currentDr?.avatar || ROLE.avatar,
+                    senderColor: '#ef4444',
+                    instant: true
+                };
+                const finalMsgs = [...updatedMsgs, adminMsg];
+                const finalSession: ChatSession = {
+                    ...updatedSession,
+                    messages: finalMsgs,
+                    updatedAt: new Date().toISOString()
+                };
+                const finalSessions = sessions.map(s => s.id === activeSession.id ? finalSession : s);
+                syncSessions(currentUser.username, finalSessions, activeSession.id);
+            } else {
+                // Regular Candidate / User Side: Display "服务正在升级中" without exposing technical errors or popup
+                const currentDr = agentsRoster?.dr;
+                const userMsg: ChatMessage = {
+                    id: Date.now() + 1,
+                    sender: 'bot',
+                    text: '很抱歉，当前咨询服务正在升级维护中，请稍后再试。感谢您的理解与支持！✨\n\n如需紧急了解广州大学招生章程与录取批次，您亦可查阅广大招生网或在工作时间致电招生办热线。',
+                    senderAgentKey: 'dr',
+                    senderName: currentDr?.name || 'Dr. Elena',
+                    senderTitle: currentDr?.title || '首席招生咨询顾问',
+                    senderAvatar: currentDr?.avatar || ROLE.avatar,
+                    senderColor: currentDr?.bubbleColor || '#8b5cf6',
+                    instant: true
+                };
+                const finalMsgs = [...updatedMsgs, userMsg];
+                const finalSession: ChatSession = {
+                    ...updatedSession,
+                    messages: finalMsgs,
+                    updatedAt: new Date().toISOString()
+                };
+                const finalSessions = sessions.map(s => s.id === activeSession.id ? finalSession : s);
+                syncSessions(currentUser.username, finalSessions, activeSession.id);
+            }
         } finally {
             setTyping(false);
         }
@@ -735,6 +860,15 @@ export const ChatPage: React.FC<ChatPageProps> = ({ currentUser, onLogout, onSwi
                 isOpen={isDiagnosticsOpen}
                 onClose={() => setIsDiagnosticsOpen(false)}
                 diagnostics={activeDiagnostics}
+            />
+
+            {/* Admin Diagnostic & Error Alert Modal */}
+            <AdminErrorModal
+                isOpen={isAdminErrorModalOpen && currentUser.role === 'admin'}
+                onClose={() => setIsAdminErrorModalOpen(false)}
+                errorInfo={adminErrorInfo}
+                onGoToSettings={handleGoToAdminSettings}
+                onRetry={handleRetryFailedSend}
             />
         </div>
     );

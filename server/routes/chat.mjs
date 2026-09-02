@@ -15,6 +15,89 @@ if (!fs.existsSync(chatUploadsDir)) {
     fs.mkdirSync(chatUploadsDir, { recursive: true });
 }
 
+// Helper to classify API and gateway errors
+export const classifyApiError = (error) => {
+    const msg = (error?.message || error?.toString() || '').toLowerCase();
+    const status = error?.status || error?.statusCode || error?.response?.status;
+    const code = error?.code || error?.error?.code;
+
+    // 1. API Key Invalid (401 / AuthenticationError)
+    if (
+        status === 401 ||
+        code === 'invalid_api_key' ||
+        msg.includes('api_key') ||
+        msg.includes('authentication') ||
+        msg.includes('unauthorized') ||
+        msg.includes('incorrect api key') ||
+        msg.includes('invalid api key') ||
+        msg.includes('401')
+    ) {
+        return {
+            type: 'api_key_invalid',
+            title: '大模型 API Key 无效或未授权',
+            message: '当前系统配置的 API Key 无法通过大模型厂商鉴权验证（可能已失效、被撤销或填写的 Base URL 不匹配）。请进入后台管理检查。',
+            status: 401
+        };
+    }
+
+    // 2. API Quota Exceeded / Arrears / Insufficient Balance (402 / 429 quota / insufficient_quota)
+    if (
+        status === 402 ||
+        code === 'insufficient_quota' ||
+        code === 'quota_exceeded' ||
+        msg.includes('insufficient') ||
+        msg.includes('quota') ||
+        msg.includes('balance') ||
+        msg.includes('欠费') ||
+        msg.includes('余额不足') ||
+        msg.includes('billing') ||
+        msg.includes('exceeded your current quota') ||
+        msg.includes('402')
+    ) {
+        return {
+            type: 'api_quota_exceeded',
+            title: '大模型 API 账户欠费或配额已耗尽',
+            message: '上游大模型服务商提示当前账户余额已不足或 Token 额度耗尽（处于欠费停服状态）。请及时登录厂商控制台充值或在后台更换可用 Key。',
+            status: 402
+        };
+    }
+
+    // 3. Upstream Rate Limit (429)
+    if (status === 429 || msg.includes('rate limit') || msg.includes('too many requests')) {
+        return {
+            type: 'api_rate_limit',
+            title: 'API 调用频率超限 (429 Rate Limit)',
+            message: '大模型服务商触发了调用频率速率限制，请稍候再试或升级厂商并发配额。',
+            status: 429
+        };
+    }
+
+    // 4. Upstream Network / Timeout / Gateway Error
+    if (
+        code === 'ECONNREFUSED' ||
+        code === 'ENOTFOUND' ||
+        code === 'ETIMEDOUT' ||
+        msg.includes('fetch failed') ||
+        msg.includes('econnrefused') ||
+        msg.includes('timeout')
+    ) {
+        return {
+            type: 'network_error',
+            title: '大模型上游端点网络连接超时',
+            message: '无法连通指定的大模型 Base URL，请检查服务商域名是否正常或网络代理设置。',
+            status: 502
+        };
+    }
+
+    // 5. Generic API Error
+    return {
+        type: 'generic',
+        title: '大模型服务网关响应异常',
+        message: error?.message || '大模型上游返回未知错误',
+        status: 500
+    };
+};
+
 // Check whether image and file upload is allowed by Administrator
 router.get(['/media-config', '/chat/media-config'], (_req, res) => {
     const allowUserMediaUpload = process.env.ALLOW_USER_MEDIA_UPLOAD !== 'false';
@@ -159,45 +242,16 @@ router.post(['/chat', '/admissions'], async (req, res) => {
         res.json(result);
     } catch (error) {
         console.error('⚠️ [Pipeline Execution Error]:', error);
+        const classified = classifyApiError(error);
 
-        const ragMatches = await searchRagEngine(lastUserMsg, 3, 'dr');
-        const ragContext = formatRagContext(ragMatches);
-        const reply = ragContext ? `根据校方数据库为您查找到以下信息：\n\n${ragContext}` : '服务响应稍慢，请再次发送请求。';
-
-        const fallbackDiagnostics = {
-            requestId: `req_fallback_${Date.now()}`,
-            timestamp: new Date().toISOString(),
-            mode: 'admissions',
-            targetAgent: { key: 'dr', name: 'Dr. Elena', title: '招生咨询顾问', color: '#a494e8' },
-            routingDecision: { type: 'Fallback Error Recovery', details: `调用异常降级: ${error.message}` },
-            requestPayload: {
-                model: process.env.DEFAULT_MODEL || 'deepseek-chat',
-                protocol: 'chat_completions',
-                messages: incomingMessages
-            },
-            ragRetrieval: {
-                query: lastUserMsg,
-                retrievedCount: ragMatches?.length || 0,
-                matches: (ragMatches || []).map(m => ({
-                    id: m.item?.id,
-                    title: m.item?.title,
-                    category: m.item?.category,
-                    similarityScore: m.score ? Number(m.score.toFixed(4)) : 0.88,
-                    hasTableData: Boolean(m.item?.tableData)
-                }))
-            },
-            userProfileContext: userProfile ? { username: userProfile.name || username || '未填' } : null,
-            performance: {
-                totalLatencyMs: 120,
-                estimatedTotalTokens: Math.round(reply.length / 3.5)
-            }
-        };
-
-        res.json({
-            ok: true,
-            reply,
-            source: 'rag-fallback',
-            diagnostics: fallbackDiagnostics
+        return res.status(classified.status || 500).json({
+            ok: false,
+            errorCategory: classified.type,
+            errorTitle: classified.title,
+            errorMessage: classified.message,
+            details: error?.message || '未知异常',
+            status: classified.status,
+            serviceMessage: '很抱歉，当前咨询服务正在升级维护中，请稍后再试。感谢您的理解与支持！'
         });
     }
 });
@@ -226,13 +280,15 @@ router.post(['/group', '/chat/group'], async (req, res) => {
         res.json(result);
     } catch (err) {
         console.error('❌ [Group Chat Error]:', err);
-        res.json({
-            ok: true,
-            reply: '群聊服务正在刷新中，请稍后再试！',
-            agentKey: 'senior_girl',
-            agentName: '丽丽学姐',
-            agentColor: '#ec4899',
-            source: 'group-error-fallback'
+        const classified = classifyApiError(err);
+        return res.status(classified.status || 500).json({
+            ok: false,
+            errorCategory: classified.type,
+            errorTitle: classified.title,
+            errorMessage: classified.message,
+            details: err?.message || '未知异常',
+            status: classified.status,
+            serviceMessage: '群聊咨询服务正在升级维护中，请稍后再试！'
         });
     }
 });

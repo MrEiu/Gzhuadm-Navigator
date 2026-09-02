@@ -34,7 +34,16 @@ interface AdminLayoutProps {
 }
 
 export const AdminLayout: React.FC<AdminLayoutProps> = ({ currentUser, onLogout, onSwitchPortal }) => {
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'multiAgent' | 'rag' | 'faqTemplates' | 'sync' | 'campusMap' | 'users' | 'analytics' | 'playground' | 'settings'>('dashboard');
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'multiAgent' | 'rag' | 'faqTemplates' | 'sync' | 'campusMap' | 'users' | 'analytics' | 'playground' | 'settings'>(() => {
+        try {
+            const saved = localStorage.getItem('gzadm_admin_active_tab');
+            if (saved) {
+                localStorage.removeItem('gzadm_admin_active_tab');
+                return saved as any;
+            }
+        } catch { }
+        return 'dashboard';
+    });
     const [stats, setStats] = useState<DashboardStats | null>(null);
     const [loadingStats, setLoadingStats] = useState(false);
     const [refreshTrigger, setRefreshTrigger] = useState(0);
