@@ -597,7 +597,7 @@ export const CampusMapModal: React.FC<CampusMapModalProps> = ({
                                     <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-1.5 text-purple-800 font-black text-[12.5px]">
                                             <Sparkles size={14} className="text-amber-500 animate-spin-slow" />
-                                            <span>丽丽的伴游大实话</span>
+                                            <span>{liliName || '丽丽学姐'}专属伴游解说</span>
                                         </div>
 
                                         {/* TTS Audio Controls */}

@@ -810,7 +810,7 @@ export const CampusMapTab: React.FC = () => {
                                     rows={3}
                                     value={activeLocation.liliNarrative || ''}
                                     onChange={(e) => handleUpdateActiveLocation('liliNarrative', e.target.value)}
-                                    placeholder="输入学姐亲切大实话解说文案..."
+                                    placeholder="输入学姐专属语音伴游解说词文案..."
                                     className="w-full bg-white border border-purple-200 rounded-xl p-3 text-[12.5px] text-[#4a4365] leading-relaxed focus:ring-2 focus:ring-purple-400 outline-none"
                                 />
                             </div>
