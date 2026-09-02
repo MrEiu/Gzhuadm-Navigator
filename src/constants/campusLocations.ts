@@ -59,8 +59,8 @@ export const DEFAULT_CAMPUS_LOCATIONS: CampusLocation[] = [
         name: '何世杰图书馆 (主馆)',
         category: '教学科研',
         images: [
-            'https://images.unsplash.com/photo-1521587760476-6c12a4b040da?q=80&w=800&auto=format&fit=crop',
-            'https://images.unsplash.com/photo-1497633762265-9d179a990aa6?q=80&w=800&auto=format&fit=crop'
+            'https://img1.baidu.com/it/u=3263872702,1907683674&fm=253&fmt=auto&app=138&f=JPEG?w=508&h=500',
+            'https://img2.baidu.com/it/u=568594630,3588639188&fm=253&fmt=auto&app=138&f=JPEG?w=500&h=618'
         ],
         description: '广州大学地标建筑，楼高10层，建筑面积达4.5万平方米，藏书超200万册。全馆覆盖千兆高速WiFi与智能书架，配备单人沉浸自习舱、AI检索终端、考研研讨室与24小时自习区。',
         terms: ['24H自习室', '中心湖全景位', '静音沉浸舱', '电子文献库', '咖啡书吧'],
@@ -79,7 +79,8 @@ export const DEFAULT_CAMPUS_LOCATIONS: CampusLocation[] = [
         name: '图书馆附楼',
         category: '教学科研',
         images: [
-            'https://images.unsplash.com/photo-1497633762265-9d179a990aa6?q=80&w=800&auto=format&fit=crop'
+            'https://img2.baidu.com/it/u=568594630,3588639188&fm=253&fmt=auto&app=138&f=JPEG?w=500&h=618',
+            'https://img1.baidu.com/it/u=3263872702,1907683674&fm=253&fmt=auto&app=138&f=JPEG?w=508&h=500'
         ],
         description: '紧邻何世杰图书馆南侧，设有学术报告厅、特藏文献阅览室及校史文化长廊。',
         terms: ['学术报告厅', '特藏阅览室', '校史长廊'],
@@ -94,8 +95,7 @@ export const DEFAULT_CAMPUS_LOCATIONS: CampusLocation[] = [
         name: '何世杰体育馆',
         category: '体育休闲',
         images: [
-            'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?q=80&w=800&auto=format&fit=crop',
-            'https://images.unsplash.com/photo-1574629810360-7efbbe195018?q=80&w=800&auto=format&fit=crop'
+            'https://img1.baidu.com/it/u=1549027559,2785738242&fm=253&fmt=auto&app=138&f=JPEG?w=890&h=500'
         ],
         description: '学校主体育馆，拥有高规格室内实木地板篮球馆、羽毛球馆、乒乓球室与健身力量房，承办各类大型CUBA大学联赛与校运会室内赛事。',
         terms: ['室内篮球馆', '羽毛球场', '乒乓球室', '力量健身房', 'CUBA主场'],
@@ -113,8 +113,7 @@ export const DEFAULT_CAMPUS_LOCATIONS: CampusLocation[] = [
         name: '演艺中心',
         category: '校园地标',
         images: [
-            'https://images.unsplash.com/photo-1513694203232-719a280e022f?q=80&w=800&auto=format&fit=crop',
-            'https://images.unsplash.com/photo-1460661419201-fd4cecdf8a8b?q=80&w=800&auto=format&fit=crop'
+            'https://img2.baidu.com/it/u=4021462537,4110862131&fm=253&fmt=auto&app=138&f=GIF?w=551&h=418'
         ],
         description: '千人专业级多功能艺术大剧场，配备专业舞台声光电系统、交响乐排练厅与舞蹈排练房，是每年迎新晚会、十佳歌手大赛及毕业歌会的核心主场。',
         terms: ['千人剧场', '迎新晚会', '十佳歌手', '毕业歌会', '艺术展演'],
@@ -134,8 +133,7 @@ export const DEFAULT_CAMPUS_LOCATIONS: CampusLocation[] = [
         name: '计算机实验楼',
         category: '教学科研',
         images: [
-            'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?q=80&w=800&auto=format&fit=crop',
-            'https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?q=80&w=800&auto=format&fit=crop'
+            'https://img2.baidu.com/it/u=468805999,730018308&fm=253&fmt=auto&app=138&f=JPEG?w=332&h=500'
         ],
         description: '计算机科学与网络空间安全学院核心实验楼。部署万卡并行GPU集群、国家级数字孪生工程实验室、机器人智能交互工坊及校企联合AI实训基地。',
         terms: ['国家级一流专业', '万卡超算集群', '腾讯网易基地', '网络安全实验', 'ACM战队'],
@@ -153,7 +151,7 @@ export const DEFAULT_CAMPUS_LOCATIONS: CampusLocation[] = [
         name: '工程南楼',
         category: '教学科研',
         images: [
-            'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?q=80&w=800&auto=format&fit=crop'
+            'https://img2.baidu.com/it/u=468805999,730018308&fm=253&fmt=auto&app=138&f=JPEG?w=332&h=500'
         ],
         description: '机械与电气工程学院教学科研大楼，设有先进智能制造实验室、无人机控制工坊及机器人创客空间。',
         terms: ['智能制造', '电气工程', '机器人创客', '无人机实验'],
@@ -168,7 +166,7 @@ export const DEFAULT_CAMPUS_LOCATIONS: CampusLocation[] = [
         name: '工程北楼 (风洞抗震实验室)',
         category: '教学科研',
         images: [
-            'https://images.unsplash.com/photo-1504307651254-35680f356dfd?q=80&w=800&auto=format&fit=crop'
+            'https://img2.baidu.com/it/u=468805999,730018308&fm=253&fmt=auto&app=138&f=JPEG?w=332&h=500'
         ],
         description: '土木工程国家重点学科大楼，拥有大型边界层风洞实验装置及地震模拟振动台，深度参与港珠澳大桥、广州塔等重大世纪工程攻关。',
         terms: ['土木工程王牌', '大型风洞实验', '院士重点实验室', '抗震试验台'],
@@ -183,7 +181,7 @@ export const DEFAULT_CAMPUS_LOCATIONS: CampusLocation[] = [
         name: '生化实验楼',
         category: '教学科研',
         images: [
-            'https://images.unsplash.com/photo-1532187863486-abf9dbad1b69?q=80&w=800&auto=format&fit=crop'
+            'https://img2.baidu.com/it/u=468805999,730018308&fm=253&fmt=auto&app=138&f=JPEG?w=332&h=500'
         ],
         description: '化学化工学院与生命科学学院大型实验大楼，配置超高分辨质谱仪、流式细胞仪等先进分析测试仪器。',
         terms: ['化学实验', '生物医药', '精细化工', '现代分析测试中心'],
@@ -198,7 +196,7 @@ export const DEFAULT_CAMPUS_LOCATIONS: CampusLocation[] = [
         name: '理科北楼',
         category: '教学科研',
         images: [
-            'https://images.unsplash.com/photo-1497633762265-9d179a990aa6?q=80&w=800&auto=format&fit=crop'
+            'https://img2.baidu.com/it/u=468805999,730018308&fm=253&fmt=auto&app=138&f=JPEG?w=332&h=500'
         ],
         description: '数学与信息科学学院及基础理科核心教学楼，配备数十间多媒体智慧微格教室。',
         terms: ['应用数学', '微格教室', '大数据统计', '考研自习'],
@@ -213,7 +211,7 @@ export const DEFAULT_CAMPUS_LOCATIONS: CampusLocation[] = [
         name: '理科南楼',
         category: '教学科研',
         images: [
-            'https://images.unsplash.com/photo-1497633762265-9d179a990aa6?q=80&w=800&auto=format&fit=crop'
+            'https://img2.baidu.com/it/u=468805999,730018308&fm=253&fmt=auto&app=138&f=JPEG?w=332&h=500'
         ],
         description: '物理与材料科学学院大楼，建有近代物理实验室与新型光电功能材料研究中心。',
         terms: ['应用物理', '光电材料', '材料科学', '物理实验'],
@@ -228,7 +226,7 @@ export const DEFAULT_CAMPUS_LOCATIONS: CampusLocation[] = [
         name: '电子信息楼',
         category: '教学科研',
         images: [
-            'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?q=80&w=800&auto=format&fit=crop'
+            'https://img2.baidu.com/it/u=468805999,730018308&fm=253&fmt=auto&app=138&f=JPEG?w=332&h=500'
         ],
         description: '电子与通信工程学院教学大楼，涵盖5G/6G通信、集成电路微电子设计与物联网传感实验室。',
         terms: ['通信工程', '集成电路', '芯片设计', '物联网通信'],
@@ -243,7 +241,7 @@ export const DEFAULT_CAMPUS_LOCATIONS: CampusLocation[] = [
         name: '理学实验楼',
         category: '教学科研',
         images: [
-            'https://images.unsplash.com/photo-1532187863486-abf9dbad1b69?q=80&w=800&auto=format&fit=crop'
+            'https://img2.baidu.com/it/u=468805999,730018308&fm=253&fmt=auto&app=138&f=JPEG?w=332&h=500'
         ],
         description: '综合理学基础实验中心，承担全校本科生基础化学、物理与生命科学通识实验教学。',
         terms: ['通识实验', '理学示范中心', '化学仪器'],
@@ -260,7 +258,7 @@ export const DEFAULT_CAMPUS_LOCATIONS: CampusLocation[] = [
         name: '行政西楼',
         category: '校园地标',
         images: [
-            'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?q=80&w=800&auto=format&fit=crop'
+            'https://img2.baidu.com/it/u=468805999,730018308&fm=253&fmt=auto&app=138&f=JPEG?w=332&h=500'
         ],
         description: '校党委、校长办公室、财务处、教务处等校级职能部门办公大楼。',
         terms: ['教务处', '财务处', '校长办公室', '综合服务大厅'],
@@ -275,7 +273,7 @@ export const DEFAULT_CAMPUS_LOCATIONS: CampusLocation[] = [
         name: '行政东楼',
         category: '校园地标',
         images: [
-            'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?q=80&w=800&auto=format&fit=crop'
+            'https://img2.baidu.com/it/u=468805999,730018308&fm=253&fmt=auto&app=138&f=JPEG?w=332&h=500'
         ],
         description: '学生工作处、招生就业工作处、团委及研究生院办公大楼。',
         terms: ['招生办', '就业指导中心', '学生处', '校团委', '奖助学金办理'],
@@ -290,7 +288,7 @@ export const DEFAULT_CAMPUS_LOCATIONS: CampusLocation[] = [
         name: '文清楼',
         category: '教学科研',
         images: [
-            'https://images.unsplash.com/photo-1497633762265-9d179a990aa6?q=80&w=800&auto=format&fit=crop'
+            'https://img2.baidu.com/it/u=468805999,730018308&fm=253&fmt=auto&app=138&f=JPEG?w=332&h=500'
         ],
         description: '人文社科公共教学核心大楼，拥有数十间阶梯多媒体大教室与智慧考场。',
         terms: ['公共教学楼', '阶梯课室', '思政大课', '期末考场'],
@@ -305,7 +303,7 @@ export const DEFAULT_CAMPUS_LOCATIONS: CampusLocation[] = [
         name: '文新楼',
         category: '教学科研',
         images: [
-            'https://images.unsplash.com/photo-1497633762265-9d179a990aa6?q=80&w=800&auto=format&fit=crop'
+            'https://img2.baidu.com/it/u=468805999,730018308&fm=253&fmt=auto&app=138&f=JPEG?w=332&h=500'
         ],
         description: '新闻与传播学院、外国语学院大楼，建有全景4K演播厅与同声传译实训室。',
         terms: ['新传学院', '4K演播厅', '同声传译', '融媒体中心'],
@@ -320,7 +318,7 @@ export const DEFAULT_CAMPUS_LOCATIONS: CampusLocation[] = [
         name: '文逸楼',
         category: '教学科研',
         images: [
-            'https://images.unsplash.com/photo-1497633762265-9d179a990aa6?q=80&w=800&auto=format&fit=crop'
+            'https://img2.baidu.com/it/u=468805999,730018308&fm=253&fmt=auto&app=138&f=JPEG?w=332&h=500'
         ],
         description: '教育学院与教师教育国家级实验教学示范中心大楼，培养全省卓越中小学师资。',
         terms: ['师范教育', '教师技能微格室', '书法教室', '心理咨询实验室'],
@@ -335,7 +333,7 @@ export const DEFAULT_CAMPUS_LOCATIONS: CampusLocation[] = [
         name: '文俊西楼',
         category: '教学科研',
         images: [
-            'https://images.unsplash.com/photo-1497633762265-9d179a990aa6?q=80&w=800&auto=format&fit=crop'
+            'https://img2.baidu.com/it/u=468805999,730018308&fm=253&fmt=auto&app=138&f=JPEG?w=332&h=500'
         ],
         description: '经济与统计学院大楼，拥有金融大数据模拟实验室与量化投资实训室。',
         terms: ['经济学院', '金融工程', '量化投资', '统计大数据'],
@@ -350,7 +348,7 @@ export const DEFAULT_CAMPUS_LOCATIONS: CampusLocation[] = [
         name: '文俊东楼',
         category: '教学科研',
         images: [
-            'https://images.unsplash.com/photo-1497633762265-9d179a990aa6?q=80&w=800&auto=format&fit=crop'
+            'https://img2.baidu.com/it/u=468805999,730018308&fm=253&fmt=auto&app=138&f=JPEG?w=332&h=500'
         ],
         description: '管理学院大楼，建有现代物流供应链仿真中心、跨境电商实训基地及ERP沙盘演练室。',
         terms: ['管理学院', '工商管理', '物流仿真', '电商实训', 'ERP沙盘'],
@@ -367,8 +365,8 @@ export const DEFAULT_CAMPUS_LOCATIONS: CampusLocation[] = [
         name: '广大商业中心 (Gogo新天地)',
         category: '餐饮美食',
         images: [
-            'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?q=80&w=800&auto=format&fit=crop',
-            'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?q=80&w=800&auto=format&fit=crop'
+            'https://img2.baidu.com/it/u=440549594,449543732&fm=253&fmt=auto&app=138&f=JPEG?w=500&h=667',
+            'https://img2.baidu.com/it/u=788041614,1957148242&fm=253&fmt=auto&app=138&f=JPEG?w=500&h=653'
         ],
         description: '大学城核心商业综合体，汇聚各大连锁餐饮品牌、茶饮奶茶街、大型生活超市、电影院、数码专卖及快递驿站。',
         terms: ['商业中心', '奶茶一条街', '大型超市', '电影院', '周末聚会', '快递总站'],
@@ -386,7 +384,7 @@ export const DEFAULT_CAMPUS_LOCATIONS: CampusLocation[] = [
         name: '菊苑饭堂',
         category: '餐饮美食',
         images: [
-            'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?q=80&w=800&auto=format&fit=crop'
+            'https://img2.baidu.com/it/u=788041614,1957148242&fm=253&fmt=auto&app=138&f=JPEG?w=500&h=653'
         ],
         description: '菊苑生活区配套餐厅，主打精致粤式茶点、自选快餐、现煲老火汤及面食风味。',
         terms: ['菊苑食堂', '粤式早茶', '老火靓汤', '平价实惠'],
@@ -401,7 +399,7 @@ export const DEFAULT_CAMPUS_LOCATIONS: CampusLocation[] = [
         name: '兰苑饭堂',
         category: '餐饮美食',
         images: [
-            'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?q=80&w=800&auto=format&fit=crop'
+            'https://img2.baidu.com/it/u=788041614,1957148242&fm=253&fmt=auto&app=138&f=JPEG?w=500&h=653'
         ],
         description: '兰苑生活区大型餐厅，集合川湘重口味、麻辣香锅、东北烤盘饭及特色水饺。',
         terms: ['兰苑食堂', '麻辣香锅', '川湘风味', '烤盘饭', '水饺'],
@@ -416,7 +414,7 @@ export const DEFAULT_CAMPUS_LOCATIONS: CampusLocation[] = [
         name: '梅苑饭堂 (第一美食广场)',
         category: '餐饮美食',
         images: [
-            'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?q=80&w=800&auto=format&fit=crop'
+            'https://img2.baidu.com/it/u=788041614,1957148242&fm=253&fmt=auto&app=138&f=JPEG?w=500&h=653'
         ],
         description: '三层大型综合美食广场，拥有广式深井烧腊、清真特色窗口、西式铁板牛排及自选快餐。',
         terms: ['梅苑一食堂', '广式深井烧鸭', '清真专区', '智慧盘秒付', '平价补贴'],
@@ -434,7 +432,7 @@ export const DEFAULT_CAMPUS_LOCATIONS: CampusLocation[] = [
         name: '门诊部 (校医院)',
         category: '生活住宿',
         images: [
-            'https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?q=80&w=800&auto=format&fit=crop'
+            'https://img2.baidu.com/it/u=660521641,3397693214&fm=253&fmt=auto&app=138&f=JPEG?w=500&h=640'
         ],
         description: '广州大学校医院，设有内科、外科、眼科、口腔科、预防保健科及24小时急诊药房，大学生医保定点直报。',
         terms: ['校医院', '24H急诊', '大学生医保', '口腔科', '体检中心'],
@@ -466,7 +464,7 @@ export const DEFAULT_CAMPUS_LOCATIONS: CampusLocation[] = [
         name: '北区运动场',
         category: '体育休闲',
         images: [
-            'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?q=80&w=800&auto=format&fit=crop'
+            'https://img1.baidu.com/it/u=1549027559,2785738242&fm=253&fmt=auto&app=138&f=JPEG?w=890&h=500'
         ],
         description: '标准400米塑胶跑道田径场与天然草坪足球场，配置高杆夜间照明灯光与观众看台。',
         terms: ['400米塑胶跑道', '足球场', '夜跑圣地', '体测场地'],
@@ -481,7 +479,7 @@ export const DEFAULT_CAMPUS_LOCATIONS: CampusLocation[] = [
         name: '南区运动场',
         category: '体育休闲',
         images: [
-            'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?q=80&w=800&auto=format&fit=crop'
+            'https://img1.baidu.com/it/u=1549027559,2785738242&fm=253&fmt=auto&app=138&f=JPEG?w=890&h=500'
         ],
         description: '紧邻演艺中心的南部综合体育场，包含网球场群、室外排球场、篮球场及标准田径场。',
         terms: ['网球场', '室外篮球场', '排球场', '校运会主场'],
@@ -498,7 +496,7 @@ export const DEFAULT_CAMPUS_LOCATIONS: CampusLocation[] = [
         name: '广大一号天桥',
         category: '校园地标',
         images: [
-            'https://images.unsplash.com/photo-1562774053-701939374585?q=80&w=800&auto=format&fit=crop'
+            'https://img1.baidu.com/it/u=1324952609,2545213543&fm=253&fmt=auto&app=138&f=JPEG?w=499&h=334'
         ],
         description: '连接教学区何世杰图书馆与生活区广大商业中心的标志性景观天桥，横跨大学城中环西路。',
         terms: ['一号天桥', '中环西路跨线', '教学生活直通'],
@@ -513,7 +511,7 @@ export const DEFAULT_CAMPUS_LOCATIONS: CampusLocation[] = [
         name: '广大二号天桥',
         category: '校园地标',
         images: [
-            'https://images.unsplash.com/photo-1562774053-701939374585?q=80&w=800&auto=format&fit=crop'
+            'https://img1.baidu.com/it/u=1324952609,2545213543&fm=253&fmt=auto&app=138&f=JPEG?w=499&h=334'
         ],
         description: '连接文俊东楼与梅苑一食堂的景观天桥，是文科教学区通往宿舍区与食堂的核心枢纽。',
         terms: ['二号天桥', '文俊楼天桥', '干饭快速通道'],
