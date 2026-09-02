@@ -32,8 +32,8 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigSaved }) => {
     const [apiKey, setApiKey] = useState('');
     const [showApiKey, setShowApiKey] = useState(false);
 
-    const [defaultModel, setDefaultModel] = useState('deepseek-chat');
-    const [fastModel, setFastModel] = useState('deepseek-chat');
+    const [defaultModel, setDefaultModel] = useState('deepseek-v4-flash');
+    const [fastModel, setFastModel] = useState('deepseek-v4-flash');
     const [availableModels, setAvailableModels] = useState<string[]>([]);
     const [fetchingModels, setFetchingModels] = useState(false);
     const [aiProtocolMode, setAiProtocolMode] = useState<'auto' | 'chat_completions' | 'responses'>('auto');
@@ -103,8 +103,8 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigSaved }) => {
                 const c = data.config;
                 setBaseUrl(c.baseUrl || c.aiBaseUrl || 'https://api.deepseek.com');
                 setApiKey(c.apiKey || '');
-                setDefaultModel(c.defaultModel || 'deepseek-chat');
-                setFastModel(c.fastModel || 'deepseek-chat');
+                setDefaultModel(c.defaultModel || 'deepseek-v4-flash');
+                setFastModel(c.fastModel || 'deepseek-v4-flash');
                 setSearchProvider(c.searchProvider || 'multi');
                 setTavilyApiKey(c.tavilyApiKey || '');
                 setBochaApiKey(c.bochaApiKey || '');
@@ -172,8 +172,8 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigSaved }) => {
         {
             name: 'DeepSeek 官方',
             url: 'https://api.deepseek.com',
-            defaultM: 'deepseek-chat',
-            fastM: 'deepseek-chat',
+            defaultM: 'deepseek-v4-flash',
+            fastM: 'deepseek-v4-flash',
             tag: '推荐 · 超高性价比'
         },
         {
@@ -893,7 +893,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigSaved }) => {
                             type="text"
                             value={defaultModel}
                             onChange={(e) => setDefaultModel(e.target.value)}
-                            placeholder="如：deepseek-chat / gpt-4o"
+                            placeholder="如：deepseek-v4-flash / gpt-4o"
                             list="model-options"
                             className="w-full bg-white rounded-xl px-3.5 py-2 text-[12.5px] font-mono text-[#4a4365] outline-none border border-purple-100 focus:border-[#a494e8]"
                         />
@@ -913,7 +913,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigSaved }) => {
                             type="text"
                             value={fastModel}
                             onChange={(e) => setFastModel(e.target.value)}
-                            placeholder="如：deepseek-chat / gpt-4o-mini"
+                            placeholder="如：deepseek-v4-flash / gpt-4o-mini"
                             list="model-options"
                             className="w-full bg-white rounded-xl px-3.5 py-2 text-[12.5px] font-mono text-[#4a4365] outline-none border border-purple-100 focus:border-[#a494e8]"
                         />

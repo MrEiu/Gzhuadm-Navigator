@@ -136,7 +136,7 @@ export const getProviderNativeSearchConfig = (baseUrl = '', modelName = '') => {
 export const getAiConfig = () => {
     const aiBaseUrl = process.env.AI_BASE_URL || process.env.DEEPSEEK_BASE_URL || process.env.OPENAI_BASE_URL || 'https://api.deepseek.com';
     const aiApiKey = process.env.AI_API_KEY || process.env.DEEPSEEK_API_KEY || process.env.OPENAI_API_KEY;
-    const defaultModel = process.env.DEFAULT_MODEL || process.env.DEEPSEEK_MODEL || process.env.OPENAI_MODEL || 'deepseek-chat';
+    const defaultModel = process.env.DEFAULT_MODEL || process.env.DEEPSEEK_MODEL || process.env.OPENAI_MODEL || 'deepseek-v4-flash';
     const fastModel = process.env.FAST_MODEL || defaultModel;
     const aiProtocolMode = process.env.AI_PROTOCOL_MODE || 'auto'; // 'auto' | 'chat_completions' | 'responses'
     const enableNativeSearch = process.env.ENABLE_NATIVE_SEARCH === 'true' || process.env.ENABLE_NATIVE_SEARCH === '1';

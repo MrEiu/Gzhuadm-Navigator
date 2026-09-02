@@ -32,8 +32,13 @@ const PRESET_PROVIDERS = [
     id: 'deepseek',
     name: 'DeepSeek (深度求索)',
     url: 'https://api.deepseek.com',
-    defaultModel: 'deepseek-chat',
-    fastModel: 'deepseek-chat',
+    models: [
+      'deepseek-v4-flash',
+      'deepseek-v4-pro',
+      'deepseek-v4-flash-vision-exp'
+    ],
+    defaultModel: 'deepseek-v4-flash',
+    fastModel: 'deepseek-v4-flash',
     docUrl: 'https://platform.deepseek.com'
   },
   {
@@ -121,7 +126,17 @@ const loadExistingProviders = () => {
   if (fs.existsSync(providersFilePath)) {
     try {
       const parsed = JSON.parse(fs.readFileSync(providersFilePath, 'utf8'));
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed.map(p => {
+          if (p.type === 'deepseek' || p.id?.includes('deepseek') || p.baseUrl?.includes('deepseek.com')) {
+            const models = ['deepseek-v4-flash', 'deepseek-v4-pro', 'deepseek-v4-flash-vision-exp'];
+            const defaultModel = (p.defaultModel === 'deepseek-chat' || !p.defaultModel) ? 'deepseek-v4-flash' : p.defaultModel;
+            const fastModel = (p.fastModel === 'deepseek-chat' || !p.fastModel) ? 'deepseek-v4-flash' : p.fastModel;
+            return { ...p, models, defaultModel, fastModel };
+          }
+          return p;
+        });
+      }
     } catch {}
   }
   return [];
@@ -344,8 +359,9 @@ async function promptSingleProvider(rl, title, initialData = null) {
     name: customLabel,
     baseUrl,
     apiKey,
-    defaultModel: initialData?.defaultModel || preset.defaultModel,
-    fastModel: initialData?.fastModel || preset.fastModel
+    models: preset.models || initialData?.models || [],
+    defaultModel: (initialData?.defaultModel && initialData.defaultModel !== 'deepseek-chat') ? initialData.defaultModel : preset.defaultModel,
+    fastModel: (initialData?.fastModel && initialData.fastModel !== 'deepseek-chat') ? initialData.fastModel : preset.fastModel
   };
 }
 
@@ -366,23 +382,29 @@ async function runInit() {
 
     // Reconstruct first provider from .env if provider pool is empty
     if (providerPool.length === 0 && existingEnv.get('AI_BASE_URL')) {
+      const isDeepSeek = existingEnv.get('AI_BASE_URL')?.includes('deepseek');
+      const defM = existingEnv.get('DEFAULT_MODEL');
+      const fastM = existingEnv.get('FAST_MODEL');
       providerPool.push({
         id: `provider_1`,
-        type: 'custom',
-        name: existingEnv.get('DEFAULT_MODEL_PROVIDER') || '主模型提供商',
+        type: isDeepSeek ? 'deepseek' : 'custom',
+        name: existingEnv.get('DEFAULT_MODEL_PROVIDER') || (isDeepSeek ? 'DeepSeek (深度求索)' : '主模型提供商'),
         baseUrl: existingEnv.get('AI_BASE_URL'),
         apiKey: existingEnv.get('AI_API_KEY') || '',
-        defaultModel: existingEnv.get('DEFAULT_MODEL') || 'deepseek-chat',
-        fastModel: existingEnv.get('FAST_MODEL') || 'deepseek-chat'
+        models: isDeepSeek ? ['deepseek-v4-flash', 'deepseek-v4-pro', 'deepseek-v4-flash-vision-exp'] : [],
+        defaultModel: (defM === 'deepseek-chat' ? 'deepseek-v4-flash' : (defM || (isDeepSeek ? 'deepseek-v4-flash' : 'gpt-4o'))),
+        fastModel: (fastM === 'deepseek-chat' ? 'deepseek-v4-flash' : (fastM || (isDeepSeek ? 'deepseek-v4-flash' : 'gpt-4o-mini')))
       });
     }
 
-    let defaultModel = existingEnv.get('DEFAULT_MODEL') || 'deepseek-chat';
+    let rawDefaultModel = existingEnv.get('DEFAULT_MODEL') || 'deepseek-v4-flash';
+    let defaultModel = rawDefaultModel === 'deepseek-chat' ? 'deepseek-v4-flash' : rawDefaultModel;
     let defaultProv = providerPool[0] || null;
     let fastProv = providerPool[0] || null;
     let fastBaseUrl = existingEnv.get('FAST_AI_BASE_URL') || existingEnv.get('AI_BASE_URL') || '';
     let fastApiKey = existingEnv.get('FAST_AI_API_KEY') || existingEnv.get('AI_API_KEY') || '';
-    let fastModel = existingEnv.get('FAST_MODEL') || defaultModel;
+    let rawFastModel = existingEnv.get('FAST_MODEL') || defaultModel;
+    let fastModel = rawFastModel === 'deepseek-chat' ? 'deepseek-v4-flash' : rawFastModel;
 
     let authRegistrationMode = existingEnv.get('AUTH_REGISTRATION_MODE') || 'username';
     let tencentSmsSecretId = existingEnv.get('TENCENT_SMS_SECRET_ID') || '';
@@ -505,20 +527,36 @@ async function runInit() {
         defaultProv = providerPool[0];
       }
 
-      console.log(`\n⏳ 正在拉取【${defaultProv.name}】的可用模型列表...`);
-      const defFetch = await fetchRemoteModels(defaultProv.baseUrl, defaultProv.apiKey);
-      let targetDefModel = defaultModel || defaultProv.defaultModel || 'deepseek-chat';
+      console.log(`\n⏳ 正在获取【${defaultProv.name}】的可用模型列表...`);
+      let availableModels = [];
+      const isDefProvDeepSeek = defaultProv.type === 'deepseek' || defaultProv.id?.toLowerCase().includes('deepseek') || defaultProv.baseUrl?.toLowerCase().includes('deepseek');
 
-      if (defFetch.ok && defFetch.models.length > 0) {
-        console.log(`${c.green}✅ 成功获取到 ${defFetch.models.length} 个模型：${c.reset}\n`);
-        defFetch.models.forEach((m, idx) => {
-          console.log(`   ${c.dim}${String(idx + 1).padStart(3, ' ')}.${c.reset} ${c.bold}${m}${c.reset}`);
+      if (isDefProvDeepSeek) {
+        availableModels = ['deepseek-v4-flash', 'deepseek-v4-pro', 'deepseek-v4-flash-vision-exp'];
+      } else {
+        const defFetch = await fetchRemoteModels(defaultProv.baseUrl, defaultProv.apiKey);
+        if (defFetch.ok && defFetch.models.length > 0) {
+          availableModels = defFetch.models;
+        } else if (defaultProv.models && defaultProv.models.length > 0) {
+          availableModels = defaultProv.models;
+        }
+      }
+
+      let targetDefModel = defaultModel || defaultProv.defaultModel || (isDefProvDeepSeek ? 'deepseek-v4-flash' : 'gpt-4o');
+      if (isDefProvDeepSeek && targetDefModel === 'deepseek-chat') {
+        targetDefModel = 'deepseek-v4-flash';
+      }
+
+      if (availableModels.length > 0) {
+        console.log(`${c.green}✅ 可用模型列表 (${availableModels.length} 个)：${c.reset}\n`);
+        availableModels.forEach((m, idx) => {
+          console.log(`   ${c.cyan}[${idx + 1}]${c.reset} ${c.bold}${m}${c.reset}`);
         });
-        const defModelAns = await rl.question(`\n${c.green}? 请选择/输入 标准对话模型 (默认: ${targetDefModel}): ${c.reset}`);
+        const defModelAns = await rl.question(`\n${c.green}? 请选择编号 [1-${availableModels.length}] 或输入标准对话模型 (默认: ${targetDefModel}): ${c.reset}`);
         const defTrimmed = defModelAns.trim();
         if (defTrimmed) {
           const num = parseInt(defTrimmed, 10);
-          defaultModel = (!isNaN(num) && num >= 1 && num <= defFetch.models.length) ? defFetch.models[num - 1] : defTrimmed;
+          defaultModel = (!isNaN(num) && num >= 1 && num <= availableModels.length) ? availableModels[num - 1] : defTrimmed;
         } else {
           defaultModel = targetDefModel;
         }
@@ -551,20 +589,36 @@ async function runInit() {
         fastApiKey = defaultProv.apiKey;
       }
 
-      console.log(`\n⏳ 正在拉取【${fastProv.name}】的模型列表...`);
-      const fastFetch = await fetchRemoteModels(fastProv.baseUrl, fastProv.apiKey);
-      let targetFastModel = fastModel || fastProv.fastModel || defaultModel;
+      console.log(`\n⏳ 正在获取【${fastProv.name}】的模型列表...`);
+      let fastAvailableModels = [];
+      const isFastProvDeepSeek = fastProv.type === 'deepseek' || fastProv.id?.toLowerCase().includes('deepseek') || fastProv.baseUrl?.toLowerCase().includes('deepseek');
 
-      if (fastFetch.ok && fastFetch.models.length > 0) {
-        console.log(`${c.green}✅ 成功获取到 ${fastFetch.models.length} 个模型：${c.reset}\n`);
-        fastFetch.models.forEach((m, idx) => {
-          console.log(`   ${c.dim}${String(idx + 1).padStart(3, ' ')}.${c.reset} ${c.bold}${m}${c.reset}`);
+      if (isFastProvDeepSeek) {
+        fastAvailableModels = ['deepseek-v4-flash', 'deepseek-v4-pro', 'deepseek-v4-flash-vision-exp'];
+      } else {
+        const fastFetch = await fetchRemoteModels(fastProv.baseUrl, fastProv.apiKey);
+        if (fastFetch.ok && fastFetch.models.length > 0) {
+          fastAvailableModels = fastFetch.models;
+        } else if (fastProv.models && fastProv.models.length > 0) {
+          fastAvailableModels = fastProv.models;
+        }
+      }
+
+      let targetFastModel = fastModel || fastProv.fastModel || defaultModel;
+      if (isFastProvDeepSeek && targetFastModel === 'deepseek-chat') {
+        targetFastModel = 'deepseek-v4-flash';
+      }
+
+      if (fastAvailableModels.length > 0) {
+        console.log(`${c.green}✅ 可用模型列表 (${fastAvailableModels.length} 个)：${c.reset}\n`);
+        fastAvailableModels.forEach((m, idx) => {
+          console.log(`   ${c.magenta}[${idx + 1}]${c.reset} ${c.bold}${m}${c.reset}`);
         });
-        const fastModelAns = await rl.question(`\n${c.green}? 请选择/输入 快速处理模型 (默认: ${targetFastModel}): ${c.reset}`);
+        const fastModelAns = await rl.question(`\n${c.green}? 请选择编号 [1-${fastAvailableModels.length}] 或输入快速处理模型 (默认: ${targetFastModel}): ${c.reset}`);
         const fTrimmed = fastModelAns.trim();
         if (fTrimmed) {
           const num = parseInt(fTrimmed, 10);
-          fastModel = (!isNaN(num) && num >= 1 && num <= fastFetch.models.length) ? fastFetch.models[num - 1] : fTrimmed;
+          fastModel = (!isNaN(num) && num >= 1 && num <= fastAvailableModels.length) ? fastAvailableModels[num - 1] : fTrimmed;
         } else {
           fastModel = targetFastModel;
         }
