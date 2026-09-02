@@ -53,7 +53,7 @@ export const GroupRosterModal: React.FC<GroupRosterModalProps> = ({
                                     alt={agent.name}
                                     className="w-12 h-12 rounded-2xl object-cover border-2 border-white shadow-sm shrink-0"
                                     onError={(e) => {
-                                        (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=200&auto=format&fit=crop";
+                                        (e.target as HTMLImageElement).src = "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSVj3_GxALNWCvvYihiQsgv2KEhImtc73CpQywRMqdv5w&s=10";
                                     }}
                                 />
                                 <div>

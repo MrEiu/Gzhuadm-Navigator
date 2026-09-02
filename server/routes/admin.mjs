@@ -777,7 +777,7 @@ export const DEFAULT_AGENT_CONFIG = {
     lili: {
         name: '丽丽学姐',
         title: '校园智能伴游',
-        avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=400&auto=format&fit=crop'
+        avatar: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSVj3_GxALNWCvvYihiQsgv2KEhImtc73CpQywRMqdv5w&s=10'
     }
 };
 

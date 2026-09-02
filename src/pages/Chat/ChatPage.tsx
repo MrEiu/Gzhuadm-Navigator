@@ -133,7 +133,7 @@ export const ChatPage: React.FC<ChatPageProps> = ({ currentUser, onLogout, onSwi
         } catch { }
     };
 
-    // --- Multi-Agent Roster State ---
+    // --- Advisor Roster State (实时同步后端配置，无前端死值) ---
     const [agentsRoster, setAgentsRoster] = useState<MultiAgentRoster>(() => {
         try {
             const saved = localStorage.getItem('aurasense_agents_config');
@@ -141,6 +141,24 @@ export const ChatPage: React.FC<ChatPageProps> = ({ currentUser, onLogout, onSwi
         } catch { }
         return { dr: ROLE };
     });
+
+    // 当前同步生效的主咨询顾问 (思考中与气泡展示严格对齐)
+    const currentAdvisor = agentsRoster?.dr || (() => {
+        try {
+            const saved = localStorage.getItem('aurasense_agents_config');
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                if (parsed?.dr) return parsed.dr;
+            }
+        } catch { }
+        return {
+            key: 'dr',
+            name: ROLE.name,
+            title: ROLE.title,
+            avatar: ROLE.avatar,
+            bubbleColor: ROLE.color
+        };
+    })();
 
     // --- Campus Map State ---
     const [campusLocations, setCampusLocations] = useState<CampusLocation[]>(DEFAULT_CAMPUS_LOCATIONS);
@@ -253,16 +271,38 @@ export const ChatPage: React.FC<ChatPageProps> = ({ currentUser, onLogout, onSwi
             })
             .catch(() => { });
 
-        fetch(`${API_BASE}/api/agents-config`)
-            .then(res => res.json())
-            .then(data => {
-                const agents = data.agents || data.data;
-                if (data.ok && agents) {
-                    setAgentsRoster(agents);
-                    localStorage.setItem('aurasense_agents_config', JSON.stringify(agents));
-                }
-            })
-            .catch(() => { });
+        const syncAgentsFromServer = () => {
+            fetch(`${API_BASE}/api/agents-config`)
+                .then(res => res.json())
+                .then(data => {
+                    const agents = data.agents || data.data;
+                    if (data.ok && agents) {
+                        setAgentsRoster(agents);
+                        localStorage.setItem('aurasense_agents_config', JSON.stringify(agents));
+                    }
+                })
+                .catch(() => { });
+        };
+
+        syncAgentsFromServer();
+
+        const handleAgentsConfigUpdated = (e: any) => {
+            if (e.detail) {
+                setAgentsRoster(e.detail);
+            } else {
+                syncAgentsFromServer();
+            }
+        };
+
+        window.addEventListener('gzadm_agents_config_updated', handleAgentsConfigUpdated);
+        const handleStorageChange = (e: StorageEvent) => {
+            if (e.key === 'aurasense_agents_config' && e.newValue) {
+                try {
+                    setAgentsRoster(JSON.parse(e.newValue));
+                } catch { }
+            }
+        };
+        window.addEventListener('storage', handleStorageChange);
 
         fetch(`${API_BASE}/api/campus-map`)
             .then(res => res.json())
@@ -277,6 +317,11 @@ export const ChatPage: React.FC<ChatPageProps> = ({ currentUser, onLogout, onSwi
                 }
             })
             .catch(() => { });
+
+        return () => {
+            window.removeEventListener('gzadm_agents_config_updated', handleAgentsConfigUpdated);
+            window.removeEventListener('storage', handleStorageChange);
+        };
     }, [currentUser.username]);
 
     const scrollToBottomIfNeeded = () => {
@@ -429,18 +474,44 @@ export const ChatPage: React.FC<ChatPageProps> = ({ currentUser, onLogout, onSwi
 
             const reply = data?.reply || '抱歉，我刚刚有些走神，请您再试一次。';
 
-            const currentDr = agentsRoster?.dr;
+            // 动态响应同步：若后端返回了最新的顾问信息，即时更新本地同步池
+            if (data.agentName || data.agentAvatar || data.agentTitle || data.agentColor) {
+                setAgentsRoster(prev => {
+                    const existing = prev?.dr;
+                    if (!existing || existing.name !== data.agentName || existing.avatar !== data.agentAvatar || existing.title !== data.agentTitle || existing.bubbleColor !== data.agentColor) {
+                        const updated: MultiAgentRoster = {
+                            ...prev,
+                            dr: {
+                                key: 'dr',
+                                name: data.agentName || existing?.name || currentAdvisor.name,
+                                title: data.agentTitle || existing?.title || currentAdvisor.title,
+                                avatar: data.agentAvatar || existing?.avatar || currentAdvisor.avatar,
+                                bubbleColor: data.agentColor || existing?.bubbleColor || currentAdvisor.bubbleColor,
+                                bubbleTextColor: existing?.bubbleTextColor || '#ffffff',
+                                voice: existing?.voice || 'zh-CN-XiaoxiaoNeural',
+                                description: existing?.description,
+                                systemPrompt: existing?.systemPrompt
+                            }
+                        };
+                        try {
+                            localStorage.setItem('aurasense_agents_config', JSON.stringify(updated));
+                        } catch { }
+                        return updated;
+                    }
+                    return prev;
+                });
+            }
 
             const botMsg: ChatMessage = {
                 id: Date.now() + 1,
                 sender: 'bot',
                 text: reply,
-                senderAgentKey: data.agentKey || currentDr?.key || 'dr',
-                senderName: data.agentName || currentDr?.name || ROLE.name,
-                senderTitle: data.agentTitle || currentDr?.title || ROLE.title,
-                senderAvatar: data.agentAvatar || currentDr?.avatar || ROLE.avatar,
-                senderColor: data.agentColor || currentDr?.bubbleColor || ROLE.color,
-                senderVoice: data.agentVoice || currentDr?.voice || undefined,
+                senderAgentKey: data.agentKey || currentAdvisor.key || 'dr',
+                senderName: data.agentName || currentAdvisor.name,
+                senderTitle: data.agentTitle || currentAdvisor.title,
+                senderAvatar: data.agentAvatar || currentAdvisor.avatar,
+                senderColor: data.agentColor || currentAdvisor.bubbleColor,
+                senderVoice: data.agentVoice || currentAdvisor.voice || undefined,
                 instant: true,
                 mode: data.mode || advisorMode,
                 activeClones: data.activeClones || undefined,
@@ -769,9 +840,9 @@ export const ChatPage: React.FC<ChatPageProps> = ({ currentUser, onLogout, onSwi
                                 key={msg.id}
                                 msg={msg}
                                 isUser={msg.sender === 'user'}
-                                roleColor={msg.senderColor || ROLE.color}
-                                roleAvatar={msg.senderAvatar || ROLE.avatar}
-                                roleName={msg.senderName || ROLE.name}
+                                roleColor={msg.senderColor || currentAdvisor.bubbleColor || '#8b5cf6'}
+                                roleAvatar={msg.senderAvatar || currentAdvisor.avatar}
+                                roleName={msg.senderName || currentAdvisor.name}
                                 userAvatar={userProfile?.avatar || currentUser.username}
                                 bubbleTheme={bubbleTheme}
                                 customSettings={{ ...bubbleSettings, markdownStyle }}
@@ -784,18 +855,45 @@ export const ChatPage: React.FC<ChatPageProps> = ({ currentUser, onLogout, onSwi
                         ))}
 
                         {typing && (
-                            <div className="flex justify-start animate-in slide-in-from-bottom-4 duration-300">
-                                <div className="flex max-w-[88%] flex-row items-end gap-3">
-                                    <div className="w-9 h-9 rounded-[14px] shadow-sm border border-white bg-gradient-to-br from-purple-400 to-pink-400 flex items-center justify-center text-white font-bold text-xs shrink-0 animate-pulse">
-                                        AI
+                            <div className="flex justify-start group animate-in slide-in-from-bottom-3 duration-300 w-full">
+                                <div className="flex max-w-[96%] sm:max-w-[85%] flex-row items-end gap-1.5 sm:gap-2.5 min-w-0">
+                                    {/* 头像：完全同步后端顾问配置，无前端死值；无图片或加载失败自动平滑展示徽章 */}
+                                    {currentAdvisor.avatar ? (
+                                        <img
+                                            src={currentAdvisor.avatar}
+                                            className="w-8 h-8 sm:w-9 sm:h-9 rounded-2xl shadow-xs border border-white object-cover shrink-0 animate-pulse"
+                                            alt={currentAdvisor.name}
+                                            onError={(e) => {
+                                                const target = e.target as HTMLImageElement;
+                                                target.style.display = 'none';
+                                                const fallbackDiv = target.nextElementSibling as HTMLElement;
+                                                if (fallbackDiv) fallbackDiv.style.display = 'flex';
+                                            }}
+                                        />
+                                    ) : null}
+                                    <div
+                                        className="w-8 h-8 sm:w-9 sm:h-9 rounded-2xl shadow-xs border border-white flex items-center justify-center text-xs font-bold text-white shrink-0 select-none animate-pulse"
+                                        style={{
+                                            backgroundColor: currentAdvisor.bubbleColor || '#8b5cf6',
+                                            display: currentAdvisor.avatar ? 'none' : 'flex'
+                                        }}
+                                    >
+                                        {(currentAdvisor.name || 'AI').slice(0, 2)}
                                     </div>
-                                    <div className="flex flex-col">
-                                        <div className="flex items-center gap-1.5 mb-1.5 ml-1">
-                                            <span className="text-[11px] font-black tracking-wider uppercase text-purple-600">
-                                                {ROLE.name}
+
+                                    <div className="flex flex-col min-w-0 max-w-full">
+                                        <div className="flex items-center gap-1.5 mb-1.5 ml-1 flex-wrap">
+                                            <span className="text-[12px] font-black tracking-wide" style={{ color: currentAdvisor.bubbleColor || '#8b5cf6' }}>
+                                                {currentAdvisor.name}
                                             </span>
-                                            <span className="text-[10px] text-[#a494e8] font-bold bg-purple-50 px-2 py-0.5 rounded-full border border-purple-100 animate-pulse">
-                                                正在回复中
+                                            {currentAdvisor.title && (
+                                                <span className="text-[9.5px] px-2 py-0.5 rounded-full bg-purple-50 font-bold border border-purple-100 text-purple-700">
+                                                    {currentAdvisor.title}
+                                                </span>
+                                            )}
+                                            <span className="text-[9.5px] text-[#a494e8] font-bold bg-purple-50/80 px-2 py-0.5 rounded-full border border-purple-100 animate-pulse flex items-center gap-1">
+                                                <span className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-ping" />
+                                                <span>正在思考推演中...</span>
                                             </span>
                                         </div>
                                         <div className="bg-white text-[#5c5478] shadow-[0_12px_30px_rgba(203,195,225,0.3)] px-5 py-3.5 rounded-[24px] rounded-tl-sm flex items-center gap-3 border border-purple-100">
@@ -842,7 +940,7 @@ export const ChatPage: React.FC<ChatPageProps> = ({ currentUser, onLogout, onSwi
                 isOpen={isMapGuideOpen}
                 onClose={() => setIsMapGuideOpen(false)}
                 pinScale={mapPinScale}
-                liliAvatar="https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=400&auto=format&fit=crop"
+                liliAvatar="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSVj3_GxALNWCvvYihiQsgv2KEhImtc73CpQywRMqdv5w&s=10"
                 liliName="丽丽学姐"
             />
 

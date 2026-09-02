@@ -32,22 +32,12 @@ const CORE_FALLBACK_AGENTS: MultiAgentRoster = {
     dr: {
         key: 'dr',
         name: 'Dr. Elena',
-        title: '首席高招咨询顾问',
+        title: '首席招生咨询顾问',
         avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?q=80&w=400&auto=format&fit=crop',
         bubbleColor: '#8b5cf6',
         bubbleTextColor: '#ffffff',
         voice: 'zh-CN-XiaoxiaoNeural',
-        systemPrompt: `你是广州大学首席高招咨询顾问 Dr. Elena。\n【身份特质】：专业、严谨、亲切、权威。\n【专精领域】：广州大学各省录取分数线、排位测算、志愿填报推荐、转专业政策框架、校方官方学费及资助。\n【协同研判】：统揽决策智能体矩阵的专业研判，输出条理清晰、有理有据的综合决策建议。`
-    },
-    senior_girl: {
-        key: 'senior_girl',
-        name: '丽丽学姐',
-        title: '全景地图语音伴游向导',
-        avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=400&auto=format&fit=crop',
-        bubbleColor: '#ec4899',
-        bubbleTextColor: '#ffffff',
-        voice: 'zh-CN-XiaoyiNeural',
-        systemPrompt: `你是广州大学全景手绘地图语音伴游向导 丽丽学姐。\n【身份特质】：活泼开朗、元气满满、热爱广大校园文化与地标探索。\n【专精领域】：大学城校区与桂花岗校区全景点位解说、避坑小秘密、实景机位推荐、地标打卡与语音伴游播报（注：无主对话职责，专注地图语音导览）。`
+        systemPrompt: `你是广州大学首席招生咨询顾问 Dr. Elena。\n【身份特质】：专业、严谨、亲切、权威。\n【专精领域】：广州大学各省录取分数线、排位测算、志愿填报推荐、转专业政策框架、校方官方学费及资助。\n【详略规则】：\n- 遇到招生、专业选拔、分数排位、学费等本专业问题，给出详尽、严谨、结构化的分析。\n- 语言得体、专业亲切，条理清晰地为考生和家长解答。`
     }
 };
 
@@ -385,7 +375,7 @@ export const MultiAgentTab: React.FC = () => {
                                 }`}
                             >
                                 <Users size={15} />
-                                <span>核心实体人设 (Dr. Elena / 丽丽)</span>
+                                <span>首席顾问配置 (Dr. Elena)</span>
                             </button>
 
                             <button
@@ -776,176 +766,99 @@ export const MultiAgentTab: React.FC = () => {
                 </div>
             )}
 
-            {/* TAB 2: 核心实体人设 (Dr. Elena & 丽丽学姐) */}
+            {/* TAB 2: 首席顾问配置 (Dr. Elena - 仅需名称、语音、头像) */}
             {subTab === 'core_agents' && (
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-                    {/* Left: Core Agents Selector */}
-                    <div className="lg:col-span-4 space-y-3">
-                        <div className="px-2">
-                            <span className="text-[12px] font-bold text-[#8a84a4] uppercase tracking-wider">
-                                核心实体角色定位
-                            </span>
+                <div className="max-w-4xl mx-auto space-y-6 animate-in fade-in duration-300">
+                    <div className="bg-white/90 backdrop-blur-xl rounded-[32px] p-6 sm:p-8 border border-white/80 shadow-[0_8px_25px_rgba(186,175,215,0.18)] space-y-6">
+                        {/* Header */}
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-purple-50">
+                            <div className="flex items-center gap-3.5">
+                                <img
+                                    src={coreAgents.dr?.avatar || CORE_FALLBACK_AGENTS.dr.avatar}
+                                    alt="Advisor Avatar"
+                                    className="w-14 h-14 rounded-2xl object-cover border-2 border-purple-200 shadow-md shrink-0"
+                                    onError={(e) => {
+                                        const target = e.target as HTMLImageElement;
+                                        target.src = CORE_FALLBACK_AGENTS.dr.avatar;
+                                    }}
+                                />
+                                <div>
+                                    <div className="flex items-center gap-2">
+                                        <h4 className="font-black text-[#4a4365] text-[18px]">
+                                            {coreAgents.dr?.name || 'Dr. Elena'}
+                                        </h4>
+                                        <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-100">
+                                            {coreAgents.dr?.title || '首席招生咨询顾问'}
+                                        </span>
+                                    </div>
+                                    <p className="text-[12px] text-[#8a84a4] mt-0.5">
+                                        广州大学招生咨询与志愿决策主顾问 · 负责考生与家长咨询解答
+                                    </p>
+                                </div>
+                            </div>
+
+                            <button
+                                type="button"
+                                onClick={handleSaveCoreAgents}
+                                disabled={saving}
+                                className="flex items-center gap-1.5 px-6 py-2.5 rounded-2xl bg-purple-600 hover:bg-purple-700 text-white text-[13px] font-bold shadow-md hover:shadow-lg active:scale-95 transition-all cursor-pointer shrink-0 self-end sm:self-auto"
+                            >
+                                {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+                                <span>{saveSuccess ? '已保存！' : '保存顾问配置'}</span>
+                            </button>
                         </div>
 
-                        {/* Dr. Elena */}
-                        <button
-                            type="button"
-                            onClick={() => setSelectedCoreKey('dr')}
-                            className={`w-full p-4 rounded-2xl border text-left transition-all cursor-pointer flex items-center gap-3.5 relative ${
-                                selectedCoreKey === 'dr'
-                                    ? 'bg-white border-purple-400 shadow-[0_8px_20px_rgba(168,85,247,0.18)] translate-x-1'
-                                    : 'bg-white/70 hover:bg-white border-white/80 shadow-2xs'
-                            }`}
-                        >
-                            <img
-                                src={coreAgents.dr?.avatar || CORE_FALLBACK_AGENTS.dr.avatar}
-                                alt="Dr. Elena"
-                                className="w-12 h-12 rounded-2xl object-cover border border-purple-200 shadow-sm shrink-0"
-                            />
-                            <div className="min-w-0 flex-1">
-                                <div className="flex items-center gap-1.5">
-                                    <span className="text-[14px] font-black text-[#4a4365]">
-                                        {coreAgents.dr?.name || 'Dr. Elena'}
-                                    </span>
-                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-100">
-                                        全局首席顾问
-                                    </span>
-                                </div>
-                                <p className="text-[11px] text-[#8a84a4] truncate mt-0.5">
-                                    高招咨询全局主脑 · 决策分身推演总装
-                                </p>
-                            </div>
-                        </button>
-
-                        {/* Lili */}
-                        <button
-                            type="button"
-                            onClick={() => setSelectedCoreKey('senior_girl')}
-                            className={`w-full p-4 rounded-2xl border text-left transition-all cursor-pointer flex items-center gap-3.5 relative ${
-                                selectedCoreKey === 'senior_girl'
-                                    ? 'bg-white border-pink-400 shadow-[0_8px_20px_rgba(236,72,153,0.18)] translate-x-1'
-                                    : 'bg-white/70 hover:bg-white border-white/80 shadow-2xs'
-                            }`}
-                        >
-                            <img
-                                src={coreAgents.senior_girl?.avatar || CORE_FALLBACK_AGENTS.senior_girl.avatar}
-                                alt="丽丽学姐"
-                                className="w-12 h-12 rounded-2xl object-cover border border-pink-200 shadow-sm shrink-0"
-                            />
-                            <div className="min-w-0 flex-1">
-                                <div className="flex items-center gap-1.5">
-                                    <span className="text-[14px] font-black text-[#4a4365]">
-                                        {coreAgents.senior_girl?.name || '丽丽学姐'}
-                                    </span>
-                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-pink-50 text-pink-700 border border-pink-100">
-                                        地图语音向导
-                                    </span>
-                                </div>
-                                <p className="text-[11px] text-[#8a84a4] truncate mt-0.5">
-                                    全景手绘地图伴游 · 实景语音点位导览
-                                </p>
-                            </div>
-                        </button>
-                    </div>
-
-                    {/* Right: Selected Core Agent Details */}
-                    <div className="lg:col-span-8 space-y-6">
-                        <div className="bg-white/90 backdrop-blur-xl rounded-[32px] p-6 border border-white/80 shadow-[0_8px_25px_rgba(186,175,215,0.18)] space-y-5">
-                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-purple-50">
-                                <div className="flex items-center gap-3">
-                                    <img
-                                        src={currentCoreAgent?.avatar || CORE_FALLBACK_AGENTS[selectedCoreKey].avatar}
-                                        alt="Avatar"
-                                        className="w-12 h-12 rounded-2xl object-cover border border-purple-200 shadow-sm shrink-0"
-                                    />
-                                    <div>
-                                        <h4 className="font-black text-[#4a4365] text-[17px]">
-                                            {currentCoreAgent?.name} - {currentCoreAgent?.title}
-                                        </h4>
-                                        <p className="text-[11.5px] text-[#8a84a4]">
-                                            {selectedCoreKey === 'dr'
-                                                ? '负责接收用户高招咨询，统揽底层决策分身并总装输出权威解答'
-                                                : '专属作用于手绘全景地图点位解说、避坑小秘密及 TTS 语音播报（非主对话角色）'}
-                                        </p>
-                                    </div>
-                                </div>
-
-                                <button
-                                    type="button"
-                                    onClick={handleSaveCoreAgents}
-                                    disabled={saving}
-                                    className="flex items-center gap-1.5 px-5 py-2.5 rounded-2xl bg-purple-600 hover:bg-purple-700 text-white text-[13px] font-bold shadow-md hover:shadow-lg active:scale-95 transition-all cursor-pointer shrink-0"
-                                >
-                                    {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-                                    <span>{saveSuccess ? '已保存！' : '保存角色人设'}</span>
-                                </button>
-                            </div>
-
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                <div>
-                                    <label className="text-[11.5px] font-bold text-[#4a4365] block mb-1">
-                                        角色名称
-                                    </label>
-                                    <input
-                                        type="text"
-                                        value={currentCoreAgent?.name || ''}
-                                        onChange={(e) => {
-                                            const val = e.target.value;
-                                            setCoreAgents(prev => ({
-                                                ...prev,
-                                                [selectedCoreKey]: { ...currentCoreAgent, name: val }
-                                            }));
-                                        }}
-                                        className="w-full bg-[#f8f6fc] rounded-xl px-4 py-2.5 text-[13px] font-bold text-[#4a4365] outline-none border border-transparent focus:border-purple-300"
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="text-[11.5px] font-bold text-[#4a4365] block mb-1">
-                                        角色头衔 / 职责
-                                    </label>
-                                    <input
-                                        type="text"
-                                        value={currentCoreAgent?.title || ''}
-                                        onChange={(e) => {
-                                            const val = e.target.value;
-                                            setCoreAgents(prev => ({
-                                                ...prev,
-                                                [selectedCoreKey]: { ...currentCoreAgent, title: val }
-                                            }));
-                                        }}
-                                        className="w-full bg-[#f8f6fc] rounded-xl px-4 py-2.5 text-[13px] font-bold text-[#4a4365] outline-none border border-transparent focus:border-purple-300"
-                                    />
-                                </div>
-                            </div>
-
-                            {/* Voice Selector & Test */}
+                        {/* 配置项：仅保留 名称、语音、头像 */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                            {/* 1. 顾问名称 */}
                             <div>
-                                <label className="text-[11.5px] font-bold text-[#4a4365] block mb-1 flex items-center justify-between">
-                                    <span>🎙️ 专属 TTS 播报音色</span>
-                                    <button
-                                        type="button"
-                                        onClick={() => handleTestVoice(
-                                            currentCoreAgent?.voice || 'zh-CN-XiaoxiaoNeural',
-                                            selectedCoreKey === 'dr' ? '你好，我是广州大学高招咨询顾问 Dr. Elena，很高兴为您解答！' : '哈喽大家好！我是丽丽学姐，欢迎来到美丽的广州大学大学城校区！'
-                                        )}
-                                        disabled={testingVoice}
-                                        className="text-[11px] font-bold text-purple-600 hover:text-purple-800 flex items-center gap-1 cursor-pointer"
-                                    >
-                                        <Volume2 size={13} />
-                                        <span>{testingVoice ? '正在播放中...' : '试听音色'}</span>
-                                    </button>
+                                <label className="text-[12px] font-bold text-[#4a4365] block mb-1.5">
+                                    顾问名称 (Name)
                                 </label>
-                                <select
-                                    value={currentCoreAgent?.voice || 'zh-CN-XiaoxiaoNeural'}
+                                <input
+                                    type="text"
+                                    value={coreAgents.dr?.name || ''}
                                     onChange={(e) => {
                                         const val = e.target.value;
                                         setCoreAgents(prev => ({
                                             ...prev,
-                                            [selectedCoreKey]: { ...currentCoreAgent, voice: val }
+                                            dr: { ...prev.dr, name: val }
                                         }));
                                     }}
-                                    className="w-full bg-[#f8f6fc] rounded-xl px-4 py-2.5 text-[13px] font-bold text-[#4a4365] outline-none border border-transparent focus:border-purple-300 cursor-pointer"
+                                    placeholder="例如：Dr. Elena"
+                                    className="w-full bg-[#f8f6fc] rounded-xl px-4 py-3 text-[13px] font-bold text-[#4a4365] outline-none border border-transparent focus:border-purple-300 transition-colors"
+                                />
+                            </div>
+
+                            {/* 2. 专属 TTS 播报音色 */}
+                            <div>
+                                <div className="flex items-center justify-between mb-1.5">
+                                    <label className="text-[12px] font-bold text-[#4a4365]">
+                                        专属播报语音 (Voice)
+                                    </label>
+                                    <button
+                                        type="button"
+                                        onClick={() => handleTestVoice(
+                                            coreAgents.dr?.voice || 'zh-CN-XiaoxiaoNeural',
+                                            `你好，我是广州大学招生咨询顾问 ${coreAgents.dr?.name || 'Dr. Elena'}，很高兴为您解答！`
+                                        )}
+                                        disabled={testingVoice}
+                                        className="text-[11px] font-bold text-purple-600 hover:text-purple-800 flex items-center gap-1 cursor-pointer transition-colors"
+                                    >
+                                        <Volume2 size={13} />
+                                        <span>{testingVoice ? '正在试听中...' : '试听音色'}</span>
+                                    </button>
+                                </div>
+                                <select
+                                    value={coreAgents.dr?.voice || 'zh-CN-XiaoxiaoNeural'}
+                                    onChange={(e) => {
+                                        const val = e.target.value;
+                                        setCoreAgents(prev => ({
+                                            ...prev,
+                                            dr: { ...prev.dr, voice: val }
+                                        }));
+                                    }}
+                                    className="w-full bg-[#f8f6fc] rounded-xl px-4 py-3 text-[13px] font-bold text-[#4a4365] outline-none border border-transparent focus:border-purple-300 cursor-pointer transition-colors"
                                 >
                                     {DEFAULT_VOICES.map(v => (
                                         <option key={v.id} value={v.id}>{v.name}</option>
@@ -953,42 +866,39 @@ export const MultiAgentTab: React.FC = () => {
                                 </select>
                             </div>
 
-                            {/* Avatar URL */}
-                            <div>
-                                <label className="text-[11.5px] font-bold text-[#4a4365] block mb-1">
-                                    头像图片 URL
+                            {/* 3. 头像图片 URL */}
+                            <div className="sm:col-span-2">
+                                <label className="text-[12px] font-bold text-[#4a4365] block mb-1.5">
+                                    顾问头像图片 (Avatar URL)
                                 </label>
-                                <input
-                                    type="text"
-                                    value={currentCoreAgent?.avatar || ''}
-                                    onChange={(e) => {
-                                        const val = e.target.value;
-                                        setCoreAgents(prev => ({
-                                            ...prev,
-                                            [selectedCoreKey]: { ...currentCoreAgent, avatar: val }
-                                        }));
-                                    }}
-                                    className="w-full bg-[#f8f6fc] rounded-xl px-4 py-2.5 text-[12.5px] font-mono text-[#4a4365] outline-none border border-transparent focus:border-purple-300"
-                                />
-                            </div>
-
-                            {/* System Prompt */}
-                            <div>
-                                <label className="text-[11.5px] font-bold text-[#4a4365] block mb-1">
-                                    核心 Prompt 人设指令
-                                </label>
-                                <textarea
-                                    value={currentCoreAgent?.systemPrompt || ''}
-                                    onChange={(e) => {
-                                        const val = e.target.value;
-                                        setCoreAgents(prev => ({
-                                            ...prev,
-                                            [selectedCoreKey]: { ...currentCoreAgent, systemPrompt: val }
-                                        }));
-                                    }}
-                                    rows={5}
-                                    className="w-full bg-[#f8f6fc] rounded-2xl p-4 text-[12.5px] font-mono text-[#39334d] outline-none border border-transparent focus:border-purple-300 resize-y leading-relaxed"
-                                />
+                                <div className="flex gap-3">
+                                    <input
+                                        type="text"
+                                        value={coreAgents.dr?.avatar || ''}
+                                        onChange={(e) => {
+                                            const val = e.target.value;
+                                            setCoreAgents(prev => ({
+                                                ...prev,
+                                                dr: { ...prev.dr, avatar: val }
+                                            }));
+                                        }}
+                                        placeholder="https://... 或以 /uploads 开头的本地图片路径"
+                                        className="flex-1 bg-[#f8f6fc] rounded-xl px-4 py-3 text-[12.5px] font-mono text-[#4a4365] outline-none border border-transparent focus:border-purple-300 transition-colors"
+                                    />
+                                    {coreAgents.dr?.avatar && (
+                                        <img
+                                            src={coreAgents.dr.avatar}
+                                            alt="Preview"
+                                            className="w-12 h-12 rounded-xl object-cover border border-purple-200 shadow-xs shrink-0"
+                                            onError={(e) => {
+                                                (e.target as HTMLImageElement).style.display = 'none';
+                                            }}
+                                        />
+                                    )}
+                                </div>
+                                <p className="text-[11px] text-[#8a84a4] mt-1.5">
+                                    支持 HTTP/HTTPS 图片直链，亦可填写本地静态图片路径。
+                                </p>
                             </div>
                         </div>
                     </div>

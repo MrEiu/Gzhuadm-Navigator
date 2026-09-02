@@ -172,14 +172,30 @@ export const ChatMessageBubble = React.memo(({
                         />
                     )
                 ) : (
-                    <img
-                        src={effectiveAvatar}
-                        className="w-8 h-8 sm:w-9 sm:h-9 rounded-2xl shadow-xs border border-white object-cover shrink-0"
-                        alt="bot avatar"
-                        onError={(e) => {
-                            (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1559839734-2b71ea197ec2?q=80&w=200&auto=format&fit=crop";
-                        }}
-                    />
+                    <>
+                        {effectiveAvatar ? (
+                            <img
+                                src={effectiveAvatar}
+                                className="w-8 h-8 sm:w-9 sm:h-9 rounded-2xl shadow-xs border border-white object-cover shrink-0"
+                                alt={effectiveName}
+                                onError={(e) => {
+                                    const target = e.target as HTMLImageElement;
+                                    target.style.display = 'none';
+                                    const fallback = target.nextElementSibling as HTMLElement;
+                                    if (fallback) fallback.style.display = 'flex';
+                                }}
+                            />
+                        ) : null}
+                        <div
+                            className="w-8 h-8 sm:w-9 sm:h-9 rounded-2xl shadow-xs border border-white flex items-center justify-center text-xs font-bold text-white shrink-0 select-none"
+                            style={{
+                                backgroundColor: effectiveColor || '#8b5cf6',
+                                display: effectiveAvatar ? 'none' : 'flex'
+                            }}
+                        >
+                            {(effectiveName || 'AI').slice(0, 2)}
+                        </div>
+                    </>
                 )}
 
                 <div className="flex flex-col min-w-0 max-w-full">

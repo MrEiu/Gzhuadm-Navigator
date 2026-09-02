@@ -187,6 +187,8 @@ router.post(['/chat', '/admissions'], async (req, res) => {
 
     // 2. If no remote API key, serve local response using RAG context
     if (!hasRemoteKey) {
+        const agents = loadAgentsConfig();
+        const drConfig = agents.dr || {};
         const ragMatches = await searchRagEngine(lastUserMsg, 3, 'dr');
         if (ragMatches.length) {
             const topMatch = ragMatches[0].item;
@@ -207,14 +209,29 @@ router.post(['/chat', '/admissions'], async (req, res) => {
                 });
             }
 
-            return res.json({ ok: true, reply, source: 'local-bge-rag-db', mode: advisorMode });
+            return res.json({
+                ok: true,
+                reply,
+                source: 'local-bge-rag-db',
+                mode: advisorMode,
+                agentKey: 'dr',
+                agentName: drConfig.name || 'Dr. Elena',
+                agentTitle: drConfig.title || '首席招生咨询顾问',
+                agentAvatar: drConfig.avatar,
+                agentColor: drConfig.bubbleColor || '#8b5cf6'
+            });
         }
 
         return res.json({
             ok: true,
-            reply: `同学/家长您好！我是招生咨询顾问 **Dr. Elena**。✨\n\n关于您咨询的“${lastUserMsg}”，您可以向我询问广州大学热门专业录取分数线、四人间宿舍环境配置或学费与资助政策，我会随时为您解答！`,
+            reply: `同学/家长您好！我是招生咨询顾问 **${drConfig.name || 'Dr. Elena'}**。✨\n\n关于您咨询的“${lastUserMsg}”，您可以向我询问广州大学热门专业录取分数线、四人间宿舍环境配置或学费与资助政策，我会随时为您解答！`,
             source: 'local-fallback',
-            mode: advisorMode
+            mode: advisorMode,
+            agentKey: 'dr',
+            agentName: drConfig.name || 'Dr. Elena',
+            agentTitle: drConfig.title || '首席招生咨询顾问',
+            agentAvatar: drConfig.avatar,
+            agentColor: drConfig.bubbleColor || '#8b5cf6'
         });
     }
 

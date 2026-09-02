@@ -7,7 +7,7 @@ export const THEME = {
 
 export const ROLE = {
     name: 'Dr. Elena',
-    title: '招生咨询顾问',
-    avatar: "https://images.unsplash.com/photo-1559839734-2b71ea197ec2?q=80&w=200&auto=format&fit=crop",
-    color: "#a494e8"
+    title: '首席招生咨询顾问',
+    avatar: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?q=80&w=400&auto=format&fit=crop",
+    color: "#8b5cf6"
 };
