@@ -136,7 +136,7 @@ export const BubbleThemeModal: React.FC<BubbleThemeModalProps> = ({
                                                 }
                                             >
                                                 <span className="font-bold text-purple-600 block text-[9px]">Dr. Elena</span>
-                                                宿舍单路严格限电 800W 哦！
+                                                宿舍严格限电 4000W 哦！
                                             </div>
                                         </div>
                                     </div>

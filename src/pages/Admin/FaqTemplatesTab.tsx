@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import {
     Zap, Plus, Search, Filter, Edit3, Trash2, Sparkles, Check, AlertCircle,
-    HelpCircle, ChevronDown, ChevronUp, Clock, Flame, ArrowRight, Play, RefreshCw, Eye
+    HelpCircle, ChevronDown, ChevronUp, Clock, Flame, ArrowRight, Play, RefreshCw, Eye,
+    Upload, Image as ImageIcon, Link
 } from 'lucide-react';
 import { API_BASE } from '../../api/config';
 import { MarkdownViewer } from '../../components/ui/MarkdownViewer';
@@ -32,6 +33,8 @@ export const FaqTemplatesTab: React.FC = () => {
     const [saving, setSaving] = useState(false);
     const [aiExpanding, setAiExpanding] = useState(false);
     const [newSimilarQuery, setNewSimilarQuery] = useState('');
+    const [manualImageUrl, setManualImageUrl] = useState('');
+    const [uploadingImages, setUploadingImages] = useState(false);
 
     // Tester state
     const [testQuery, setTestQuery] = useState('请问大学城宿舍有独立的卫生间和空调吗？');
@@ -81,14 +84,20 @@ export const FaqTemplatesTab: React.FC = () => {
             similarQueries: [],
             category: '生活设施',
             tags: ['生活'],
-            answer: ''
+            answer: '',
+            imageAttachments: []
         });
+        setManualImageUrl('');
         setIsEditModalOpen(true);
     };
 
     const handleOpenEdit = (item: FaqTemplate) => {
         setIsNew(false);
-        setEditingItem({ ...item });
+        setEditingItem({
+            ...item,
+            imageAttachments: Array.isArray(item.imageAttachments) ? [...item.imageAttachments] : []
+        });
+        setManualImageUrl('');
         setIsEditModalOpen(true);
     };
 
@@ -202,6 +211,72 @@ export const FaqTemplatesTab: React.FC = () => {
         setEditingItem({
             ...editingItem,
             similarQueries: (editingItem.similarQueries || []).filter(s => s !== chip)
+        });
+    };
+
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = e.target.files;
+        if (!files || files.length === 0 || !editingItem) return;
+
+        setUploadingImages(true);
+        try {
+            const uploaded: Array<{ name: string; url: string }> = [];
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                const base64Data = await new Promise<string>((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = () => resolve(reader.result as string);
+                    reader.onerror = reject;
+                    reader.readAsDataURL(file);
+                });
+
+                const res = await fetch(`${API_BASE}/api/admin/upload-image`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ base64Data, filename: file.name })
+                });
+                const data = await res.json();
+                if (data.ok && data.attachment) {
+                    uploaded.push({
+                        name: data.attachment.name || file.name,
+                        url: data.attachment.url
+                    });
+                }
+            }
+
+            if (uploaded.length > 0) {
+                setEditingItem({
+                    ...editingItem,
+                    imageAttachments: [...(editingItem.imageAttachments || []), ...uploaded]
+                });
+            }
+        } catch (err: any) {
+            alert(`图片上传出错: ${err.message}`);
+        } finally {
+            setUploadingImages(false);
+            e.target.value = '';
+        }
+    };
+
+    const handleAddManualImage = () => {
+        if (!manualImageUrl.trim() || !editingItem) return;
+        const trimmed = manualImageUrl.trim();
+        const newImg = {
+            name: `外链图片_${(editingItem.imageAttachments?.length || 0) + 1}`,
+            url: trimmed
+        };
+        setEditingItem({
+            ...editingItem,
+            imageAttachments: [...(editingItem.imageAttachments || []), newImg]
+        });
+        setManualImageUrl('');
+    };
+
+    const handleRemoveImage = (index: number) => {
+        if (!editingItem) return;
+        setEditingItem({
+            ...editingItem,
+            imageAttachments: (editingItem.imageAttachments || []).filter((_, i) => i !== index)
         });
     };
 
@@ -458,6 +533,30 @@ export const FaqTemplatesTab: React.FC = () => {
                                     </div>
                                 )}
 
+                                {/* Images gallery preview */}
+                                {Array.isArray(template.imageAttachments) && template.imageAttachments.length > 0 && (
+                                    <div className="flex items-center gap-2 pt-0.5 flex-wrap">
+                                        <span className="px-2 py-0.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-[10.5px] font-bold flex items-center gap-1">
+                                            <ImageIcon size={12} />
+                                            <span>{template.imageAttachments.length} 张图片</span>
+                                        </span>
+                                        <div className="flex items-center gap-2 overflow-x-auto py-1">
+                                            {template.imageAttachments.map((img, idx) => (
+                                                <a
+                                                    key={idx}
+                                                    href={img.url}
+                                                    target="_blank"
+                                                    rel="noreferrer"
+                                                    className="w-12 h-12 rounded-xl overflow-hidden border border-amber-200 bg-white hover:border-amber-400 hover:scale-105 transition-all block shrink-0 shadow-2xs"
+                                                    title={img.name || '点击查看完整大图'}
+                                                >
+                                                    <img src={img.url} alt={img.name} className="w-full h-full object-cover" />
+                                                </a>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
                                 {/* Markdown Answer Preview (Collapsible) */}
                                 <div className="space-y-1.5">
                                     <div className="flex items-center justify-between">
@@ -631,6 +730,105 @@ export const FaqTemplatesTab: React.FC = () => {
                                     </div>
                                 </div>
                             )}
+
+                            {/* Image Attachments Section (支持多张图片添加) */}
+                            <div className="space-y-3 p-4 rounded-2xl bg-amber-50/40 border border-amber-200/80">
+                                <div className="flex items-center justify-between flex-wrap gap-2">
+                                    <label className="text-xs font-bold text-gray-800 flex items-center gap-1.5">
+                                        <ImageIcon size={14} className="text-amber-600" />
+                                        <span>解答图片附件 (可添加多张图片)</span>
+                                        <span className="text-[11px] font-normal text-gray-500">
+                                            ({editingItem.imageAttachments?.length || 0} 张)
+                                        </span>
+                                    </label>
+
+                                    {/* Upload Button for local files (multiple) */}
+                                    <label className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-[11px] flex items-center gap-1 shadow-xs transition-all cursor-pointer">
+                                        <Upload size={13} className={uploadingImages ? 'animate-bounce' : ''} />
+                                        <span>{uploadingImages ? '上传中...' : '上传本地图片 (支持多选)'}</span>
+                                        <input
+                                            type="file"
+                                            multiple
+                                            accept="image/*"
+                                            onChange={handleFileUpload}
+                                            disabled={uploadingImages}
+                                            className="hidden"
+                                        />
+                                    </label>
+                                </div>
+
+                                {/* URL input for pasting external image link */}
+                                <div className="flex items-center gap-2">
+                                    <div className="relative flex-1">
+                                        <Link size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                                        <input
+                                            type="text"
+                                            value={manualImageUrl}
+                                            onChange={(e) => setManualImageUrl(e.target.value)}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') {
+                                                    e.preventDefault();
+                                                    handleAddManualImage();
+                                                }
+                                            }}
+                                            placeholder="或输入图片外链 URL (如 https://... 或本地 /uploads/...)，按 Enter 添加"
+                                            className="w-full pl-8 pr-3 py-1.5 rounded-xl bg-white border border-amber-200 text-xs text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-amber-300"
+                                        />
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={handleAddManualImage}
+                                        disabled={!manualImageUrl.trim()}
+                                        className="px-3 py-1.5 rounded-xl bg-white hover:bg-amber-100 border border-amber-300 text-amber-800 font-bold text-xs cursor-pointer disabled:opacity-40 transition-colors shrink-0"
+                                    >
+                                        添加外链
+                                    </button>
+                                </div>
+
+                                {/* Image Previews Gallery */}
+                                {Array.isArray(editingItem.imageAttachments) && editingItem.imageAttachments.length > 0 ? (
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 pt-1">
+                                        {editingItem.imageAttachments.map((img, idx) => (
+                                            <div key={idx} className="relative group rounded-xl overflow-hidden border border-amber-200 bg-white shadow-xs aspect-video flex items-center justify-center">
+                                                <img
+                                                    src={img.url}
+                                                    alt={img.name || `附件_${idx + 1}`}
+                                                    className="w-full h-full object-cover"
+                                                    onError={(e) => {
+                                                        (e.target as HTMLImageElement).src = 'https://placehold.co/300x200?text=Image+Load+Error';
+                                                    }}
+                                                />
+                                                <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 p-1">
+                                                    <a
+                                                        href={img.url}
+                                                        target="_blank"
+                                                        rel="noreferrer"
+                                                        className="p-1.5 rounded-lg bg-white/20 hover:bg-white/40 text-white text-[11px] font-bold"
+                                                        title="查看大图"
+                                                    >
+                                                        <Eye size={13} />
+                                                    </a>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleRemoveImage(idx)}
+                                                        className="p-1.5 rounded-lg bg-red-500/80 hover:bg-red-600 text-white cursor-pointer"
+                                                        title="移除此图片"
+                                                    >
+                                                        <Trash2 size={13} />
+                                                    </button>
+                                                </div>
+                                                <span className="absolute bottom-1 left-1 right-1 text-[9.5px] px-1 py-0.5 rounded bg-black/60 text-white truncate text-center pointer-events-none">
+                                                    {img.name || `图片 ${idx + 1}`}
+                                                </span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <p className="text-[11px] text-gray-400 bg-white/60 p-2.5 rounded-xl text-center border border-dashed border-amber-200">
+                                        暂无图片附件。支持上传或粘贴多张图片（如宿舍环境图、录取分数线表格、校历表样图等）。
+                                    </p>
+                                )}
+                            </div>
 
                             <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-100">
                                 <button

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Clock, Sparkles, Building2, HelpCircle, MessageSquare, Compass, ShieldAlert, GraduationCap, Coffee, ArrowUpRight, Cpu, Zap } from 'lucide-react';
+import { Clock, Sparkles, Building2, HelpCircle, MessageSquare, Compass, ShieldAlert, GraduationCap, Coffee, ArrowUpRight, Cpu, Zap, RefreshCw } from 'lucide-react';
 import { User, UserProfile, ChatSession, ChatMessage, ChatMode, MultiAgentRoster, ChatAttachment, BubbleThemeId, BubbleCustomSettings, ApiDiagnostics, AdvisorMode, MarkdownStyleId, CampusLocation } from '../../types';
 import { THEME, ROLE } from '../../constants/theme';
 import { INITIAL_MESSAGES } from '../../constants/initialMessages';
@@ -649,12 +649,39 @@ export const ChatPage: React.FC<ChatPageProps> = ({ currentUser, onLogout, onSwi
         handleSend(undefined, queryText, []);
     };
 
-    const quickAdmissionsPrompts = [
+    const [quickAdmissionsPrompts, setQuickAdmissionsPrompts] = useState<string[]>([
         '广州大学历年各省录取分数线与排位',
         '计算机与人工智能专业就业前景如何？',
         '学校宿舍生活环境与4人间配置',
         '学费收费标准与新生卓越奖学金'
-    ];
+    ]);
+    const [faqTemplatesList, setFaqTemplatesList] = useState<any[]>([]);
+
+    const refreshRandomPrompts = (templates: any[]) => {
+        if (!templates || templates.length === 0) return;
+        const candidateQuestions = templates
+            .map(t => t.standardQuestion || (t.similarQueries && t.similarQueries[0]))
+            .filter(Boolean);
+        if (candidateQuestions.length === 0) return;
+        const shuffled = [...candidateQuestions].sort(() => 0.5 - Math.random());
+        setQuickAdmissionsPrompts(shuffled.slice(0, 4));
+    };
+
+    useEffect(() => {
+        const fetchFaqTemplates = async () => {
+            try {
+                const res = await fetch(`${API_BASE}/api/faq-templates`);
+                const data = await res.json();
+                if (data.ok && Array.isArray(data.data) && data.data.length > 0) {
+                    setFaqTemplatesList(data.data);
+                    refreshRandomPrompts(data.data);
+                }
+            } catch (err) {
+                console.warn('Failed to load FAQ templates for prompt suggestions:', err);
+            }
+        };
+        fetchFaqTemplates();
+    }, []);
 
     const handleOpenDiagnostics = () => {
         if (latestDiagnostics) {
@@ -815,8 +842,21 @@ export const ChatPage: React.FC<ChatPageProps> = ({ currentUser, onLogout, onSwi
 
                                 {/* Quick Clickable Prompt Suggestions (2x2 Grid 磁贴排布) */}
                                 <div className="w-full max-w-xl pt-2 space-y-2 text-left">
-                                    <div className="text-[11px] font-bold text-[#a494e8] px-1 flex items-center gap-1">
-                                        <HelpCircle size={12} /> 推荐快捷咨询：
+                                    <div className="text-[11px] font-bold text-[#a494e8] px-1 flex items-center justify-between">
+                                        <span className="flex items-center gap-1">
+                                            <HelpCircle size={12} /> 推荐快捷咨询：
+                                        </span>
+                                        {faqTemplatesList.length > 0 && (
+                                            <button
+                                                type="button"
+                                                onClick={() => refreshRandomPrompts(faqTemplatesList)}
+                                                className="text-[11px] text-purple-600 hover:text-purple-800 flex items-center gap-1 font-bold cursor-pointer transition-colors"
+                                                title="换一批推荐问题"
+                                            >
+                                                <RefreshCw size={11} />
+                                                <span>换一批</span>
+                                            </button>
+                                        )}
                                     </div>
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                                         {quickAdmissionsPrompts.map((q, idx) => (

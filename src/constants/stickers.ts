@@ -94,9 +94,9 @@ export const CAMPUS_STICKERS: Record<string, CampusSticker> = {
     'gzu_fire': {
         id: 'gzu_fire',
         code: '[sticker:gzu_fire]',
-        name: '800W警告',
+        name: '4000W警告',
         emoji: '⚡',
-        tagline: '单路限电 800W 红线已踩！跳闸请联系楼下阿姨！',
+        tagline: '宿舍限电 4000W 红线已踩！跳闸请联系宿管阿姨！',
         character: '宿管张阿姨',
         avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?q=80&w=200&auto=format&fit=crop',
         bgGradient: 'from-yellow-400 via-amber-500 to-red-600',

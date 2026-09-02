@@ -15,6 +15,7 @@ import ragRouter from './routes/rag.mjs';
 import adminRouter, { loadCampusMapData, loadAgentConfig } from './routes/admin.mjs';
 import syncRouter from './routes/sync.mjs';
 import { loadTtsConfig, synthesizeTTS, MSEDGE_PRESET_VOICES } from './services/ttsService.mjs';
+import { loadFaqTemplates } from './services/faqTemplateEngine.mjs';
 
 export const createApp = () => {
     const app = express();
@@ -67,6 +68,11 @@ export const createApp = () => {
     app.get('/api/tts-config', (_req, res) => {
         const data = loadTtsConfig();
         res.json({ ok: true, data, presetVoices: MSEDGE_PRESET_VOICES });
+    });
+
+    app.get('/api/faq-templates', (_req, res) => {
+        const templates = loadFaqTemplates();
+        res.json({ ok: true, data: templates, total: templates.length });
     });
 
     app.post('/api/tts/synthesize', async (req, res) => {

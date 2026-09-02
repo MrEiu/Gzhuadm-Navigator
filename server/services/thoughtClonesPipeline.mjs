@@ -270,19 +270,32 @@ export const executeAgentThoughtPipeline = async ({ username, userProfile, incom
 
     console.log(`🧠 [Thought Clones Pipeline] Active Roles: [${activeRoleIds.join(', ')}] | WebSearch: ${shouldRunWebSearch ? 'Active' : 'Skipped'}`);
 
-    // 3. 【同层并发执行】：本地 RAG + 思维分身推演 + (可选) 联网搜索
-    const [ragMatches, cloneThoughts, webResults] = await Promise.all([
-        // 任务 A: 本地 RAG 事实检索
+    // 3. 【同层高并发执行】：FAQ 黄金标准问答 + 本地 RAG + 思维分身推演 + (可选) 联网搜索
+    const [faqMatch, ragMatches, cloneThoughts, webResults] = await Promise.all([
+        // 任务 A: FAQ 黄金标准模板快速判定
+        matchFaqTemplate(lastUserMsg).catch(() => ({ matched: false })),
+
+        // 任务 B: 本地 RAG 事实检索
         searchRagEngine(lastUserMsg, 3),
 
-        // 任务 B: 并发运行选中的思维分身
+        // 任务 C: 并发运行选中的思维分身
         Promise.all(activeRoleIds.map(roleId => runThoughtClone({ roleId, userQuery: lastUserMsg, userProfile }))),
 
-        // 任务 C: 联网搜索 (可选)
+        // 任务 D: 联网搜索 (可选)
         shouldRunWebSearch ? withTimeout(performWebSearch(lastUserMsg, 3), 2500, []) : Promise.resolve(null)
     ]);
 
     // 4. 构建 Synthesizer 聚合提示词
+    let faqContext = '';
+    let faqImages = [];
+    if (faqMatch && faqMatch.matched && faqMatch.template) {
+        const t = faqMatch.template;
+        faqContext = `\n【🌟 校方最高优先级核准标准问答 (FAQ Golden Standard)】：\n* 标准问题：${t.standardQuestion}\n* 官方核准权威标准解答：\n${t.answer}\n`;
+        if (Array.isArray(t.imageAttachments) && t.imageAttachments.length > 0) {
+            faqImages = t.imageAttachments;
+        }
+    }
+
     const ragContext = formatRagContext(ragMatches);
     const profileText = userProfile ? `\n【咨询考生画像】：姓名${userProfile.name || username || '同学'}，省份${userProfile.province || '未填'}，高考分${userProfile.score || '未填'}分，全省排位${userProfile.rank ? `第${userProfile.rank}名` : '未填'}，选科${userProfile.subjects || '未填'}。` : '';
 
@@ -303,18 +316,20 @@ export const executeAgentThoughtPipeline = async ({ username, userProfile, incom
 1. **第一句话直击靶心，正面回答**：
    - 考生的核心提问是：【${lastUserMsg}】；
    - 你的第一句话必须直接、明确地给出核心结论或确切答案，绝不绕弯子、绝不答非所问；
-2. **分身观点作为内生支撑，严禁机械罗列**：
-   - 思维分身的研判仅作为你回答该问题的“后台论据库”，严禁写成“风控审查员说...就业分析师说...”这种机械报菜名形式；
-   - 必须以你 Dr. Elena 自己的权威亲切口吻，将多维洞察融会贯通为一段连贯、扎实、令人信服的专业指导；
+2. **权威事实标准与分身观点融会贯通**：
+   - 若提供了【🌟 校方最高优先级核准标准问答 (FAQ Golden Standard)】，其内容为校方逐字核准的最高事实基准，必须以其准确数据与规定为解答基石；
+   - 思维分身的研判作为你回答该问题的“后台论据库”，严禁机械报菜名（不要写成“风控审查员说...就业分析师说...”）；
+   - 必须以你 Dr. Elena 自己的权威亲切口吻，将权威数据与多维洞察融会贯通为一段连贯、扎实、令人信服的专业指导；
 3. **自适应详略收敛**：
-   - 若考生仅询问单一事实（如学费、宿舍几人间、上床下桌、校区分布）：直接基于权威数据给结论，100字内干脆利落答完；
+   - 若考生仅询问单一事实（如学费、宿舍几人间、上床下桌、校区分布）：直接基于权威数据给结论，干脆利落答完；
    - 若考生询问志愿推演、专业抉择或复合决策问题：自然融合多维视角，分层给出有前瞻性且可落地的建议；
 4. **语言自然亲切、富有同理心**：
    - 彻底摆脱机械死板的 AI 腔调，像一位坐在考生对面、既懂全套招生政策又真心为考生前途着想的亲切长辈/资深学长；
    - 关键数据加粗，排版清晰美观，适度给予暖心鼓励。
 
 ${profileText}
-${ragContext ? `\n【校方权威参考资料】：\n${ragContext}` : ''}
+${faqContext}
+${ragContext ? `\n【校方权威参考资料 (RAG)】：\n${ragContext}` : ''}
 ${clonesContext}
 ${webContext}`;
 
@@ -346,6 +361,14 @@ ${webContext}`;
         finalReply = response.choices?.[0]?.message?.content || finalReply;
     }
 
+    // 若命中了 FAQ 附带权威图片，且正文中尚未包含，则平滑自动追加
+    if (faqImages && faqImages.length > 0) {
+        const missingImgs = faqImages.filter(img => !finalReply.includes(img.url));
+        if (missingImgs.length > 0) {
+            finalReply += '\n\n' + missingImgs.map(img => `![${img.name || '参考图解'}](${img.url})`).join('\n');
+        }
+    }
+
     const totalLatencyMs = Date.now() - startTime;
     const agents = loadAgentsConfig();
     const drConfig = agents.dr || {};
@@ -367,7 +390,10 @@ ${webContext}`;
             timestamp: new Date().toISOString(),
             mode: 'agent',
             targetAgent: { key: 'dr', name: 'Dr. Elena', title: '招生首席顾问 (思维分身协同)', color: '#a494e8' },
-            routingDecision: { type: '同层并发多思维分身推演', details: `调度分身: ${cloneThoughts.map(c => c.name).join(', ')}` },
+            routingDecision: {
+                type: '同层并发多思维分身推演',
+                details: `调度分身: ${cloneThoughts.map(c => c.name).join(', ')}${faqMatch?.matched ? ' + 融入官方FAQ标准基准' : ''}`
+            },
             requestPayload: {
                 model: defaultModel || 'deepseek-chat',
                 protocol: 'chat_completions',
@@ -377,6 +403,11 @@ ${webContext}`;
                 totalLatencyMs,
                 estimatedTotalTokens: Math.round((finalReply.length + lastUserMsg.length) / 3)
             },
+            faqMatch: faqMatch?.matched && faqMatch?.template ? {
+                id: faqMatch.template.id,
+                standardQuestion: faqMatch.template.standardQuestion,
+                score: faqMatch.score
+            } : null,
             ragRetrieval: {
                 query: lastUserMsg,
                 retrievedCount: ragMatches?.length || 0,
