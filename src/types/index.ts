@@ -23,6 +23,7 @@ export interface UserProfile {
     specialConditions?: string;
     avatar?: string;
     notes?: string;
+    neverPromptAgain?: boolean;
 }
 
 export interface RagItem {

@@ -12,8 +12,10 @@ interface UserProfileModalProps {
     currentUser: User | null;
     isOpen: boolean;
     initialTab?: 'profile' | 'account';
+    isOnboarding?: boolean;
     onClose: () => void;
     onSave: (formData: UserProfile) => void;
+    onDismissNeverPrompt?: () => void;
 }
 
 export const UserProfileModal: React.FC<UserProfileModalProps> = ({
@@ -21,8 +23,10 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
     currentUser,
     isOpen,
     initialTab = 'profile',
+    isOnboarding = false,
     onClose,
-    onSave
+    onSave,
+    onDismissNeverPrompt
 }) => {
     const [activeTab, setActiveTab] = useState<'profile' | 'account'>(initialTab);
     const [formData, setFormData] = useState<UserProfile>({
@@ -102,6 +106,10 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
 
     if (!isOpen) return null;
 
+    const isProfileFilled = Boolean(profile?.name && profile?.score && profile?.province);
+    // 关键细节：仅当处于新人引导且之前尚未填完资料时显示“不再提示”；填完保存后再次打开绝不显示该按钮
+    const showNeverPromptBtn = Boolean(isOnboarding && !isProfileFilled && onDismissNeverPrompt);
+
     // 保存高考个人资料
     const handleProfileSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -109,7 +117,11 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
             alert('请完整填写考生昵称、省份和高考分数！');
             return;
         }
-        onSave(formData);
+        onSave({
+            ...formData,
+            neverPromptAgain: true
+        });
+        onClose();
     };
 
     // 保存头像更新
@@ -261,25 +273,40 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                     </button>
                 </div>
 
-                {/* Tab Switcher: 个人资料 vs 账号设置 */}
-                <div className="flex bg-[#f0ebf8] p-1 rounded-2xl text-[13px] font-bold">
-                    <button
-                        type="button"
-                        onClick={() => setActiveTab('profile')}
-                        className={`flex-1 py-2 sm:py-2.5 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 sm:gap-2 ${activeTab === 'profile' ? 'bg-white text-[#4a4365] shadow-xs' : 'text-[#8a84a4]'
-                            }`}
-                    >
-                        <UserIcon size={15} /> 个人资料
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => setActiveTab('account')}
-                        className={`flex-1 py-2 sm:py-2.5 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 sm:gap-2 ${activeTab === 'account' ? 'bg-white text-[#4a4365] shadow-xs' : 'text-[#8a84a4]'
-                            }`}
-                    >
-                        <Settings size={15} /> 账号设置
-                    </button>
-                </div>
+                {/* 新人引导欢迎提示卡 */}
+                {isOnboarding && (
+                    <div className="bg-gradient-to-r from-purple-50 via-indigo-50/70 to-purple-50 border border-purple-200/80 p-3 sm:p-3.5 rounded-2xl flex items-center gap-3 text-[#4a4365] text-[12px] shadow-2xs animate-in fade-in duration-200">
+                        <div className="w-8 h-8 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center shrink-0 shadow-2xs">
+                            <Sparkles size={16} className="text-purple-600 animate-pulse" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                            <div className="font-bold text-[12.5px] text-purple-950">欢迎新同学！请先完善你的高考档案</div>
+                            <div className="text-[11px] text-[#7a7398] mt-0.5">填写真实省份、高考总分与选科，智能体顾问与推演引擎将为你进行精准的录取概率推演与专业指导。</div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Tab Switcher: 仅在非新人引导或主动设置时展示 */}
+                {!isOnboarding && (
+                    <div className="flex bg-[#f0ebf8] p-1 rounded-2xl text-[13px] font-bold">
+                        <button
+                            type="button"
+                            onClick={() => setActiveTab('profile')}
+                            className={`flex-1 py-2 sm:py-2.5 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 sm:gap-2 ${activeTab === 'profile' ? 'bg-white text-[#4a4365] shadow-xs' : 'text-[#8a84a4]'
+                                }`}
+                        >
+                            <UserIcon size={15} /> 个人资料
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setActiveTab('account')}
+                            className={`flex-1 py-2 sm:py-2.5 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 sm:gap-2 ${activeTab === 'account' ? 'bg-white text-[#4a4365] shadow-xs' : 'text-[#8a84a4]'
+                                }`}
+                        >
+                            <Settings size={15} /> 账号设置
+                        </button>
+                    </div>
+                )}
 
                 {/* ================= TAB 1: 个人资料 (高考背景画像) ================= */}
                 {activeTab === 'profile' && (
@@ -375,20 +402,43 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                             />
                         </div>
 
-                        <div className="pt-2 flex justify-end gap-3">
-                            <button
-                                type="button"
-                                onClick={onClose}
-                                className="px-5 py-2.5 rounded-2xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-[13px] transition-all cursor-pointer"
-                            >
-                                取消
-                            </button>
-                            <button
-                                type="submit"
-                                className="px-6 py-2.5 rounded-2xl bg-[#4a4365] hover:bg-[#3d3753] text-white font-bold text-[13px] shadow-xs transition-all cursor-pointer flex items-center gap-1.5"
-                            >
-                                <Check size={15} /> 保存个人资料
-                            </button>
+                        <div className="pt-2 flex items-center justify-between gap-3">
+                            {showNeverPromptBtn ? (
+                                <button
+                                    type="button"
+                                    onClick={onDismissNeverPrompt}
+                                    className="px-4 py-2.5 rounded-2xl bg-purple-50 hover:bg-purple-100 text-[#7a6ea6] hover:text-purple-900 font-bold text-[12.5px] transition-all cursor-pointer border border-purple-200/60 shadow-2xs"
+                                    title="跳过本次填写且今后不再自动弹出"
+                                >
+                                    不再提示
+                                </button>
+                            ) : (
+                                <button
+                                    type="button"
+                                    onClick={onClose}
+                                    className="px-5 py-2.5 rounded-2xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-[13px] transition-all cursor-pointer"
+                                >
+                                    取消
+                                </button>
+                            )}
+
+                            <div className="flex items-center gap-2">
+                                {showNeverPromptBtn && (
+                                    <button
+                                        type="button"
+                                        onClick={onClose}
+                                        className="px-4 py-2.5 rounded-2xl bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold text-[12.5px] transition-all cursor-pointer"
+                                    >
+                                        本次跳过
+                                    </button>
+                                )}
+                                <button
+                                    type="submit"
+                                    className="px-6 py-2.5 rounded-2xl bg-[#4a4365] hover:bg-[#3d3753] text-white font-bold text-[13px] shadow-xs transition-all cursor-pointer flex items-center gap-1.5"
+                                >
+                                    <Check size={15} /> 保存个人资料
+                                </button>
+                            </div>
                         </div>
                     </form>
                 )}

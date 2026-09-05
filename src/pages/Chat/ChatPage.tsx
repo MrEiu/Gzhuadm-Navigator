@@ -98,6 +98,7 @@ export const ChatPage: React.FC<ChatPageProps> = ({ currentUser, onLogout, onSwi
 
     const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
     const [profileModalTab, setProfileModalTab] = useState<'profile' | 'account'>('profile');
+    const [isProfileOnboarding, setIsProfileOnboarding] = useState(false);
 
     // --- Admin Error Modal States ---
     const [adminErrorInfo, setAdminErrorInfo] = useState<AdminErrorInfo | null>(null);
@@ -123,14 +124,61 @@ export const ChatPage: React.FC<ChatPageProps> = ({ currentUser, onLogout, onSwi
 
     const handleOpenProfileModal = (tab: 'profile' | 'account' = 'profile') => {
         setProfileModalTab(tab);
+        setIsProfileOnboarding(false); // 用户主动从顶部栏点击打开，不属于新手引导，不展示“不再提示”
         setIsProfileModalOpen(true);
     };
 
-    const handleSaveUserProfile = (updatedProfile: UserProfile) => {
-        setUserProfile(updatedProfile);
+    const handleSaveUserProfile = async (updatedProfile: UserProfile) => {
+        const username = currentUser.username;
+        const finalProfile = {
+            ...updatedProfile,
+            neverPromptAgain: true
+        };
+        setUserProfile(finalProfile);
         try {
-            localStorage.setItem(`aurasense_profile_${currentUser.username}`, JSON.stringify(updatedProfile));
+            localStorage.setItem(`aurasense_profile_${username}`, JSON.stringify(finalProfile));
+            localStorage.setItem(`gzadm_profile_dismissed_${username}`, 'true');
         } catch { }
+
+        try {
+            await fetch(`${API_BASE}/api/user/profile`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, profile: finalProfile })
+            });
+        } catch (e) {
+            console.warn('Profile sync error:', e);
+        }
+        setIsProfileModalOpen(false);
+        setIsProfileOnboarding(false);
+    };
+
+    const handleDismissNeverPrompt = async () => {
+        const username = currentUser.username;
+        try {
+            localStorage.setItem(`gzadm_profile_dismissed_${username}`, 'true');
+        } catch { }
+
+        const updated = {
+            ...(userProfile || {}),
+            neverPromptAgain: true
+        };
+        setUserProfile(updated);
+        try {
+            localStorage.setItem(`aurasense_profile_${username}`, JSON.stringify(updated));
+        } catch { }
+
+        try {
+            await fetch(`${API_BASE}/api/user/profile`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, profile: updated })
+            });
+        } catch (e) {
+            console.warn('Profile neverPromptAgain sync error:', e);
+        }
+        setIsProfileModalOpen(false);
+        setIsProfileOnboarding(false);
     };
 
     // --- Advisor Roster State (实时同步后端配置，无前端死值) ---
@@ -264,7 +312,14 @@ export const ChatPage: React.FC<ChatPageProps> = ({ currentUser, onLogout, onSwi
                 if (data.ok && data.profile) {
                     setUserProfile(data.profile);
                     localStorage.setItem(`aurasense_profile_${username}`, JSON.stringify(data.profile));
-                    if (!data.profile.name || !data.profile.score || !data.profile.province) {
+
+                    const isDismissed = localStorage.getItem(`gzadm_profile_dismissed_${username}`) === 'true' || Boolean(data.profile.neverPromptAgain);
+                    const isProfileComplete = Boolean(data.profile.name && data.profile.score && data.profile.province);
+
+                    // 仅当用户为普通考生，且未选择过“不再提示”、且核心高考资料尚未填写时，自动弹出新人资料向导
+                    if (!isDismissed && !isProfileComplete && currentUser.role === 'user') {
+                        setIsProfileOnboarding(true);
+                        setProfileModalTab('profile');
                         setIsProfileModalOpen(true);
                     }
                 }
@@ -1008,8 +1063,13 @@ export const ChatPage: React.FC<ChatPageProps> = ({ currentUser, onLogout, onSwi
                 currentUser={currentUser}
                 isOpen={isProfileModalOpen}
                 initialTab={profileModalTab}
-                onClose={() => setIsProfileModalOpen(false)}
+                isOnboarding={isProfileOnboarding}
+                onClose={() => {
+                    setIsProfileModalOpen(false);
+                    setIsProfileOnboarding(false);
+                }}
                 onSave={handleSaveUserProfile}
+                onDismissNeverPrompt={handleDismissNeverPrompt}
             />
 
             {/* Admin API Diagnostics Slide-over Drawer */}
