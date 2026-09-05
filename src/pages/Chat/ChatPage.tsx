@@ -963,6 +963,25 @@ export const ChatPage: React.FC<ChatPageProps> = ({ currentUser, onLogout, onSwi
                         advisorMode={advisorMode}
                         onChangeAdvisorMode={handleAdvisorModeChange}
                     />
+
+                    {/* 校园导览边缘折叠小细条入口 (贴边半隐藏，鼠标悬停滑出) */}
+                    {!isMapGuideOpen && (
+                        <button
+                            type="button"
+                            onClick={() => setIsMapGuideOpen(true)}
+                            className="group absolute right-0 top-[45%] -translate-y-1/2 z-30 flex items-center gap-2 pl-2 pr-3.5 py-2.5 bg-white/95 hover:bg-white backdrop-blur-md border border-r-0 border-purple-200/90 shadow-[-4px_6px_20px_rgba(74,67,101,0.14)] hover:shadow-[-6px_8px_24px_rgba(110,80,180,0.22)] rounded-l-2xl transition-all duration-300 ease-out cursor-pointer translate-x-[calc(100%-8px)] hover:translate-x-0 select-none"
+                            title="校园导览"
+                        >
+                            {/* 折叠常态露出的极小细条指示手柄 */}
+                            <div className="w-1.5 h-7 bg-gradient-to-b from-[#a494e8] to-purple-600 rounded-full shrink-0 group-hover:scale-y-110 transition-transform" />
+
+                            {/* 悬停完全滑出时展示的地图图标与标题 */}
+                            <div className="flex items-center gap-1.5 text-[#4a4365] group-hover:text-purple-700 transition-colors whitespace-nowrap text-[12.5px] font-black">
+                                <Compass size={15} className="text-purple-600 animate-spin-slow shrink-0" />
+                                <span>校园导览</span>
+                            </div>
+                        </button>
+                    )}
                 </div>
             </div>
 

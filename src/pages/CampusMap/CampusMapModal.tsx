@@ -191,7 +191,7 @@ export const CampusMapModal: React.FC<CampusMapModalProps> = ({
                         <button
                             onClick={onClose}
                             className="p-1.5 rounded-2xl text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors cursor-pointer border border-transparent hover:border-red-100 md:hidden shrink-0"
-                            title="关闭导览"
+                            title="收起导览"
                         >
                             <X size={18} />
                         </button>
@@ -242,7 +242,7 @@ export const CampusMapModal: React.FC<CampusMapModalProps> = ({
                         <button
                             onClick={onClose}
                             className="hidden md:block p-2 rounded-2xl text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors cursor-pointer border border-transparent hover:border-red-100 ml-1"
-                            title="关闭导览"
+                            title="收起导览"
                         >
                             <X size={18} />
                         </button>
