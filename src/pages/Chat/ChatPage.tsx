@@ -306,25 +306,57 @@ export const ChatPage: React.FC<ChatPageProps> = ({ currentUser, onLogout, onSwi
 
     useEffect(() => {
         const username = currentUser.username;
+
+        // 判定核心高招资料是否填全：考生昵称、高考省份、高考总分（有效数值）均必填
+        const checkIsProfileComplete = (prof: UserProfile | null) => {
+            if (!prof) return false;
+            const hasName = Boolean(prof.name && String(prof.name).trim());
+            const hasProvince = Boolean(prof.province && String(prof.province).trim());
+            const hasScore = prof.score !== undefined && prof.score !== null && String(prof.score).trim() !== '' && Number(prof.score) > 0;
+            return hasName && hasProvince && hasScore;
+        };
+
+        // 判定是否勾选过“不再提示”
+        const checkIsNeverPrompt = (prof: UserProfile | null) => {
+            try {
+                if (localStorage.getItem(`gzadm_profile_dismissed_${username}`) === 'true') return true;
+            } catch { }
+            return Boolean(prof?.neverPromptAgain);
+        };
+
+        const evaluateAndPromptModal = (prof: UserProfile | null) => {
+            if (currentUser.role !== 'user') return;
+            const isComplete = checkIsProfileComplete(prof);
+            const isNeverPrompt = checkIsNeverPrompt(prof);
+
+            // “没填全都要弹，除非点了不再提示”
+            if (!isComplete && !isNeverPrompt) {
+                setIsProfileOnboarding(true);
+                setProfileModalTab('profile');
+                setIsProfileModalOpen(true);
+            }
+        };
+
+        // 1. 挂载时立即执行一次判定（无论是新注册用户还是已有用户本地缓存）
+        evaluateAndPromptModal(userProfile);
+
+        // 2. 从服务端异步拉取最新 profile 进行最终核验
         fetch(`${API_BASE}/api/user/profile?username=${encodeURIComponent(username)}`)
             .then(res => res.json())
             .then(data => {
-                if (data.ok && data.profile) {
-                    setUserProfile(data.profile);
-                    localStorage.setItem(`aurasense_profile_${username}`, JSON.stringify(data.profile));
-
-                    const isDismissed = localStorage.getItem(`gzadm_profile_dismissed_${username}`) === 'true' || Boolean(data.profile.neverPromptAgain);
-                    const isProfileComplete = Boolean(data.profile.name && data.profile.score && data.profile.province);
-
-                    // 仅当用户为普通考生，且未选择过“不再提示”、且核心高考资料尚未填写时，自动弹出新人资料向导
-                    if (!isDismissed && !isProfileComplete && currentUser.role === 'user') {
-                        setIsProfileOnboarding(true);
-                        setProfileModalTab('profile');
-                        setIsProfileModalOpen(true);
-                    }
+                const fetchedProfile = (data.ok && data.profile) ? data.profile : null;
+                if (fetchedProfile) {
+                    setUserProfile(fetchedProfile);
+                    try {
+                        localStorage.setItem(`aurasense_profile_${username}`, JSON.stringify(fetchedProfile));
+                    } catch { }
                 }
+                // 无论 fetchedProfile 是对象还是 null (新注册用户)，都必须触发核验！
+                evaluateAndPromptModal(fetchedProfile || userProfile);
             })
-            .catch(() => { });
+            .catch(() => {
+                evaluateAndPromptModal(userProfile);
+            });
 
         const syncAgentsFromServer = () => {
             fetch(`${API_BASE}/api/agents-config`)
